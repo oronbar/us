@@ -1,0 +1,4 @@
+[submodule "Deep-learning-echocardiogram-view-classification"]
+	path = Deep-learning-echocardiogram-view-classification
+	url = git@github.com:Idodox/Deep-learning-echocardiogram-view-classification.git
+	branch = master
