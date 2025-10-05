@@ -2,8 +2,8 @@
 VVI XML preprocessing pipeline
 --------------------------------
 Parses Siemens VVI SpreadsheetML XML files for strain analysis and builds a
-patient-visit dataset with epicardium/endocardium curves, their difference
-(Endo - Epi), and per-cycle segmentation. Cross-references an Excel registry
+patient-visit dataset with epicardium/endocardium/myocardium curves, their difference
+(Endo - Epi), **GLS from myocardium**, and per-cycle segmentation. Cross-references an Excel registry
 with patient metadata and DICOM filenames to tag each test with view (2C/4C).
 
 Tested on Windows-style paths. Requires: pandas, numpy, lxml, openpyxl, pyarrow
@@ -20,7 +20,7 @@ The resulting Parquet has one row per (patient, study, view, cycle, segment).
 Columns include:
 - short_id, name_initials, parent_folder, study_instance_uid, study_datetime, birth_datetime
 - view ("2C"/"4C"), dicom_file, xml_path, cycle_index, segment (canonical key)
-- time, epi, endo, delta (lists of floats); n_samples
+- time, epi, endo, myo, delta (lists of floats); gls (float), n_samples
 
 Notes:
 - Only Basal/Mid segments are kept; Apical rows are ignored.
@@ -233,6 +233,7 @@ class VVIParseResult:
     time: np.ndarray  # shape [N] (optional; empty if not found)
     epi: Dict[str, np.ndarray]  # canonical segment -> [N]
     endo: Dict[str, np.ndarray]
+    myo: Dict[str, np.ndarray]
     delta: Dict[str, np.ndarray]
 
 
@@ -371,6 +372,30 @@ def align_lengths(base: Optional[np.ndarray], *series_dicts: Dict[str, np.ndarra
     return base_t, out
 
 
+def compute_gls_peak(myo: Dict[str, np.ndarray], a: int, b: int, keep_map: Dict[str, str]) -> Optional[float]:
+    """
+    GLS definition here: **peak (most negative) of the timewise average** across the 4 kept myocardium segments
+    within the cycle slice [a:b]. Returns None if any required segment is missing or lengths mismatch.
+    """
+    seg_keys = list(keep_map.values())
+    seg_arrays = []
+    for k in seg_keys:
+        arr = myo.get(k)
+        if arr is None or len(arr) < (b + 1):
+            logger.warning(f"Missing or short MYO segment '{k}' for GLS computation")
+            return None
+        seg_arrays.append(arr[a : b + 1])
+    if not seg_arrays:
+        return None
+    try:
+        stack = np.vstack(seg_arrays)  # [4, L]
+        avg_curve = stack.mean(axis=0)  # [L]
+        gls = float(avg_curve.min())    # most negative peak (typical GLS definition)
+        return gls
+    except Exception:
+        return None
+
+
 def parse_vvi_xml(xml_path: Path, keep_map: Dict[str, str]) -> Optional[VVIParseResult]:
     try:
         ssml = SpreadsheetML(xml_path)
@@ -382,12 +407,14 @@ def parse_vvi_xml(xml_path: Path, keep_map: Dict[str, str]) -> Optional[VVIParse
     # Fetch sheets (names may have leading spaces). Try exact then tolerant.
     epi_sheet = ssml.get_sheet_table("Strain-Epi") or ssml.get_sheet_table(" Strain-Epi")
     endo_sheet = ssml.get_sheet_table("Strain-Endo") or ssml.get_sheet_table(" Strain-Endo")
-    if epi_sheet is None or endo_sheet is None:
+    myo_sheet = ssml.get_sheet_table("Strain-Myo") or ssml.get_sheet_table(" Strain-Myo")
+    if epi_sheet is None or endo_sheet is None or myo_sheet is None:
         logger.warning(f"Missing required sheets in {xml_path.name} (found: {ssml.list_sheets()})")
         return None
 
     epi_df = epi_sheet.to_dataframe()
     endo_df = endo_sheet.to_dataframe()
+    myo_df = myo_sheet.to_dataframe()
 
     # Extract time row (optional; we keep for reference/QC)
     time_arr = extract_time_row(endo_df)
@@ -395,13 +422,14 @@ def parse_vvi_xml(xml_path: Path, keep_map: Dict[str, str]) -> Optional[VVIParse
     # Extract numeric series per kept segment
     epi = extract_segments_from_sheet(epi_df, keep_map)
     endo = extract_segments_from_sheet(endo_df, keep_map)
+    myo = extract_segments_from_sheet(myo_df, keep_map)
 
-    if not epi or not endo:
+    if not epi or not endo or not myo:
         logger.warning(f"No segment data in {xml_path.name}; skipping.")
         return None
 
-    # Align lengths (trim to common length)
-    time_arr, (epi, endo) = align_lengths(time_arr, epi, endo)
+    # Align lengths (trim to common length across all three layers)
+    time_arr, (epi, endo, myo) = align_lengths(time_arr, epi, endo, myo)
 
     # Compute delta = Endo - Epi
     delta: Dict[str, np.ndarray] = {}
@@ -411,7 +439,14 @@ def parse_vvi_xml(xml_path: Path, keep_map: Dict[str, str]) -> Optional[VVIParse
         else:
             logger.warning(f"Segment missing for delta: {seg}")
 
-    return VVIParseResult(xml_path=xml_path, time=time_arr if time_arr is not None else np.array([]), epi=epi, endo=endo, delta=delta)
+    return VVIParseResult(
+        xml_path=xml_path,
+        time=time_arr if time_arr is not None else np.array([]),
+        epi=epi,
+        endo=endo,
+        myo=myo,
+        delta=delta,
+    )
 
 
 # --------------------------- Registry join --------------------------------
@@ -548,11 +583,14 @@ def build_dataset(
                         parsed.time[a : b + 1].tolist() if parsed.time is not None and parsed.time.size else list(range(b - a + 1))
                     )
                     n = len(t_slice)
+                    # Compute cycle-level GLS once per cycle
+                    gls_val = compute_gls_peak(parsed.myo, a, b, keep_map)
                     for seg in keep_map.values():
                         endo_arr = parsed.endo.get(seg)
                         epi_arr = parsed.epi.get(seg)
+                        myo_arr = parsed.myo.get(seg)
                         delta_arr = parsed.delta.get(seg)
-                        if endo_arr is None or epi_arr is None or delta_arr is None:
+                        if endo_arr is None or epi_arr is None or delta_arr is None or myo_arr is None:
                             continue
                         rec = {
                             "short_id": short_id,
@@ -571,7 +609,9 @@ def build_dataset(
                             "time": t_slice,
                             "endo": endo_arr[a : b + 1].tolist(),
                             "epi": epi_arr[a : b + 1].tolist(),
+                            "myo": myo_arr[a : b + 1].tolist(),
                             "delta": delta_arr[a : b + 1].tolist(),
+                            "gls": gls_val,
                             "n_samples": int(n),
                         }
                         # DICOM full path (useful for QC)
