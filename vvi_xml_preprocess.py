@@ -12,7 +12,7 @@ Usage (PowerShell / cmd):
 
   python vvi_xml_preprocess.py \
     --vvi-dir "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\Anonymous" \
-    --registry-xlsx "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC\\carasso_accs_Report2_with_parents_with_time.xlsx" \
+    --registry-xlsx "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC\\SZMC_report.xlsx" \
     --echo-root "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC" \
     --out-parquet "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet"
 
@@ -666,7 +666,7 @@ def main():
         type=Path,
         required=False,
         default=Path(
-            r"C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC\\carasso_accs_Report2_with_parents_with_time.xlsx"
+            r"C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC\\SZMC_report_oron.xlsx"
         ),
         help="Registry Excel path",
     )
