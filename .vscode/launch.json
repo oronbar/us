@@ -18,12 +18,13 @@
             "program": "patient_conditioned_strain_model.py",
             "console": "integratedTerminal",
             "args": [
-                "--parquet", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
-                "--outdir",  "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\models",
+                "--parquet", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
+                "--outdir",  "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\models",
                 "--stage", "pretrain",
-                "--epochs", "80",               // a bit longer for small data
+                "--epochs", "100",              // a bit longer for small data
                 "--batch", "16",                // modestly larger batch
-                "--logdir", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\tblogs\\pretrain"
+                "--scheduler", "cosine",        // mild LR decay
+                "--logdir", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\tblogs\\pretrain"
             ]
         },
         {
@@ -33,13 +34,13 @@
             "program": "patient_conditioned_strain_model.py",
             "console": "integratedTerminal",
             "args": [
-                "--parquet", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
-                "--outdir",  "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\models",
+                "--parquet", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
+                "--outdir",  "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\models",
                 "--stage", "finetune",
                 "--epochs", "40",               // a bit longer supervised phase
                 "--batch", "16",
-                "--load",  "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\pretrain_best.pt",
-                "--logdir", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\tblogs\\finetune"
+                "--load",  "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\pretrain_best.pt",
+                "--logdir", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\tblogs\\finetune"
             ]
         },
         {
@@ -49,9 +50,9 @@
             "program": "reconstruct_qc.py",
             "console": "integratedTerminal",
             "args": [
-                "--parquet", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
-                "--ckpt",   "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\pretrain_best.pt",
-                "--outdir", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\qc_recon",
+                "--parquet", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
+                "--ckpt",   "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\pretrain_best.pt",
+                "--outdir", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\qc_recon",
                 "--num", "8",
                 "--batch", "4",
                 "--T", "64"
@@ -64,10 +65,10 @@
             "program": "vvi_xml_preprocess.py",
             "console": "integratedTerminal",
             "args": [
-                "--vvi-dir", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\Anonymous",
-                "--registry-xlsx", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC\\SZMC_report_oron.xlsx",
-                "--echo-root", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC",
-                "--out-parquet", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet"
+                "--vvi-dir", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\Anonymous",
+                "--registry-xlsx", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC\\SZMC_report_oron.xlsx",
+                "--echo-root", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC",
+                "--out-parquet", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet"
             ]
         }
     ]

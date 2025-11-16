@@ -453,6 +453,7 @@ def train_stage_a(
     device: torch.device,
     epochs: int = 50,
     lr: float = 1e-3,
+    scheduler: str = "cosine",
     w_mtm: float = 1.0,
     w_recon: float = 1.0,
     w_contrast: float = 0.1,
@@ -462,6 +463,11 @@ def train_stage_a(
 ):
     aug = CurveAug()
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
+    sched = None
+    if scheduler == "cosine":
+        sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+            opt, T_max=epochs, eta_min=lr * 0.1
+        )
     best_val = 1e9
     global_step = global_step_start
     for ep in range(1, epochs + 1):
@@ -535,12 +541,15 @@ def train_stage_a(
             writer.add_scalar("valA/total", vl, ep)
             writer.add_scalar("valA/mtm", v_mtm / max(1, nval), ep)
             writer.add_scalar("valA/recon", v_recon / max(1, nval), ep)
+            writer.add_scalar("trainA/lr", opt.param_groups[0]["lr"], ep)
         print(f"[StageA] Epoch {ep:03d} train={tr:.4f} val={vl:.4f}")
         if outpath is not None and vl < best_val:
             best_val = vl
             outpath.parent.mkdir(parents=True, exist_ok=True)
             torch.save(model.state_dict(), outpath)
-            print(f"  ↳ Saved best StageA to {outpath}")
+            print(f"  -> Saved best StageA to {outpath}")
+        if sched is not None:
+            sched.step()
 
 
 def train_stage_b(
@@ -610,7 +619,7 @@ def train_stage_b(
             best_val = vl
             outpath.parent.mkdir(parents=True, exist_ok=True)
             torch.save(model.state_dict(), outpath)
-            print(f"  ↳ Saved best StageB to {outpath}")
+            print(f"  -> Saved best StageB to {outpath}")
 
 
 # ----------------------------- CLI ----------------------------------------
@@ -620,7 +629,15 @@ def main():
     ap.add_argument("--parquet", type=str, required=True)
     ap.add_argument("--outdir", type=str, required=True)
     ap.add_argument("--stage", type=str, choices=["pretrain", "finetune"], required=True)
-    ap.add_argument("--epochs", type=int, default=50)
+    ap.add_argument("--epochs", type=int, default=100)
+    ap.add_argument("--lr", type=float, default=1e-3, help="Initial learning rate for pretrain")
+    ap.add_argument(
+        "--scheduler",
+        type=str,
+        choices=["none", "cosine"],
+        default="cosine",
+        help="LR scheduler for pretrain",
+    )
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--T", type=int, default=64)
     ap.add_argument("--load", type=str, default=None, help="Path to .pt checkpoint to load")
@@ -665,6 +682,8 @@ def main():
             val_loader,
             device,
             epochs=args.epochs,
+            lr=args.lr,
+            scheduler=args.scheduler,
             outpath=outpath,
             writer=writer,
         )
