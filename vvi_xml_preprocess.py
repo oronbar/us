@@ -657,35 +657,36 @@ def build_dataset(
 # --------------------------- CLI Interface --------------------------------
 
 def main():
+    import os
+    user_home = os.path.expanduser("~")  # Gets user home directory
+    
     p = argparse.ArgumentParser(description="Parse VVI XML strain analyses into a dataset")
     p.add_argument(
         "--vvi-dir",
         type=Path,
         required=False,
-        default=Path(r"C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\Anonymous"),
+        default=Path(user_home) / "OneDrive - Technion" / "DS" / "Tags" / "VVI" / "Anonymous",
         help="Path to VVI Anonymous directory containing <dicom>.dcm subfolders",
     )
     p.add_argument(
         "--registry-xlsx",
         type=Path,
         required=False,
-        default=Path(
-            r"C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC\\SZMC_report_oron.xlsx"
-        ),
+        default=Path(user_home) / "OneDrive - Technion" / "DS" / "Cardio-Onco Echo SZMC" / "SZMC_report_oron.xlsx",
         help="Registry Excel path",
     )
     p.add_argument(
         "--echo-root",
         type=Path,
         required=False,
-        default=Path(r"C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC"),
+        default=Path(user_home) / "OneDrive - Technion" / "DS" / "Cardio-Onco Echo SZMC",
         help="Root directory where DICOMs reside (Parent_folder/Study_UID/<dicom>.dcm)",
     )
     p.add_argument(
         "--out-parquet",
         type=Path,
         required=False,
-        default=Path(r"C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet"),
+        default=Path(user_home) / "OneDrive - Technion" / "DS" / "Tags" / "VVI" / "processed" / "strain_dataset.parquet",
         help="Output Parquet path",
     )
     args = p.parse_args()
