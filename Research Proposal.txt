@@ -1,0 +1,88 @@
+M.Sc. Research Proposal
+
+Title:Echocardiography-Based Early Prediction of Chemotherapy-Related Cardiotoxicity Using Advanced Strain Imaging and Machine Learning
+
+Student: Oron BarazaniAdvisor: Prof. Dan Adam, Faculty of Biomedical Engineering, Technion – Israel Institute of TechnologyDate: [to be added]
+
+Introduction
+
+Cardio-oncology has emerged as a critical interdisciplinary field addressing the adverse cardiovascular effects of cancer therapies. Among these, chemotherapy-induced cardiotoxicity represents one of the most significant challenges, particularly in breast cancer patients, the most prevalent malignancy in women worldwide [1]. Cardiotoxicity often manifests as a decline in left ventricular ejection fraction (LVEF) or subtle changes in myocardial mechanics, potentially leading to irreversible heart failure if not detected early [3].
+
+Current clinical practice relies primarily on echocardiography to monitor cardiac function during treatment due to its accessibility, non-invasiveness, and cost-effectiveness. However, conventional echocardiographic indices, such as LVEF, frequently fail to detect subclinical dysfunction until damage is advanced [1]. Strain imaging, particularly global longitudinal strain (GLS), has emerged as a more sensitive biomarker of early myocardial impairment. Yet, its widespread clinical use remains limited due to variability in acquisition quality, dependence on operator skill, and lack of robust automated analysis tools.
+
+Previous work in our lab demonstrated the power of machine learning–based strain imaging to detect early left ventricular dysfunction in aortic stenosis patients, showing clear advantages over EF and GLS in predictive accuracy [2]. This study highlighted that relying solely on EF is insensitive to minor changes in cardiac function. Building on that experience, the present proposal aims to apply a similar strategy to the domain of chemotherapy-related cardiotoxicity. By using layer-specific strain imaging instead of EF, we aim to establish a more sensitive and reliable method for early detection of subclinical dysfunction in oncology patients.
+
+This proposal therefore builds upon both clinical need and prior laboratory expertise. By leveraging advances in supervised learning and incorporating constraints based on known cardiac physiology, we aim to develop an automated, reproducible, and clinically reliable framework for early detection of CTRCD in breast cancer patients undergoing chemotherapy.
+
+Objective of the Suggested Research
+
+The goal of this research is to develop and validate an echocardiography-based framework for the early prediction of chemotherapy-related cardiotoxicity (CTRCD). Specifically, the project will combine advanced strain imaging with machine learning algorithms to detect subclinical myocardial dysfunction before significant reductions in LVEF occur, enabling timely therapeutic intervention.
+
+Hypothesis
+
+We hypothesize that layer-specific echocardiographic strain analysis, when coupled with supervised machine learning and physiological modeling rules, will provide earlier and more accurate detection of CTRCD compared to conventional indices such as LVEF. This approach will improve prognostic accuracy and support clinical decision-making in breast cancer patients undergoing chemotherapy.
+
+Specific Aims
+
+Collecting data from our partners at Shaare Tzedek Medical Center (SZMC) and Ichilov.
+
+Use Siemens VVI software to extract layer-specific strain curves.
+
+To develop supervised machine learning algorithms (e.g., CNN or hybrid networks) to classify strain curves into normal, pathological, or artefactual categories, while enforcing physiological rules for robustness.
+
+To evaluate the predictive performance of these models for early CTRCD detection using retrospective clinical data.
+
+To validate the framework in collaboration with clinical partners, by comparing model predictions with gold-standard cardiology assessments and ESC cardio-oncology guideline recommendations [1].
+
+Research Plan and Work Plan
+
+Methods and approaches
+
+Data acquisition: Echocardiographic DICOM datasets from clinical collaborators (breast cancer patients undergoing anthracycline or HER2-targeted therapy).
+
+Preprocessing: Automated view classification, segmentation, and extraction of longitudinal strain curves at global and layer-specific levels using Siemens VVI software.
+
+Model development:
+
+Train supervised learning models (CNN, Transformer variants) to classify strain curves.
+
+Incorporate physiological rules to guide the models, such as:
+
+strain curves must follow expected systolic and diastolic phases,
+
+strain values must remain within realistic biological limits,
+
+segmental strain patterns should be consistent across adjacent myocardial regions.
+
+Model evaluation:
+
+Retrospective validation using available echocardiographic data.
+
+Validation using ongoing patient recruitment from a multi-center study at Technion, SZMC, and Ichilov.
+
+Milestones:
+
+Year 1: Data collection with oncology patients, Dataset preparation, baseline model development, retrospective testing.
+
+Year 2: Clinical validation of the machine learning model, and integration into a decision-support prototype for cardiotoxicity risk assessment.
+
+Planned experiments
+
+Comparison of GLS vs. layer-specific strain features for predictive accuracy.
+
+Sensitivity, specificity, and AUC evaluation for CTRCD detection.
+
+Cross-validation against cardiologist assessments following ESC guidelines [1].
+
+Significance
+
+This research has the potential to significantly advance cardio-oncology practice by providing clinicians with an automated, objective, and early-warning tool for chemotherapy-related cardiotoxicity. Early detection of CTRCD could allow timely intervention, reducing the incidence of irreversible heart failure in breast cancer patients [3]. By integrating advanced echocardiographic strain imaging with machine learning, the study addresses limitations of current practice and enhances reproducibility. The approach aligns with international cardio-oncology guidelines [1] and builds directly on prior work from our lab in machine learning–based echocardiographic analysis [2]. Ultimately, the project aims to support personalized, safer cancer therapy while improving patient outcomes.
+
+References
+
+[1] Lyon, A. et al. 2022. ESC Guidelines on cardio-oncology developed in collaboration with the European Hematology Association (EHA), the European Society for Therapeutic Radiology and Oncology (ESTRO) and the International Cardio-Oncology Society (IC-OS). European Heart Journal 43(41), 4229–4361.
+
+[2] Yahav A., Adam D. 2024. Early Detection of Left Ventricular Dysfunction With Machine Learning-Based Strain Imaging in Aortic Stenosis Patients. Echocardiography 41(11):e70007. doi:10.1111/echo.70007.
+
+[3] Thomas M., Suter MSE. 2013. Cancer drugs and the heart: importance and management. European Heart Journal 34(15):1102–1111.
+

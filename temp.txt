@@ -66,7 +66,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-from torch.utils.tensorboard import SummaryWriter
 from sklearn.model_selection import train_test_split
 
 # ----------------------------- Config -------------------------------------
@@ -191,64 +190,29 @@ class StrainParquetDataset(Dataset):
 
 # ----------------------------- Augmentations -------------------------------
 class CurveAug:
-    """
-    Lightweight augmentations to combat data scarcity:
-      - per-sample/segment scaling
-      - small circular time shifts
-      - Gaussian jitter
-      - random time masking (temporal dropout)
-      - optional segment dropout (simulate missing/noisy segments)
-    """
-    def __init__(
-        self,
-        jitter_std: float = 0.01,
-        scale_range: Tuple[float, float] = (0.9, 1.1),
-        warp_max_shift: int = 3,
-        time_mask_frac: float = 0.15,
-        seg_dropout: float = 0.1,
-    ):
+    def __init__(self, jitter_std=0.005, scale_range=(0.95, 1.05), warp_max_shift=2):
         self.jitter_std = jitter_std
         self.scale_range = scale_range
         self.warp_max = warp_max_shift
-        self.time_mask_frac = time_mask_frac
-        self.seg_dropout = seg_dropout
 
     def __call__(self, X: torch.Tensor) -> torch.Tensor:
         # X: [B,S,T] or [S,T]
-        single = False
         if X.dim() == 2:
             X = X.unsqueeze(0)
-            single = True
+            squeeze_back = True
+        else:
+            squeeze_back = False
         B, S, T = X.shape
-
-        # per-segment scaling (helps robustness to gain differences)
-        scales = torch.empty(B, S, 1, device=X.device).uniform_(*self.scale_range)
+        # scaling per sample
+        scales = torch.empty(B, 1, 1, device=X.device).uniform_(*self.scale_range)
         Y = X * scales
-
-        # circular time shift per sample
+        # small circular time shift per sample
+        shifts = torch.randint(low=-self.warp_max, high=self.warp_max + 1, size=(B,), device=X.device)
         if self.warp_max > 0:
-            shifts = torch.randint(low=-self.warp_max, high=self.warp_max + 1, size=(B,), device=X.device)
             Y = torch.stack([torch.roll(Y[i], shifts=int(shifts[i].item()), dims=-1) for i in range(B)], dim=0)
-
-        # time masking: zero-out a small temporal window per sample (simulates dropped frames)
-        win = max(1, int(self.time_mask_frac * T))
-        if win > 0:
-            for i in range(B):
-                start = torch.randint(low=0, high=max(1, T - win), size=(1,), device=X.device).item()
-                Y[i, :, start:start + win] = 0.0
-
-        # optional segment dropout: with prob p, zero one segment per sample
-        if self.seg_dropout > 0:
-            drop_mask = torch.rand(B, device=X.device) < self.seg_dropout
-            if drop_mask.any():
-                seg_ids = torch.randint(low=0, high=S, size=(drop_mask.sum(),), device=X.device)
-                for idx, seg_id in zip(drop_mask.nonzero().flatten(), seg_ids):
-                    Y[int(idx.item()), int(seg_id.item()), :] = 0.0
-
         # Gaussian jitter
         Y = Y + torch.randn_like(Y) * self.jitter_std
-
-        return Y.squeeze(0) if single else Y
+        return Y.squeeze(0) if squeeze_back else Y
 
 
 # ----------------------------- Model --------------------------------------
@@ -281,7 +245,7 @@ class VisitAggregator(nn.Module):
     def __init__(self, d=48, D=64, nheads=4, nlayers=2, n_seg_tokens=4):
         super().__init__()
         self.seg_type_emb = nn.Embedding(16, d)
-        self.view_emb = nn.Embedding(4, D)  # match visit embedding dimension
+        self.view_emb = nn.Embedding(4, d)
         enc = nn.TransformerEncoderLayer(d_model=d, nhead=nheads, batch_first=True)
         self.tr = nn.TransformerEncoder(enc, num_layers=nlayers)
         self.proj = nn.Linear(d, D)
@@ -457,16 +421,13 @@ def train_stage_a(
     w_recon: float = 1.0,
     w_contrast: float = 0.1,
     outpath: Optional[Path] = None,
-    writer: Optional[SummaryWriter] = None,
-    global_step_start: int = 0,
 ):
     aug = CurveAug()
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
     best_val = 1e9
-    global_step = global_step_start
     for ep in range(1, epochs + 1):
         model.train()
-        loss_sum = mtm_sum = recon_sum = contrast_sum = 0.0
+        loss_sum = 0.0
         n_batches = 0
         for X, y, seg_ids, view_ids, meta in train_loader:
             X = X.to(device)
@@ -499,21 +460,12 @@ def train_stage_a(
             opt.step()
 
             loss_sum += loss.item()
-            mtm_sum += mtm_loss.item()
-            recon_sum += recon_loss.item()
-            contrast_sum += contrast_loss.item()
             n_batches += 1
-            if writer is not None:
-                writer.add_scalar("trainA/total", loss.item(), global_step)
-                writer.add_scalar("trainA/mtm", mtm_loss.item(), global_step)
-                writer.add_scalar("trainA/recon", recon_loss.item(), global_step)
-                writer.add_scalar("trainA/contrast", contrast_loss.item(), global_step)
-                global_step += 1
 
         # validation
         model.eval()
         with torch.no_grad():
-            vloss = v_mtm = v_recon = 0.0
+            vloss = 0.0
             nval = 0
             for X, y, seg_ids, view_ids, meta in val_loader:
                 X = X.to(device)
@@ -525,16 +477,9 @@ def train_stage_a(
                 mtm_loss = F.mse_loss(mtm[mask], X[mask])
                 recon_loss = F.mse_loss(recon, X)
                 loss = w_mtm * mtm_loss + w_recon * recon_loss
-                vloss += loss.item()
-                v_mtm += mtm_loss.item()
-                v_recon += recon_loss.item()
-                nval += 1
+                vloss += loss.item(); nval += 1
         tr = loss_sum / max(1, n_batches)
         vl = vloss / max(1, nval)
-        if writer is not None:
-            writer.add_scalar("valA/total", vl, ep)
-            writer.add_scalar("valA/mtm", v_mtm / max(1, nval), ep)
-            writer.add_scalar("valA/recon", v_recon / max(1, nval), ep)
         print(f"[StageA] Epoch {ep:03d} train={tr:.4f} val={vl:.4f}")
         if outpath is not None and vl < best_val:
             best_val = vl
@@ -551,8 +496,6 @@ def train_stage_b(
     epochs: int = 30,
     lr: float = 5e-4,
     outpath: Optional[Path] = None,
-    writer: Optional[SummaryWriter] = None,
-    global_step_start: int = 0,
 ):
     # Freeze encoder by default? We'll allow fine-tuning all
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
@@ -562,7 +505,7 @@ def train_stage_b(
     union_loader = DataLoader(train_loader.dataset, batch_size=train_loader.batch_size, shuffle=False, collate_fn=batchify)
     baselines = compute_patient_baselines(model, union_loader, device)
 
-    def gls_epoch(loader, train: bool, step_offset: int = 0):
+    def gls_epoch(loader, train: bool):
         if train:
             model.train()
         else:
@@ -589,22 +532,15 @@ def train_stage_b(
             # Huber is robust to noise
             loss = F.smooth_l1_loss(y_hat, y)
             if train:
-                opt.zero_grad()
-                loss.backward()
+                opt.zero_grad(); loss.backward();
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 opt.step()
-                if writer is not None:
-                    writer.add_scalar("trainB/gls_loss", loss.item(), step_offset + n)
             loss_sum += loss.item(); n += 1
         return loss_sum / max(1, n)
 
-    global_step = global_step_start
     for ep in range(1, epochs + 1):
-        tr = gls_epoch(train_loader, train=True, step_offset=global_step)
-        global_step += len(train_loader)
+        tr = gls_epoch(train_loader, train=True)
         vl = gls_epoch(val_loader, train=False)
-        if writer is not None:
-            writer.add_scalar("valB/gls_loss", vl, ep)
         print(f"[StageB] Epoch {ep:03d} GLS train={tr:.4f} val={vl:.4f}")
         if outpath is not None and vl < best_val:
             best_val = vl
@@ -624,7 +560,6 @@ def main():
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--T", type=int, default=64)
     ap.add_argument("--load", type=str, default=None, help="Path to .pt checkpoint to load")
-    ap.add_argument("--logdir", type=str, default=None, help="Optional TensorBoard log directory")
     args = ap.parse_args()
 
     set_seed(42)
@@ -655,30 +590,12 @@ def main():
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    writer = SummaryWriter(log_dir=args.logdir) if args.logdir else None
-
     if args.stage == "pretrain":
         outpath = outdir / "pretrain_best.pt"
-        train_stage_a(
-            model,
-            train_loader,
-            val_loader,
-            device,
-            epochs=args.epochs,
-            outpath=outpath,
-            writer=writer,
-        )
+        train_stage_a(model, train_loader, val_loader, device, epochs=args.epochs, outpath=outpath)
     else:
         outpath = outdir / "finetune_best.pt"
-        train_stage_b(
-            model,
-            train_loader,
-            val_loader,
-            device,
-            epochs=args.epochs,
-            outpath=outpath,
-            writer=writer,
-        )
+        train_stage_b(model, train_loader, val_loader, device, epochs=args.epochs, outpath=outpath)
 
 
 if __name__ == "__main__":

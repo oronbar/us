@@ -46,6 +46,10 @@ import re
 logging.basicConfig(
     level=logging.INFO,
     format="[%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),  # Console output
+        logging.FileHandler(r"C:\work\us\vvi_xml_preprocess.log")  # File output
+    ]
 )
 logger = logging.getLogger("vvi_xml_preprocess")
 
@@ -692,7 +696,25 @@ def main():
         echo_root=args.echo_root,
         out_parquet=args.out_parquet,
     )
-
+    
+    # Load registry and compute statistics
+    reg = pd.read_excel(args.registry_xlsx, engine="openpyxl")
+    reg.columns = [c.strip() for c in reg.columns]
+    
+    # All patients with at least 3 studies
+    all_study_counts = reg.groupby("Short ID")["Study Instance UID"].nunique()
+    num_all_with_3plus = (all_study_counts >= 3).sum()
+    
+    # Processed patients (have both 2C and 4C DICOM filenames)
+    reg_processed = reg[
+        (reg["2-Chambers"].notna()) & (reg["2-Chambers"] != "") &
+        (reg["4-Chambers"].notna()) & (reg["4-Chambers"] != "")
+    ]
+    proc_study_counts = reg_processed.groupby("Short ID")["Study Instance UID"].nunique()
+    num_proc_with_3plus = (proc_study_counts >= 3).sum()
+    
+    logger.info(f"Total unique patients with ≥3 studies: {num_all_with_3plus}")
+    logger.info(f"Processed patients with ≥3 studies: {num_proc_with_3plus}")
 
 if __name__ == "__main__":
     main()
