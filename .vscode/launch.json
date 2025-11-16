@@ -1,0 +1,74 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Pretrain",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "patient_conditioned_strain_model.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--parquet", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
+                "--outdir",  "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\models",
+                "--stage", "pretrain",
+                "--epochs", "80",               // a bit longer for small data
+                "--batch", "16",                // modestly larger batch
+                "--logdir", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\tblogs\\pretrain"
+            ]
+        },
+        {
+            "name": "Finetune",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "patient_conditioned_strain_model.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--parquet", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
+                "--outdir",  "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\models",
+                "--stage", "finetune",
+                "--epochs", "40",               // a bit longer supervised phase
+                "--batch", "16",
+                "--load",  "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\pretrain_best.pt",
+                "--logdir", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\tblogs\\finetune"
+            ]
+        },
+        {
+            "name": "Recon QC",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "reconstruct_qc.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--parquet", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
+                "--ckpt",   "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\pretrain_best.pt",
+                "--outdir", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\qc_recon",
+                "--num", "8",
+                "--batch", "4",
+                "--T", "64"
+            ]
+        },
+        {
+            "name": "VVI XML Preprocess",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "vvi_xml_preprocess.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--vvi-dir", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\Anonymous",
+                "--registry-xlsx", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC\\SZMC_report_oron.xlsx",
+                "--echo-root", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC",
+                "--out-parquet", "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet"
+            ]
+        }
+    ]
+}
