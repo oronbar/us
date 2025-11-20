@@ -57,6 +57,7 @@ from __future__ import annotations
 import argparse
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
@@ -519,29 +520,48 @@ def train_stage_a(
         # validation
         model.eval()
         with torch.no_grad():
-            vloss = v_mtm = v_recon = 0.0
+            vloss = v_mtm = v_recon = v_contrast = 0.0
             nval = 0
             for X, y, seg_ids, view_ids, meta in val_loader:
                 X = X.to(device)
                 seg_ids = seg_ids.to(device)
                 view_ids = view_ids.to(device)
-                v, z, h, recon, mtm = model(X, seg_ids, view_ids)
+                # Mirror train path (two augmented views) so loss composition matches
+                X1 = aug(X.clone())
+                X2 = aug(X.clone())
+
+                v1, z1, h1, recon1, mtm1 = model(X1, seg_ids, view_ids)
+                v2, z2, h2, recon2, mtm2 = model(X2, seg_ids, view_ids)
+
                 B, S, T = X.shape
                 mask = torch.zeros(B, S, T, device=device).bernoulli_(0.15).bool()
-                mtm_loss = F.mse_loss(mtm[mask], X[mask])
-                recon_loss = F.mse_loss(recon, X)
-                loss = w_mtm * mtm_loss + w_recon * recon_loss
+                mtm_loss = F.mse_loss(mtm1[mask], X[mask]) + F.mse_loss(mtm2[mask], X[mask])
+                recon_loss = F.mse_loss(recon1, X) + F.mse_loss(recon2, X)
+                contrast_loss = nt_xent_loss(v1, v2)
+                loss = w_mtm * mtm_loss + w_recon * recon_loss + w_contrast * contrast_loss
                 vloss += loss.item()
                 v_mtm += mtm_loss.item()
                 v_recon += recon_loss.item()
+                v_contrast += contrast_loss.item()
                 nval += 1
         tr = loss_sum / max(1, n_batches)
         vl = vloss / max(1, nval)
+        train_mtm = mtm_sum / max(1, n_batches)
+        train_recon = recon_sum / max(1, n_batches)
+        val_mtm = v_mtm / max(1, nval)
+        val_recon = v_recon / max(1, nval)
+        val_contrast = v_contrast / max(1, nval)
         if writer is not None:
             writer.add_scalar("valA/total", vl, ep)
-            writer.add_scalar("valA/mtm", v_mtm / max(1, nval), ep)
-            writer.add_scalar("valA/recon", v_recon / max(1, nval), ep)
+            writer.add_scalar("valA/mtm", val_mtm, ep)
+            writer.add_scalar("valA/recon", val_recon, ep)
+            writer.add_scalar("valA/contrast", val_contrast, ep)
             writer.add_scalar("trainA/lr", opt.param_groups[0]["lr"], ep)
+            # Paired train/val curves on one plot for easier comparison
+            writer.add_scalars("stageA/total", {"train": tr, "val": vl}, ep)
+            writer.add_scalars("stageA/mtm", {"train": train_mtm, "val": val_mtm}, ep)
+            writer.add_scalars("stageA/recon", {"train": train_recon, "val": val_recon}, ep)
+            writer.add_scalars("stageA/contrast", {"train": contrast_sum / max(1, n_batches), "val": val_contrast}, ep)
         print(f"[StageA] Epoch {ep:03d} train={tr:.4f} val={vl:.4f}")
         if outpath is not None and vl < best_val:
             best_val = vl
@@ -614,6 +634,7 @@ def train_stage_b(
         vl = gls_epoch(val_loader, train=False)
         if writer is not None:
             writer.add_scalar("valB/gls_loss", vl, ep)
+            writer.add_scalars("stageB/gls_loss", {"train": tr, "val": vl}, ep)
         print(f"[StageB] Epoch {ep:03d} GLS train={tr:.4f} val={vl:.4f}")
         if outpath is not None and vl < best_val:
             best_val = vl
@@ -672,7 +693,13 @@ def main():
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    writer = SummaryWriter(log_dir=args.logdir) if args.logdir else None
+    writer = None
+    if args.logdir:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_dir = Path(args.logdir) / f"{args.stage}_{ts}"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        writer = SummaryWriter(log_dir=str(run_dir))
+        print(f"TensorBoard logging to {run_dir}")
 
     if args.stage == "pretrain":
         outpath = outdir / "pretrain_best.pt"

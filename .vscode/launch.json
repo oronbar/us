@@ -21,10 +21,26 @@
                 "--parquet", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
                 "--outdir",  "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\models",
                 "--stage", "pretrain",
-                "--epochs", "100",              // a bit longer for small data
-                "--batch", "16",                // modestly larger batch
+                "--epochs", "120",              // a bit longer for small data
+                "--batch", "32",                // modestly larger batch
                 "--scheduler", "cosine",        // mild LR decay
                 "--logdir", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\tblogs\\pretrain"
+            ]
+        },
+        {
+            "name": "Pretrain - Local",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "patient_conditioned_strain_model.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--parquet", "F:\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
+                "--outdir",  "F:\\DS\\Tags\\VVI\\models",
+                "--stage", "pretrain",
+                "--epochs", "150",              // a bit longer for small data
+                "--batch", "64",                // modestly larger batch
+                "--scheduler", "cosine",        // mild LR decay
+                "--logdir", "F:\\DS\\Tags\\VVI\\models\\tblogs\\pretrain"
             ]
         },
         {
