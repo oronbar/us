@@ -457,12 +457,13 @@ def train_stage_a(
     scheduler: str = "cosine",
     w_mtm: float = 1.0,
     w_recon: float = 1.0,
-    w_contrast: float = 0.1,
+    w_contrast: float = 0.0,
     outpath: Optional[Path] = None,
     writer: Optional[SummaryWriter] = None,
     global_step_start: int = 0,
 ):
     aug = CurveAug()
+    use_contrast = w_contrast > 0
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
     sched = None
     if scheduler == "cosine":
@@ -496,7 +497,7 @@ def train_stage_a(
             recon_loss = F.mse_loss(recon1, X) + F.mse_loss(recon2, X)
 
             # Contrastive on visit embeddings
-            contrast_loss = nt_xent_loss(v1, v2)
+            contrast_loss = nt_xent_loss(v1, v2) if use_contrast else torch.tensor(0.0, device=device)
 
             loss = w_mtm * mtm_loss + w_recon * recon_loss + w_contrast * contrast_loss
 
@@ -537,7 +538,7 @@ def train_stage_a(
                 mask = torch.zeros(B, S, T, device=device).bernoulli_(0.15).bool()
                 mtm_loss = F.mse_loss(mtm1[mask], X[mask]) + F.mse_loss(mtm2[mask], X[mask])
                 recon_loss = F.mse_loss(recon1, X) + F.mse_loss(recon2, X)
-                contrast_loss = nt_xent_loss(v1, v2)
+                contrast_loss = nt_xent_loss(v1, v2) if use_contrast else torch.tensor(0.0, device=device)
                 loss = w_mtm * mtm_loss + w_recon * recon_loss + w_contrast * contrast_loss
                 vloss += loss.item()
                 v_mtm += mtm_loss.item()

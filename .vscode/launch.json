@@ -21,7 +21,7 @@
                 "--parquet", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
                 "--outdir",  "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\models",
                 "--stage", "pretrain",
-                "--epochs", "120",              // a bit longer for small data
+                "--epochs", "400",              // a bit longer for small data
                 "--batch", "32",                // modestly larger batch
                 "--scheduler", "cosine",        // mild LR decay
                 "--logdir", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\tblogs\\pretrain"
@@ -85,6 +85,22 @@
                 "--registry-xlsx", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC\\SZMC_report_oron.xlsx",
                 "--echo-root", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC",
                 "--out-parquet", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet"
+            ]
+        },
+        {
+            "name": "EDA: Early vs Late Strain",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "eda_temporal_strain_shift.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--parquet", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
+                "--outdir", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\eda_temporal_shift",
+                "--view", "4C",                 // set to 4C/2C or remove flag to include all
+                "--T", "64",
+                "--min_gap_days", "30",         // require at least 30 days between early and late scans
+                "--max_examples", "8",          // number of overlay examples to plot
+                "--model-ckpt", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\pretrain_best.pt"
             ]
         }
     ]
