@@ -102,6 +102,18 @@
                 "--max_examples", "8",          // number of overlay examples to plot
                 "--model-ckpt", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\models\\pretrain_best.pt"
             ]
+        },
+        {
+            "name": "Create Labels CSV",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "create_labels_csv.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--parquet", "F:\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
+                "--out", "${workspaceFolder}\\labels.csv",
+                "--default-outcome", ""
+            ]
         }
     ]
 }
