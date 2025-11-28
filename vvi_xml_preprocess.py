@@ -167,7 +167,12 @@ class SpreadsheetML:
     def parse(self):
         try:
             parser = etree.XMLParser(recover=True, remove_comments=True)
-            self.tree = etree.parse(str(self.xml_path), parser)
+            if not self.xml_path.is_file():
+                raise FileNotFoundError(f"XML file not found: {self.xml_path}")
+            # Open the file handle directly to avoid libxml2 issues with odd characters
+            # (e.g., parentheses) in Windows paths.
+            with self.xml_path.open("rb") as f:
+                self.tree = etree.parse(f, parser)
         except Exception as e:
             raise RuntimeError(f"Failed to parse XML {self.xml_path}: {e}")
 
