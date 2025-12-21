@@ -81,10 +81,10 @@
             "program": "vvi_xml_preprocess.py",
             "console": "integratedTerminal",
             "args": [
-                "--vvi-dir", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\Anonymous",
-                "--registry-xlsx", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC\\SZMC_report_oron.xlsx",
-                "--echo-root", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC",
-                "--out-parquet", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet"
+                "--vvi-dir", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags_SZMC\\VVI\\Anonymous",
+                "--registry-xlsx", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Report_SZMC_oron.xlsx",
+                "--echo-root", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\SZMC",
+                "--out-parquet", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags_SZMC\\VVI\\processed\\strain_dataset.parquet"
             ]
         },
         {
@@ -110,7 +110,7 @@
             "program": "create_labels_csv.py",
             "console": "integratedTerminal",
             "args": [
-                "--parquet", "F:\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
+                "--parquet", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
                 "--out", "${workspaceFolder}\\labels.csv",
                 "--default-outcome", ""
             ]

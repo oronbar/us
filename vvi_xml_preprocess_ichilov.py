@@ -1,33 +1,36 @@
 """
-VVI XML preprocessing pipeline
---------------------------------
+Ichilov VVI XML preprocessing pipeline
+---------------------------------------
 Parses Siemens VVI SpreadsheetML XML files for strain analysis and builds a
-patient-visit dataset with epicardium/endocardium/myocardium curves, their difference
-(Endo - Epi), **GLS from myocardium**, and per-cycle segmentation. Cross-references an Excel registry
-with patient metadata and DICOM filenames to tag each test with view (2C/4C).
+patient-visit dataset with epicardium/endocardium/myocardium curves, their
+difference (Endo - Epi), GLS from myocardium, and per-cycle segmentation.
 
-Tested on Windows-style paths. Requires: pandas, numpy, lxml, openpyxl, pyarrow
+Differences vs SZMC version:
+- VVI exports are stored per patient folder under Tags_Ichilov\\VVI (no "Anonymous").
+- Registry columns: PatientNum, ID, Study Date, 2-Chambers, 4-Chambers.
+- DICOMs live under Ichilov\\<patient_num>\\<YYYY-MM-DD or YYYY_MM_DD>\\*.dcm
+  where <patient_num> matches PatientNum (with or without zero padding).
 
 Usage (PowerShell / cmd):
 
-  python vvi_xml_preprocess.py \
-    --vvi-dir "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\Anonymous" \
-    --registry-xlsx "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC\\SZMC_report.xlsx" \
-    --echo-root "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Cardio-Onco Echo SZMC" \
-    --out-parquet "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet"
+  python vvi_xml_preprocess_ichilov.py ^
+    --vvi-dir "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags_Ichilov\\VVI" ^
+    --registry-xlsx "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Report_Ichilov_oron.xlsx" ^
+    --echo-root "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Ichilov" ^
+    --out-parquet "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Tags_Ichilov\\VVI\\processed\\strain_dataset_ichilov.parquet"
 
 The resulting Parquet has one row per (patient, study, view, cycle, segment).
 Columns include:
-- short_id, name_initials, parent_folder, study_instance_uid, study_datetime, birth_datetime
-- view ("2C"/"4C"), dicom_file, xml_path, cycle_index, segment (canonical key)
+- patient_num, patient_id, study_datetime
+- view ("2C"/"4C"), dicom_file, dicom_full_path, xml_path, cycle_index, segment
 - time, epi, endo, myo, delta (lists of floats); gls (float), n_samples
 
 Notes:
 - Only Basal/Mid segments are kept; Apical rows are ignored.
-- Cycle boundaries are inferred from **strain amplitude zeros**: a boundary is an index where **all kept segments** (endo & epi) are zero simultaneously. No extra knobs.
+- Cycle boundaries are inferred from strain amplitude zeros: a boundary is an
+  index where all kept segments (endo & epi) are zero simultaneously.
 - Handles multiple cycles concatenated in each row (all segments/time synchronized).
 - If a sheet or segment is missing, that XML is skipped with a warning.
-
 """
 from __future__ import annotations
 
@@ -37,11 +40,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+import re
 
 import numpy as np
 import pandas as pd
 from lxml import etree
-import re
 
 # ----------------------------- Logging ------------------------------------
 if hasattr(sys.stdout, "reconfigure"):
@@ -52,11 +55,11 @@ logging.basicConfig(
     level=logging.INFO,
     format="[%(levelname)s] %(message)s",
     handlers=[
-        logging.StreamHandler(stream=sys.stdout),  # Console output (UTF-8)
-        logging.FileHandler(r"C:\work\us\vvi_xml_preprocess.log", encoding="utf-8")  # File output
-    ]
+        logging.StreamHandler(stream=sys.stdout),
+        logging.FileHandler(r"C:\work\us\vvi_xml_preprocess_ichilov.log", encoding="utf-8"),
+    ],
 )
-logger = logging.getLogger("vvi_xml_preprocess")
+logger = logging.getLogger("vvi_xml_preprocess_ichilov")
 
 # ----------------------------- Constants ----------------------------------
 # View-specific canonical segment maps (Basal/Mid only)
@@ -76,9 +79,8 @@ KEEP_SEGMENTS_2C = {
 }
 APICAL_SEGMENTS_2C = {"15-Apical inferior", "15-Apical inferior ", "13-Apical anterior"}
 
-SHEETS_NEED = {"strain-epi", "strain-endo"}  # lowercase, stripped
+SHEETS_NEED = {"strain-epi", "strain-endo"}
 
-# SpreadsheetML namespaces (Excel 2003 XML)
 NS = {
     "ss": "urn:schemas-microsoft-com:office:spreadsheet",
     "o": "urn:schemas-microsoft-com:office:office",
@@ -86,18 +88,17 @@ NS = {
     "html": "http://www.w3.org/TR/REC-html40",
 }
 
-# Internal tolerance for zero detection (not exposed as CLI)
 _ZERO_ATOL = 1e-12
+
 
 def get_keep_map(view_tag: str) -> Dict[str, str]:
     view_tag = (view_tag or "").upper().strip()
     if view_tag == "2C":
         return KEEP_SEGMENTS_2C
-    else:
-        return KEEP_SEGMENTS_4C
+    return KEEP_SEGMENTS_4C
+
 
 # ----------------------------- Utilities ----------------------------------
-
 def safe_float(x: str) -> Optional[float]:
     """Convert string to float, handling commas and stray spaces. Returns None on failure."""
     if x is None:
@@ -107,7 +108,6 @@ def safe_float(x: str) -> Optional[float]:
     s = str(x).strip()
     if s == "":
         return None
-    # Replace comma decimal separators if present
     s = s.replace(",", ".")
     try:
         return float(s)
@@ -115,27 +115,68 @@ def safe_float(x: str) -> Optional[float]:
         return None
 
 
-def parse_datetime_underscore(s: str) -> Optional[pd.Timestamp]:
-    """Parse YYYY_MM_DD_HH_MM_SS into pandas Timestamp. Returns None if empty/invalid."""
-    if pd.isna(s):
+def parse_datetime_generic(val: object) -> Optional[pd.Timestamp]:
+    """Parse a wide range of date strings (supports underscores)."""
+    if pd.isna(val):
         return None
-    s = str(s).strip()
+    if isinstance(val, pd.Timestamp):
+        return val
+    if isinstance(val, (int, float)):
+        # Excel serial or year digits
+        try:
+            return pd.to_datetime(val, errors="coerce")
+        except Exception:
+            return None
+    s = str(val).strip()
     if not s:
         return None
+    s = s.replace("_", "-").replace("\\", "-").replace("/", "-")
     try:
-        parts = s.split("_")
-        parts = [int(p) for p in parts]
-        # Support YYYY_MM_DD or full YYYY_MM_DD_HH_MM_SS
-        if len(parts) == 3:
-            y, m, d = parts
-            return pd.Timestamp(year=y, month=m, day=d)
-        elif len(parts) >= 6:
-            y, m, d, hh, mm, ss = parts[:6]
-            return pd.Timestamp(year=y, month=m, day=d, hour=hh, minute=mm, second=ss)
-        else:
-            return None
+        dt = pd.to_datetime(s, errors="coerce")
+        return None if pd.isna(dt) else dt
     except Exception:
         return None
+
+
+def re_split(pattern: str, s: str) -> List[str]:
+    return re.split(pattern, s)
+
+
+def _split_dicom_list(val: object) -> List[str]:
+    if pd.isna(val):
+        return []
+    s = str(val).strip()
+    if not s:
+        return []
+    parts = [p.strip() for p in re_split(r"[;,\s]+", s) if p.strip()]
+    parts = [p[:-4] if p.lower().endswith(".dcm") else p for p in parts]
+    return parts
+
+
+def _candidate_patient_keys(patient_num: str) -> List[str]:
+    s = str(patient_num).strip()
+    return list(dict.fromkeys([s, s.zfill(2), s.zfill(3)]))
+
+
+def _match_patient_dir(name: str, patient_num: str) -> bool:
+    keys = _candidate_patient_keys(patient_num)
+    n = name.lower()
+    for k in keys:
+        k_low = k.lower()
+        if n == k_low:
+            return True
+        if n.startswith(f"{k_low}_") or n.startswith(f"{k_low} "):
+            return True
+    return False
+
+
+def _date_folder_candidates(dt: Optional[pd.Timestamp]) -> List[str]:
+    if dt is None or pd.isna(dt):
+        return []
+    try:
+        return [dt.strftime("%Y-%m-%d"), dt.strftime("%Y_%m_%d")]
+    except Exception:
+        return []
 
 
 # ------------------------- SpreadsheetML Reader ---------------------------
@@ -145,11 +186,9 @@ class SheetTable:
     table: List[List[Optional[str]]]
 
     def to_dataframe(self) -> pd.DataFrame:
-        # Convert to DataFrame, filling missing columns to the max width
         max_cols = max((len(r) for r in self.table), default=0)
         rows = [r + [None] * (max_cols - len(r)) for r in self.table]
         df = pd.DataFrame(rows)
-        # Name columns like Excel: A, B, C, ...
         cols = []
         for i in range(max_cols):
             n = i + 1
@@ -159,7 +198,6 @@ class SheetTable:
                 label = chr(65 + rem) + label
             cols.append(label)
         df.columns = cols
-        # Add 1-based row number to preserve Excel row addresses
         df["ROWNUM"] = np.arange(1, len(df) + 1)
         return df
 
@@ -174,8 +212,6 @@ class SpreadsheetML:
             parser = etree.XMLParser(recover=True, remove_comments=True)
             if not self.xml_path.is_file():
                 raise FileNotFoundError(f"XML file not found: {self.xml_path}")
-            # Open the file handle directly to avoid libxml2 issues with odd characters
-            # (e.g., parentheses) in Windows paths.
             with self.xml_path.open("rb") as f:
                 self.tree = etree.parse(f, parser)
         except Exception as e:
@@ -192,11 +228,6 @@ class SpreadsheetML:
         return names
 
     def get_sheet_table(self, wanted_name: str) -> Optional[SheetTable]:
-        """
-        Return a SheetTable for the worksheet whose name matches wanted_name
-        ignoring case and surrounding spaces.
-        Handles sparse rows via ss:Index by inserting blank rows.
-        """
         if self.tree is None:
             self.parse()
         wanted_key = wanted_name.strip().lower()
@@ -208,20 +239,18 @@ class SpreadsheetML:
                 if table_el is None:
                     return SheetTable(name=name, table=[])
                 table: List[List[Optional[str]]] = []
-                row_cursor = 1  # 1-based Excel row numbering
+                row_cursor = 1
                 for row_el in table_el.findall("ss:Row", namespaces=NS):
-                    # Honor ss:Index for row gaps
-                    idx_attr_row = row_el.get("{%s}Index" % NS["ss"])  # 1-based
+                    idx_attr_row = row_el.get("{%s}Index" % NS["ss"])
                     if idx_attr_row is not None:
                         target = int(idx_attr_row)
                         while row_cursor < target:
-                            table.append([])  # blank row placeholder
+                            table.append([])
                             row_cursor += 1
                     row: List[Optional[str]] = []
-                    # Build dense cells honoring ss:Index on cells
                     col_cursor = 1
                     for cell_el in row_el.findall("ss:Cell", namespaces=NS):
-                        idx_attr = cell_el.get("{%s}Index" % NS["ss"])  # 1-based
+                        idx_attr = cell_el.get("{%s}Index" % NS["ss"])
                         if idx_attr is not None:
                             target = int(idx_attr)
                             while col_cursor < target:
@@ -244,32 +273,24 @@ class SpreadsheetML:
 @dataclass
 class VVIParseResult:
     xml_path: Path
-    time: np.ndarray  # shape [N] (optional; empty if not found)
-    epi: Dict[str, np.ndarray]  # canonical segment -> [N]
+    time: np.ndarray
+    epi: Dict[str, np.ndarray]
     endo: Dict[str, np.ndarray]
     myo: Dict[str, np.ndarray]
     delta: Dict[str, np.ndarray]
 
 
 def extract_segments_from_sheet(df: pd.DataFrame, keep_map: Dict[str, str]) -> Dict[str, np.ndarray]:
-    """
-    Extract segments for **longitudinal strain only** from rows 13-18 inclusive
-    (per your VVI layout). We ignore transverse blocks above. We also restrict
-    to Column A labels matching `keep_map` to map to canonical names.
-    """
     seg_series: Dict[str, np.ndarray] = {}
-    # Restrict to longitudinal rows 13..18 (1-based)
     if "ROWNUM" in df.columns:
         df_long = df[(df["ROWNUM"] >= 13) & (df["ROWNUM"] <= 18)].copy()
     else:
-        # Fallback: assume current order corresponds; slice by position
-        df_long = df.iloc[12:18].copy()  # 0-based -> rows 13..18
+        df_long = df.iloc[12:18].copy()
     colA = df_long.get("A", pd.Series([], dtype=object)).astype(str).str.strip()
     for xml_label, canon in keep_map.items():
         matches = df_long[colA == xml_label]
         if matches.empty:
-            # Allow minor trailing spaces in XML label
-            matches = df_long[colA.str.replace("\s+$", "", regex=True) == xml_label]
+            matches = df_long[colA.str.replace(r"\s+$", "", regex=True) == xml_label]
         if matches.empty:
             logger.warning(f"Segment row not found in longitudinal rows 13-18: '{xml_label}'")
             continue
@@ -291,8 +312,6 @@ def extract_segments_from_sheet(df: pd.DataFrame, keep_map: Dict[str, str]) -> D
 
 
 def extract_time_row(df: pd.DataFrame) -> Optional[np.ndarray]:
-    """Return the Time row from **row 21** primarily; fallback to label search."""
-    # Prefer explicit row number 21 (longitudinal block time row)
     if "ROWNUM" in df.columns:
         hits = df[df["ROWNUM"] == 21]
         if not hits.empty:
@@ -307,7 +326,6 @@ def extract_time_row(df: pd.DataFrame) -> Optional[np.ndarray]:
                 values.append(f)
             if values:
                 return np.asarray(values, dtype=float)
-    # Fallback: name-based
     colA = df.get("A", pd.Series([], dtype=object)).astype(str).str.strip().str.lower()
     hits = df[colA == "time"]
     if hits.empty:
@@ -328,13 +346,9 @@ def extract_time_row(df: pd.DataFrame) -> Optional[np.ndarray]:
 
 
 def split_cycles_by_all_zero(endo: Dict[str, np.ndarray], epi: Dict[str, np.ndarray]) -> List[Tuple[int, int]]:
-    """Return (start_idx, end_idx) cycles using **only** indices where **all kept segments**
-    (endo & epi) are exactly zero (within tiny internal tolerance). Consecutive zero indices are
-    collapsed to a single boundary.
-    """
     signals: List[np.ndarray] = []
     for d in (endo, epi):
-        for seg, arr in d.items():
+        for arr in d.values():
             if arr is not None:
                 signals.append(np.asarray(arr, dtype=float))
     if not signals:
@@ -342,27 +356,20 @@ def split_cycles_by_all_zero(endo: Dict[str, np.ndarray], epi: Dict[str, np.ndar
     N = min(len(a) for a in signals)
     if N == 0:
         return []
-
-    # Boolean mask where **all** segments are (near) zero
     all_zero = np.ones(N, dtype=bool)
     for a in signals:
         all_zero &= np.isclose(a[:N], 0.0, atol=_ZERO_ATOL)
-
     idx = np.flatnonzero(all_zero)
     if idx.size < 2:
         return [(0, N - 1)]
-
-    # Take the first index of each contiguous run as a boundary
     boundaries: List[int] = []
     prev = -10**9
     for i in idx:
         if i != prev + 1:
             boundaries.append(i)
         prev = i
-
     if len(boundaries) < 2:
         return [(0, N - 1)]
-
     cycles: List[Tuple[int, int]] = []
     for a, b in zip(boundaries[:-1], boundaries[1:]):
         if b > a:
@@ -371,7 +378,6 @@ def split_cycles_by_all_zero(endo: Dict[str, np.ndarray], epi: Dict[str, np.ndar
 
 
 def align_lengths(base: Optional[np.ndarray], *series_dicts: Dict[str, np.ndarray]) -> Tuple[Optional[np.ndarray], List[Dict[str, np.ndarray]]]:
-    """Trim all arrays to the minimum length among base (if provided) and all provided series."""
     min_len = None if base is None else len(base)
     for d in series_dicts:
         for arr in d.values():
@@ -387,10 +393,6 @@ def align_lengths(base: Optional[np.ndarray], *series_dicts: Dict[str, np.ndarra
 
 
 def compute_gls_peak(myo: Dict[str, np.ndarray], a: int, b: int, keep_map: Dict[str, str]) -> Optional[float]:
-    """
-    GLS definition here: **peak (most negative) of the timewise average** across the 4 kept myocardium segments
-    within the cycle slice [a:b]. Returns None if any required segment is missing or lengths mismatch.
-    """
     seg_keys = list(keep_map.values())
     seg_arrays = []
     for k in seg_keys:
@@ -402,9 +404,9 @@ def compute_gls_peak(myo: Dict[str, np.ndarray], a: int, b: int, keep_map: Dict[
     if not seg_arrays:
         return None
     try:
-        stack = np.vstack(seg_arrays)  # [4, L]
-        avg_curve = stack.mean(axis=0)  # [L]
-        gls = float(avg_curve.min())    # most negative peak (typical GLS definition)
+        stack = np.vstack(seg_arrays)
+        avg_curve = stack.mean(axis=0)
+        gls = float(avg_curve.min())
         return gls
     except Exception:
         return None
@@ -418,7 +420,6 @@ def parse_vvi_xml(xml_path: Path, keep_map: Dict[str, str]) -> Optional[VVIParse
         logger.error(str(e))
         return None
 
-    # Fetch sheets (names may have leading spaces). Try exact then tolerant.
     epi_sheet = ssml.get_sheet_table("Strain-Epi") or ssml.get_sheet_table(" Strain-Epi")
     endo_sheet = ssml.get_sheet_table("Strain-Endo") or ssml.get_sheet_table(" Strain-Endo")
     myo_sheet = ssml.get_sheet_table("Strain-Myo") or ssml.get_sheet_table(" Strain-Myo")
@@ -430,10 +431,8 @@ def parse_vvi_xml(xml_path: Path, keep_map: Dict[str, str]) -> Optional[VVIParse
     endo_df = endo_sheet.to_dataframe()
     myo_df = myo_sheet.to_dataframe()
 
-    # Extract time row (optional; we keep for reference/QC)
     time_arr = extract_time_row(endo_df)
 
-    # Extract numeric series per kept segment
     epi = extract_segments_from_sheet(epi_df, keep_map)
     endo = extract_segments_from_sheet(endo_df, keep_map)
     myo = extract_segments_from_sheet(myo_df, keep_map)
@@ -442,10 +441,8 @@ def parse_vvi_xml(xml_path: Path, keep_map: Dict[str, str]) -> Optional[VVIParse
         logger.warning(f"No segment data in {xml_path.name}; skipping.")
         return None
 
-    # Align lengths (trim to common length across all three layers)
     time_arr, (epi, endo, myo) = align_lengths(time_arr, epi, endo, myo)
 
-    # Compute delta = Endo - Epi
     delta: Dict[str, np.ndarray] = {}
     for seg in keep_map.values():
         if seg in epi and seg in endo:
@@ -464,95 +461,125 @@ def parse_vvi_xml(xml_path: Path, keep_map: Dict[str, str]) -> Optional[VVIParse
 
 
 # --------------------------- Registry join --------------------------------
-@dataclass
-class RegistryRow:
-    short_id: str
-    name_initials: str
-    parent_folder: str
-    study_instance_uid: str
-    study_datetime: Optional[pd.Timestamp]
-    birth_datetime: Optional[pd.Timestamp]
-    dicoms_2c: List[str]
-    dicoms_4c: List[str]
-
-
-def _split_dicom_list(val: object) -> List[str]:
-    if pd.isna(val):
-        return []
-    s = str(val).strip()
-    if not s:
-        return []
-    # Allow separators ; , whitespace
-    parts = [p.strip() for p in re_split(r"[;,\s]+", s) if p.strip()]
-    # Ensure .dcm suffix consistency is handled later; store basename without extension
-    parts = [p[:-4] if p.lower().endswith(".dcm") else p for p in parts]
-    return parts
-
-
-
-def re_split(pattern: str, s: str) -> List[str]:
-    return re.split(pattern, s)
-
-
 def load_registry(registry_xlsx: Path) -> pd.DataFrame:
     df = pd.read_excel(registry_xlsx, engine="openpyxl")
-    # Standardize columns (strip)
     df.columns = [c.strip() for c in df.columns]
-    required = [
-        "Short ID",
-        "Name intials",
-        "Parent Folder",
-        "Study Instance UID",
-        "Study Date",
-        "Birth Date",
-        "2-Chambers",
-        "4-Chambers",
-    ]
+    required = ["PatientNum", "ID", "Study Date", "2-Chambers", "4-Chambers"]
     missing = [c for c in required if c not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns in registry: {missing}")
 
-    # Parse datetimes
-    df["study_datetime"] = df["Study Date"].apply(parse_datetime_underscore)
-    df["birth_datetime"] = df["Birth Date"].apply(parse_datetime_underscore)
-
-    # DICOM file (basename without extension) lists
+    df["study_datetime"] = df["Study Date"].apply(parse_datetime_generic)
     df["dicoms_2c"] = df["2-Chambers"].apply(_split_dicom_list)
     df["dicoms_4c"] = df["4-Chambers"].apply(_split_dicom_list)
 
-    # Keep trimmed essential fields
     keep_cols = [
-        "Short ID",
-        "Name intials",
-        "Parent Folder",
-        "Study Instance UID",
+        "PatientNum",
+        "ID",
         "study_datetime",
-        "birth_datetime",
         "dicoms_2c",
         "dicoms_4c",
     ]
     return df[keep_cols].copy()
 
 
+# --------------------------- Path helpers ---------------------------------
+def find_patient_vvi_dir(vvi_dir: Path, patient_num: str) -> Optional[Path]:
+    if not vvi_dir.is_dir():
+        return None
+    for child in sorted(vvi_dir.iterdir()):
+        if not child.is_dir():
+            continue
+        if _match_patient_dir(child.name, patient_num):
+            return child
+    return None
+
+
+def _find_folder_candidates(root: Path, dicom_basename: str) -> List[Path]:
+    names = [dicom_basename, f"{dicom_basename}.dcm"]
+    paths: List[Path] = []
+    for name in names:
+        p = root / name
+        if p.is_dir():
+            paths.append(p)
+    if not paths:
+        targets = {n.lower() for n in names}
+        for p in root.rglob("*"):
+            if p.is_dir() and p.name.lower() in targets:
+                paths.append(p)
+    return paths
+
+
+def find_xml_for_dicom(vvi_dir: Path, patient_num: str, dicom_basename: str) -> Optional[Path]:
+    patient_root = find_patient_vvi_dir(vvi_dir, patient_num)
+    search_roots = [patient_root] if patient_root else [vvi_dir]
+
+    for root in search_roots:
+        for folder in _find_folder_candidates(root, dicom_basename):
+            # Prefer segmentation exports that start with "(SEG"
+            xmls = [p for p in folder.glob("*.xml") if p.name.startswith("(SEG")]
+            if not xmls:
+                xmls = list(folder.glob("*.xml"))
+            if not xmls:
+                continue
+            xmls = sorted(xmls)
+            return xmls[0]
+    logger.warning(
+        f"XML not found for DICOM '{dicom_basename}' (patient {patient_num}); searched under {search_roots[0]}"
+    )
+    return None
+
+
+def find_patient_echo_dir(echo_root: Path, patient_num: str) -> Optional[Path]:
+    if not echo_root.is_dir():
+        return None
+    for cand in _candidate_patient_keys(str(patient_num)):
+        p = echo_root / cand
+        if p.is_dir():
+            return p
+    # fallback: first dir starting with patient num
+    for child in sorted(echo_root.iterdir()):
+        if child.is_dir() and child.name.startswith(str(patient_num)):
+            return child
+    return None
+
+
+def find_dicom_full_path(
+    echo_root: Path, patient_num: str, study_dt: Optional[pd.Timestamp], dicom_basename: str
+) -> Optional[Path]:
+    patient_dir = find_patient_echo_dir(echo_root, patient_num)
+    if patient_dir is None:
+        return None
+
+    date_candidates = _date_folder_candidates(study_dt)
+    # Prefer date-matching folders if available
+    for dc in date_candidates:
+        for sub in patient_dir.iterdir():
+            if not sub.is_dir():
+                continue
+            if sub.name.startswith(dc):
+                target = _locate_dicom_in_dir(sub, dicom_basename)
+                if target:
+                    return target
+
+    # Fallback: search entire patient folder
+    return _locate_dicom_in_dir(patient_dir, dicom_basename, recursive=True)
+
+
+def _locate_dicom_in_dir(root: Path, dicom_basename: str, recursive: bool = False) -> Optional[Path]:
+    targets = {f"{dicom_basename}.dcm".lower(), dicom_basename.lower()}
+    if recursive:
+        for p in root.rglob("*"):
+            if p.is_file() and p.name.lower() in targets:
+                return p
+    else:
+        for child in root.iterdir():
+            if child.is_file() and child.name.lower() in targets:
+                return child
+    return None
+
+
 # --------------------------- Dataset builder ------------------------------
-
-def find_xml_for_dicom(vvi_dir: Path, dicom_basename: str) -> Optional[Path]:
-    """Given a DICOM basename (without .dcm), locate its single XML under vvi_dir/dicom_basename.dcm/*.xml"""
-    folder = vvi_dir / f"{dicom_basename}.dcm"
-    if not folder.is_dir():
-        return None
-    xmls = list(folder.glob("*.xml"))
-    if not xmls:
-        return None
-    if len(xmls) > 1:
-        logger.warning(f"Multiple XMLs found in {folder}; using first: {xmls[0].name}")
-    return xmls[0]
-
-
-def dicom_full_path(echo_root: Path, parent_folder: str, study_uid: str, dicom_basename: str) -> Path:
-    return echo_root / parent_folder / study_uid / f"{dicom_basename}.dcm"
-
-
 def build_dataset(
     vvi_dir: Path,
     registry_xlsx: Path,
@@ -564,40 +591,33 @@ def build_dataset(
     records: List[dict] = []
 
     for idx, row in reg.iterrows():
-        short_id = str(row["Short ID"]) if not pd.isna(row["Short ID"]) else None
-        name_initials = str(row["Name intials"]).strip() if not pd.isna(row["Name intials"]) else None
-        parent_folder = str(row["Parent Folder"]).strip() if not pd.isna(row["Parent Folder"]) else None
-        study_uid = str(row["Study Instance UID"]).strip() if not pd.isna(row["Study Instance UID"]) else None
+        patient_num = str(row["PatientNum"]).strip() if not pd.isna(row["PatientNum"]) else None
+        patient_id = str(row["ID"]).strip() if not pd.isna(row["ID"]) else None
         study_dt = row.get("study_datetime")
-        birth_dt = row.get("birth_datetime")
 
         for view_col, view_tag in [("dicoms_2c", "2C"), ("dicoms_4c", "4C")]:
             dicom_list: List[str] = row[view_col] or []
             for dicom_base in dicom_list:
-                xml_path = find_xml_for_dicom(vvi_dir, dicom_base)
+                xml_path = find_xml_for_dicom(vvi_dir, patient_num, dicom_base)
                 if xml_path is None:
-                    logger.warning(
-                        f"XML not found for DICOM '{dicom_base}' under {vvi_dir} (row {idx})"
-                    )
                     continue
                 keep_map = get_keep_map(view_tag)
                 parsed = parse_vvi_xml(xml_path, keep_map)
                 if parsed is None:
                     continue
 
-                # Split cycles at indices where **all segments (endo & epi) are zero**
                 cycles = split_cycles_by_all_zero(parsed.endo, parsed.epi)
                 if not cycles:
-                    # treat as single series
                     total_len = len(next(iter(parsed.endo.values())))
                     cycles = [(0, total_len - 1)]
 
                 for ci, (a, b) in enumerate(cycles):
                     t_slice = (
-                        parsed.time[a : b + 1].tolist() if parsed.time is not None and parsed.time.size else list(range(b - a + 1))
+                        parsed.time[a : b + 1].tolist()
+                        if parsed.time is not None and parsed.time.size
+                        else list(range(b - a + 1))
                     )
                     n = len(t_slice)
-                    # Compute cycle-level GLS once per cycle
                     gls_val = compute_gls_peak(parsed.myo, a, b, keep_map)
                     for seg in keep_map.values():
                         endo_arr = parsed.endo.get(seg)
@@ -607,12 +627,9 @@ def build_dataset(
                         if endo_arr is None or epi_arr is None or delta_arr is None or myo_arr is None:
                             continue
                         rec = {
-                            "short_id": short_id,
-                            "name_initials": name_initials,
-                            "parent_folder": parent_folder,
-                            "study_instance_uid": study_uid,
+                            "patient_num": patient_num,
+                            "patient_id": patient_id,
                             "study_datetime": study_dt,
-                            "birth_datetime": birth_dt,
                             "view": view_tag,
                             "dicom_file": f"{dicom_base}.dcm",
                             "xml_path": str(parsed.xml_path),
@@ -628,11 +645,9 @@ def build_dataset(
                             "gls": gls_val,
                             "n_samples": int(n),
                         }
-                        # DICOM full path (useful for QC)
                         try:
-                            rec["dicom_full_path"] = str(
-                                dicom_full_path(echo_root, parent_folder, study_uid, dicom_base)
-                            )
+                            dicom_path = find_dicom_full_path(echo_root, patient_num, study_dt, dicom_base)
+                            rec["dicom_full_path"] = str(dicom_path) if dicom_path else None
                         except Exception:
                             rec["dicom_full_path"] = None
                         records.append(rec)
@@ -642,13 +657,11 @@ def build_dataset(
         df_out = pd.DataFrame()
     else:
         df_out = pd.DataFrame.from_records(records)
-        # Sort for readability
         df_out.sort_values(
-            by=["short_id", "study_datetime", "view", "dicom_file", "cycle_index", "segment"],
+            by=["patient_num", "study_datetime", "view", "dicom_file", "cycle_index", "segment"],
             inplace=True,
         )
 
-    # Ensure output directory exists
     out_parquet = Path(out_parquet)
     out_parquet.parent.mkdir(parents=True, exist_ok=True)
 
@@ -656,7 +669,7 @@ def build_dataset(
         df_out.to_parquet(out_parquet, index=False)
         logger.info(
             f"Saved dataset: {out_parquet} with {len(df_out)} rows "
-            f"({df_out['short_id'].nunique()} patients, {df_out['study_instance_uid'].nunique()} studies)."
+            f"({df_out['patient_num'].nunique()} patients, {df_out['dicom_file'].nunique()} dicoms)."
         )
     else:
         logger.warning("Skipped saving empty dataset.")
@@ -665,38 +678,38 @@ def build_dataset(
 
 
 # --------------------------- CLI Interface --------------------------------
-
 def main():
     import os
-    user_home = os.path.expanduser("~")  # Gets user home directory
-    
-    p = argparse.ArgumentParser(description="Parse VVI XML strain analyses into a dataset")
+
+    user_home = os.path.expanduser("~")
+
+    p = argparse.ArgumentParser(description="Parse Ichilov VVI XML strain analyses into a dataset")
     p.add_argument(
         "--vvi-dir",
         type=Path,
         required=False,
-        default=Path(user_home) / "OneDrive - Technion" / "DS" / "Tags" / "VVI" / "Anonymous",
-        help="Path to VVI Anonymous directory containing <dicom>.dcm subfolders",
+        default=Path(user_home) / "OneDrive - Technion" / "DS" / "Tags_Ichilov" / "VVI",
+        help="Path to Tags_Ichilov VVI directory containing patient folders (XX_Name)",
     )
     p.add_argument(
         "--registry-xlsx",
         type=Path,
         required=False,
-        default=Path(user_home) / "OneDrive - Technion" / "DS" / "Cardio-Onco Echo SZMC" / "SZMC_report_oron.xlsx",
-        help="Registry Excel path",
+        default=Path(user_home) / "OneDrive - Technion" / "DS" / "Report_Ichilov_oron.xlsx",
+        help="Registry Excel path with PatientNum/ID/Study Date/2-Chambers/4-Chambers columns",
     )
     p.add_argument(
         "--echo-root",
         type=Path,
         required=False,
-        default=Path(user_home) / "OneDrive - Technion" / "DS" / "Cardio-Onco Echo SZMC",
-        help="Root directory where DICOMs reside (Parent_folder/Study_UID/<dicom>.dcm)",
+        default=Path(user_home) / "OneDrive - Technion" / "DS" / "Ichilov",
+        help="Root directory where DICOMs reside (patient_num/date/<dicom>.dcm)",
     )
     p.add_argument(
         "--out-parquet",
         type=Path,
         required=False,
-        default=Path(user_home) / "OneDrive - Technion" / "DS" / "Tags" / "VVI" / "processed" / "strain_dataset.parquet",
+        default=Path(user_home) / "OneDrive - Technion" / "DS" / "Tags_Ichilov" / "VVI" / "processed" / "strain_dataset_ichilov.parquet",
         help="Output Parquet path",
     )
     args = p.parse_args()
@@ -707,25 +720,7 @@ def main():
         echo_root=args.echo_root,
         out_parquet=args.out_parquet,
     )
-    
-    # Load registry and compute statistics
-    reg = pd.read_excel(args.registry_xlsx, engine="openpyxl")
-    reg.columns = [c.strip() for c in reg.columns]
-    
-    # All patients with at least 3 studies
-    all_study_counts = reg.groupby("Short ID")["Study Instance UID"].nunique()
-    num_all_with_3plus = (all_study_counts >= 3).sum()
-    
-    # Processed patients (have both 2C and 4C DICOM filenames)
-    reg_processed = reg[
-        (reg["2-Chambers"].notna()) & (reg["2-Chambers"] != "") &
-        (reg["4-Chambers"].notna()) & (reg["4-Chambers"] != "")
-    ]
-    proc_study_counts = reg_processed.groupby("Short ID")["Study Instance UID"].nunique()
-    num_proc_with_3plus = (proc_study_counts >= 3).sum()
-    
-    logger.info(f"Total unique patients with ≥3 studies: {num_all_with_3plus}")
-    logger.info(f"Processed patients with ≥3 studies: {num_proc_with_3plus}")
+
 
 if __name__ == "__main__":
     main()

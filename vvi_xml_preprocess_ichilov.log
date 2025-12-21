@@ -1,0 +1,41 @@
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\01_ELIMELECH_RIVKA___________\2015_03_04\DCM0052; using first: (SEG)11302025-140542.xml
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\01_ELIMELECH_RIVKA___________\2015_03_04\DCM0028; using first: (SEG)11302025-142256.xml
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\01_ELIMELECH_RIVKA___________\2015_07_08\DCM0034; using first: (SEG)11302025-143837.xml
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\01_ELIMELECH_RIVKA___________\2015_07_08\DCM0032; using first: (SEG)11302025-142814.xml
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\01_ELIMELECH_RIVKA___________\2015_12_17\DCM0055; using first: (SEG)11302025-150234.xml
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\01_ELIMELECH_RIVKA___________\2015_12_17\DCM0030; using first: (SEG)11302025-145110.xml
+[WARNING] XML not found for DICOM 'DCM0020' (patient 1); searched under C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\01_ELIMELECH_RIVKA___________
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\01_ELIMELECH_RIVKA___________\2016_05_20\DCM0015; using first: (SEG)11302025-151708.xml
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\02_KITOV_ESTER___________\2015_11_11\DCM0052; using first: (SEG)11302025-160745.xml
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\02_KITOV_ESTER___________\2015_11_11\DCM0028; using first: (SEG)11302025-154604.xml
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\02_KITOV_ESTER___________\2016_01_20\DCM0057; using first: (SEG)11302025-164807.xml
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\02_KITOV_ESTER___________\2016_01_20\DCM0029; using first: (SEG)11302025-163545.xml
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\02_KITOV_ESTER___________\2016_02_25\DCM0025; using first: (SEG)11302025-171908.xml
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\02_KITOV_ESTER___________\2016_02_25\DCM0021; using first: (SEG)11302025-171326.xml
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\02_KITOV_ESTER___________\2016_04_17\DCM0020; using first: (SEG)11302025-213340.xml
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\02_KITOV_ESTER___________\2016_04_17\DCM0017; using first: (SEG)11302025-212501.xml
+[WARNING] XML not found for DICOM 'DCM0039' (patient 4); searched under C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\04_SHESTOPALOVA_TATIANA________________
+[WARNING] XML not found for DICOM 'DCM0035' (patient 4); searched under C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\04_SHESTOPALOVA_TATIANA________________
+[WARNING] XML not found for DICOM 'DCM0043' (patient 4); searched under C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\04_SHESTOPALOVA_TATIANA________________
+[WARNING] XML not found for DICOM 'DCM0042' (patient 4); searched under C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\04_SHESTOPALOVA_TATIANA________________
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\04_SHESTOPALOVA_TATIANA________________\2016_05_27\DCM0041; using first: (SEG)12092025-141242.xml
+[WARNING] XML not found for DICOM 'DCM0045' (patient 4); searched under C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\04_SHESTOPALOVA_TATIANA________________
+[WARNING] XML not found for DICOM 'DCM0043' (patient 4); searched under C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\04_SHESTOPALOVA_TATIANA________________
+[WARNING] XML not found for DICOM 'DCM0042' (patient 4); searched under C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\04_SHESTOPALOVA_TATIANA________________
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\03_FRIEDENSOHN_HADASSA______________\2016_09_19\DCM0041; using first: (SEG)12092025-105610.xml
+[WARNING] Multiple XMLs found in C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\03_FRIEDENSOHN_HADASSA______________\2016_03_09\DCM0039; using first: (SEG)11302025-232339.xml
+[WARNING] Segment row not found in longitudinal rows 13-18: '03-Basal inferoseptal'
+[WARNING] Segment row not found in longitudinal rows 13-18: '09-Mid inferoseptal'
+[WARNING] Segment row not found in longitudinal rows 13-18: '12-Mid anterolateral'
+[WARNING] Segment row not found in longitudinal rows 13-18: '06-Basal anterolateral'
+[WARNING] Segment row not found in longitudinal rows 13-18: '03-Basal inferoseptal'
+[WARNING] Segment row not found in longitudinal rows 13-18: '09-Mid inferoseptal'
+[WARNING] Segment row not found in longitudinal rows 13-18: '12-Mid anterolateral'
+[WARNING] Segment row not found in longitudinal rows 13-18: '06-Basal anterolateral'
+[WARNING] Segment row not found in longitudinal rows 13-18: '03-Basal inferoseptal'
+[WARNING] Segment row not found in longitudinal rows 13-18: '09-Mid inferoseptal'
+[WARNING] Segment row not found in longitudinal rows 13-18: '12-Mid anterolateral'
+[WARNING] Segment row not found in longitudinal rows 13-18: '06-Basal anterolateral'
+[WARNING] No segment data in (SEG)11302025-232339.xml; skipping.
+[WARNING] XML not found for DICOM 'DCM0039' (patient 7); searched under C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\07_SHESTOPALOVA_TATIANA________________
+[INFO] Saved dataset: C:\Users\oronbarazani\OneDrive - Technion\DS\Tags_Ichilov\VVI\processed\strain_dataset_ichilov.parquet with 200 rows (4 patients, 20 dicoms).
