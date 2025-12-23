@@ -110,7 +110,7 @@
             "program": "create_labels_csv.py",
             "console": "integratedTerminal",
             "args": [
-                "--parquet", "${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
+                "--parquet", "F:\\DS\\strain_dataset_combined.parquet", //"${env:USERPROFILE}\\OneDrive - Technion\\DS\\Tags\\VVI\\processed\\strain_dataset.parquet",
                 "--out", "${workspaceFolder}\\labels.csv",
                 "--default-outcome", ""
             ]

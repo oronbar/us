@@ -1,2 +1,3 @@
 .venv/*
-Noa/*
+__pycache__/*
+models/*
