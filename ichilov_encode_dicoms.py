@@ -290,7 +290,7 @@ def main() -> None:
     parser.add_argument(
         "--weights",
         type=Path,
-        default=Path(r"C:\work\us\Echo-Vison-FM\weights\pytorch_model.bin"),
+        default=Path(r"C:\Users\oronbarazani\OneDrive - Technion\models\Ichilov_GLS_models\Encoder_weights\pytorch_model.bin"),
         help="Path to MAE weights",
     )
     parser.add_argument(

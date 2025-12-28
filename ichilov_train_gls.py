@@ -261,24 +261,25 @@ def _train_model(
 
 
 def main() -> None:
+    user_home = Path.home()
     parser = argparse.ArgumentParser(description="Train GLS prediction from embeddings.")
     parser.add_argument(
         "--input-embeddings",
         type=Path,
-        default=r"C:\Users\oronbarazani\OneDrive - Technion\DS\Ichilov_GLS_embeddings.parquet",
+        default=user_home / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings.parquet",
         help="Embedding dataframe (parquet/csv) from ichilov_encode_dicoms.py",
     )
     parser.add_argument(
         "--report-xlsx",
         type=Path,
         required=False,
-        default=r"C:\Users\oronbarazani\OneDrive - Technion\DS\Report_Ichilov_GLS_oron.xlsx",
+        default=user_home / "OneDrive - Technion" / "DS" / "Report_Ichilov_GLS_oron.xlsx",
         help="Optional report Excel to supply GLS targets if missing",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=r"C:\Users\oronbarazani\OneDrive - Technion\models\Ichilov_GLS_models",
+        default=user_home / "OneDrive - Technion" / "models" / "Ichilov_GLS_models",
         help="Output directory for model weights and metrics",
     )
     parser.add_argument(
