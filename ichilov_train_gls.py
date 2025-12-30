@@ -34,6 +34,7 @@ from sklearn.model_selection import GroupShuffleSplit
 from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 
@@ -249,6 +250,7 @@ def _train_model(
     y_mean: float,
     y_std: float,
     loss_type: str,
+    log_dir: Optional[Path] = None,
     plot_every: int = 5,
 ) -> Dict[str, float]:
     model.to(device)
@@ -263,6 +265,7 @@ def _train_model(
     best_val = float("inf")
     best_state = None
     plot_dir = out_path.parent / f"pred_plots_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    writer = SummaryWriter(str(log_dir)) if log_dir is not None else None
 
     for epoch in range(1, epochs + 1):
         model.train()
@@ -277,14 +280,32 @@ def _train_model(
             opt.step()
             running += float(loss.item()) * x.size(0)
 
+        # Validation loss using the training loss function (normalized targets).
+        model.eval()
+        val_running = 0.0
+        with torch.no_grad():
+            for x, y in val_loader:
+                x = x.to(device)
+                y = y.to(device)
+                out = model(x)
+                val_running += float(loss_fn(out, y).item()) * x.size(0)
+        val_loss = val_running / len(val_loader.dataset)
+
         val_mae, val_rmse, val_mse, preds_arr, trues_arr = _evaluate(model, val_loader, device, y_mean, y_std)
         train_loss = running / len(train_loader.dataset)
         scheduler.step(val_mse)
         current_lr = opt.param_groups[0]["lr"]
         logger.info(
             f"Epoch {epoch:03d} | lr={current_lr:.2e} | train_loss={train_loss:.4f} | "
-            f"val_mae={val_mae:.4f} | val_rmse={val_rmse:.4f}"
+            f"val_loss={val_loss:.4f} | val_mae={val_mae:.4f} | val_rmse={val_rmse:.4f}"
         )
+        if writer:
+            writer.add_scalars("loss", {"train": train_loss, "val": val_loss}, epoch)
+            writer.add_scalar("metrics/val_mae", val_mae, epoch)
+            writer.add_scalar("metrics/val_rmse", val_rmse, epoch)
+            writer.add_scalar("metrics/val_mse", val_mse, epoch)
+            writer.add_scalar("lr", current_lr, epoch)
+            writer.flush()
         if plot_every > 0 and epoch % plot_every == 0:
             plot_dir.mkdir(parents=True, exist_ok=True)
             fig, ax = plt.subplots()
@@ -307,6 +328,9 @@ def _train_model(
         out_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(best_state, out_path)
 
+    if writer:
+        writer.close()
+
     return {"val_mse": best_val}
 
 
@@ -316,7 +340,7 @@ def main() -> None:
     parser.add_argument(
         "--input-embeddings",
         type=Path,
-        default=user_home / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings.parquet",
+        default=user_home / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full.parquet",
         help="Embedding dataframe (parquet/csv) from ichilov_encode_dicoms.py",
     )
     parser.add_argument(
@@ -333,13 +357,19 @@ def main() -> None:
         help="Output directory for model weights and metrics",
     )
     parser.add_argument(
+        "--log-dir",
+        type=Path,
+        default=None,
+        help="Optional TensorBoard log directory (default: OUTPUT_DIR/tensorboard/<timestamp>)",
+    )
+    parser.add_argument(
         "--model",
         type=str,
         choices=["cnn", "transformer", "both"],
-        default="cnn",
+        default="transformer",
         help="Model type to train",
     )
-    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--epochs", type=int, default=40)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=2e-3)
     parser.add_argument("--weight-decay", type=float, default=0.0)
@@ -353,7 +383,7 @@ def main() -> None:
         "--loss",
         type=str,
         choices=["mse", "mae", "huber"],
-        default="mae",
+        default="mse",
         help="Regression loss to use (MAE/HUBER can reduce mean-collapse).",
     )
     parser.add_argument(
@@ -368,7 +398,16 @@ def main() -> None:
         default="",
         help="Optional target column name (defaults to 'gls' if present)",
     )
+    parser.add_argument(
+        "--standardize",
+        dest="standardize",
+        action="store_true",
+        default=True,
+        help="Disable standardization of embeddings/targets (use raw values).",
+    )
     args = parser.parse_args()
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base_log_dir = args.log_dir or args.output_dir / "tensorboard" / run_id
 
     df = _load_embeddings(args.input_embeddings)
     df.columns = [str(c).strip() for c in df.columns]
@@ -435,19 +474,36 @@ def main() -> None:
     train_idx, val_idx = next(splitter.split(x, y, groups=groups))
     x_train, y_train = x[train_idx], y[train_idx]
     x_val, y_val = x[val_idx], y[val_idx]
+    y_train_raw = y_train.copy()
+    y_val_raw = y_val.copy()
+    logger.info(
+        "GLS train: mean=%.4f std=%.4f | val: mean=%.4f std=%.4f",
+        float(np.mean(y_train_raw)),
+        float(np.std(y_train_raw)),
+        float(np.mean(y_val_raw)),
+        float(np.std(y_val_raw)),
+    )
 
-    # Standardize embeddings and targets using training statistics.
-    x_mean = x_train.mean(axis=0)
-    x_std = x_train.std(axis=0)
-    x_std = np.maximum(x_std, 1e-6)
-    x_train = ((x_train - x_mean) / x_std).astype(np.float32)
-    x_val = ((x_val - x_mean) / x_std).astype(np.float32)
+    if args.standardize:
+        # Standardize embeddings and targets using training statistics.
+        x_mean = x_train.mean(axis=0)
+        x_std = x_train.std(axis=0)
+        x_std = np.maximum(x_std, 1e-6)
+        x_train = ((x_train - x_mean) / x_std).astype(np.float32)
+        x_val = ((x_val - x_mean) / x_std).astype(np.float32)
 
-    y_mean = float(y_train.mean())
-    y_std = float(y_train.std())
-    y_std = max(y_std, 1e-6)
-    y_train = ((y_train - y_mean) / y_std).astype(np.float32)
-    y_val = ((y_val - y_mean) / y_std).astype(np.float32)
+        y_mean = float(y_train.mean())
+        y_std = float(y_train.std())
+        y_std = max(y_std, 1e-6)
+        y_train = ((y_train - y_mean) / y_std).astype(np.float32)
+        y_val = ((y_val - y_mean) / y_std).astype(np.float32)
+    else:
+        x_train = x_train.astype(np.float32)
+        x_val = x_val.astype(np.float32)
+        y_train = y_train.astype(np.float32)
+        y_val = y_val.astype(np.float32)
+        y_mean = 0.0
+        y_std = 1.0
 
     train_ds = EmbeddingDataset(x_train, y_train)
     val_ds = EmbeddingDataset(x_val, y_val)
@@ -463,6 +519,7 @@ def main() -> None:
         logger.info("Training CNN regressor...")
         model = CNNRegressor(input_dim)
         out_path = args.output_dir / "cnn_best.pt"
+        cnn_log_dir = base_log_dir / "cnn" if args.model == "both" else base_log_dir
         metrics = _train_model(
             model,
             train_loader,
@@ -478,6 +535,7 @@ def main() -> None:
             y_mean=y_mean,
             y_std=y_std,
             loss_type=args.loss,
+            log_dir=cnn_log_dir,
             plot_every=5,
         )
         results["cnn"] = metrics
@@ -486,6 +544,7 @@ def main() -> None:
         logger.info("Training Transformer regressor...")
         model = TransformerRegressor(input_dim)
         out_path = args.output_dir / "transformer_best.pt"
+        transformer_log_dir = base_log_dir / "transformer" if args.model == "both" else base_log_dir
         metrics = _train_model(
             model,
             train_loader,
@@ -501,6 +560,7 @@ def main() -> None:
             y_mean=y_mean,
             y_std=y_std,
             loss_type=args.loss,
+            log_dir=transformer_log_dir,
             plot_every=5,
         )
         results["transformer"] = metrics
