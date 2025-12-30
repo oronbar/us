@@ -10,9 +10,9 @@ Output:
 
 Usage (PowerShell):
   .venv\\Scripts\\python ichilov_train_gls.py ^
-    --input-embeddings "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Ichilov_GLS_embeddings.parquet" ^
-    --report-xlsx "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Report_Ichilov_GLS_oron.xlsx" ^
-    --output-dir "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Ichilov_GLS_models"
+    --input-embeddings "$env:USERPROFILE\\OneDrive - Technion\\DS\\Ichilov_GLS_embeddings.parquet" ^
+    --report-xlsx "$env:USERPROFILE\\OneDrive - Technion\\DS\\Report_Ichilov_GLS_oron.xlsx" ^
+    --output-dir "$env:USERPROFILE\\OneDrive - Technion\\DS\\Ichilov_GLS_models"
 """
 from __future__ import annotations
 
@@ -20,14 +20,19 @@ import argparse
 import ast
 import json
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
+import matplotlib
+matplotlib.use("Agg")  # Use non-interactive backend for saving plots in headless runs.
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
 from sklearn.model_selection import GroupShuffleSplit
 from torch import nn
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
@@ -148,15 +153,23 @@ class CNNRegressor(nn.Module):
     def __init__(self, input_dim: int):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Conv1d(1, 16, kernel_size=5, padding=2),
+            nn.Conv1d(1, 32, kernel_size=5, padding=2),
+            nn.BatchNorm1d(32),
             nn.ReLU(),
-            nn.Conv1d(16, 32, kernel_size=5, padding=2),
+            nn.Conv1d(32, 64, kernel_size=5, padding=2),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Conv1d(64, 128, kernel_size=5, padding=2),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
             nn.AdaptiveAvgPool1d(1),
         )
         self.head = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(32, 64),
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Dropout(p=0.2),
+            nn.Linear(128, 64),
             nn.ReLU(),
             nn.Linear(64, 1),
         )
@@ -196,7 +209,13 @@ class TransformerRegressor(nn.Module):
         return self.head(x)
 
 
-def _evaluate(model: nn.Module, loader: DataLoader, device: torch.device) -> Tuple[float, float, float]:
+def _evaluate(
+    model: nn.Module,
+    loader: DataLoader,
+    device: torch.device,
+    y_mean: float,
+    y_std: float,
+) -> Tuple[float, float, float, np.ndarray, np.ndarray]:
     model.eval()
     preds: List[float] = []
     trues: List[float] = []
@@ -207,12 +226,12 @@ def _evaluate(model: nn.Module, loader: DataLoader, device: torch.device) -> Tup
             out = model(x).squeeze(1)
             preds.extend(out.cpu().numpy().tolist())
             trues.extend(y.squeeze(1).cpu().numpy().tolist())
-    preds_arr = np.asarray(preds, dtype=float)
-    trues_arr = np.asarray(trues, dtype=float)
+    preds_arr = np.asarray(preds, dtype=float) * y_std + y_mean
+    trues_arr = np.asarray(trues, dtype=float) * y_std + y_mean
     mae = float(np.mean(np.abs(preds_arr - trues_arr)))
     rmse = float(np.sqrt(np.mean((preds_arr - trues_arr) ** 2)))
     mse = float(np.mean((preds_arr - trues_arr) ** 2))
-    return mae, rmse, mse
+    return mae, rmse, mse, preds_arr, trues_arr
 
 
 def _train_model(
@@ -224,12 +243,26 @@ def _train_model(
     lr: float,
     weight_decay: float,
     out_path: Path,
+    lr_factor: float,
+    lr_patience: int,
+    lr_min: float,
+    y_mean: float,
+    y_std: float,
+    loss_type: str,
+    plot_every: int = 5,
 ) -> Dict[str, float]:
     model.to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
-    loss_fn = nn.MSELoss()
+    scheduler = ReduceLROnPlateau(opt, mode="min", factor=lr_factor, patience=lr_patience, min_lr=lr_min)
+    if loss_type == "mae":
+        loss_fn = nn.L1Loss()
+    elif loss_type == "huber":
+        loss_fn = nn.SmoothL1Loss(beta=1.0)
+    else:
+        loss_fn = nn.MSELoss()
     best_val = float("inf")
     best_state = None
+    plot_dir = out_path.parent / f"pred_plots_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
     for epoch in range(1, epochs + 1):
         model.train()
@@ -244,11 +277,28 @@ def _train_model(
             opt.step()
             running += float(loss.item()) * x.size(0)
 
-        val_mae, val_rmse, val_mse = _evaluate(model, val_loader, device)
+        val_mae, val_rmse, val_mse, preds_arr, trues_arr = _evaluate(model, val_loader, device, y_mean, y_std)
         train_loss = running / len(train_loader.dataset)
+        scheduler.step(val_mse)
+        current_lr = opt.param_groups[0]["lr"]
         logger.info(
-            f"Epoch {epoch:03d} | train_loss={train_loss:.4f} | val_mae={val_mae:.4f} | val_rmse={val_rmse:.4f}"
+            f"Epoch {epoch:03d} | lr={current_lr:.2e} | train_loss={train_loss:.4f} | "
+            f"val_mae={val_mae:.4f} | val_rmse={val_rmse:.4f}"
         )
+        if plot_every > 0 and epoch % plot_every == 0:
+            plot_dir.mkdir(parents=True, exist_ok=True)
+            fig, ax = plt.subplots()
+            ax.plot(trues_arr, label="true")
+            ax.plot(preds_arr, label="pred")
+            ax.set_xlabel("Sample")
+            ax.set_ylabel("GLS")
+            ax.set_title(f"{out_path.stem} epoch {epoch} predictions")
+            ax.legend()
+            fig.tight_layout()
+            plot_path = plot_dir / f"{out_path.stem}_epoch{epoch:03d}.png"
+            fig.savefig(plot_path)
+            plt.close(fig)
+            logger.info(f"Saved prediction plot: {plot_path}")
         if val_mse < best_val:
             best_val = val_mse
             best_state = {k: v.detach().cpu() for k, v in model.state_dict().items()}
@@ -290,12 +340,28 @@ def main() -> None:
         help="Model type to train",
     )
     parser.add_argument("--epochs", type=int, default=50)
-    parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--weight-decay", type=float, default=1e-4)
+    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--lr", type=float, default=2e-3)
+    parser.add_argument("--weight-decay", type=float, default=0.0)
+    parser.add_argument("--lr-factor", type=float, default=0.5, help="LR reduce factor on plateau")
+    parser.add_argument("--lr-patience", type=int, default=5, help="Epoch patience before LR drop")
+    parser.add_argument("--lr-min", type=float, default=1e-6, help="Lower bound for learning rate")
     parser.add_argument("--val-fraction", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", type=str, default="auto")
+    parser.add_argument(
+        "--loss",
+        type=str,
+        choices=["mse", "mae", "huber"],
+        default="mae",
+        help="Regression loss to use (MAE/HUBER can reduce mean-collapse).",
+    )
+    parser.add_argument(
+        "--embedding-dim",
+        type=int,
+        default=None,
+        help="Optional embedding dimension to select (e.g., 768 for MAE max-pooled, 1536 for STF fusion).",
+    )
     parser.add_argument(
         "--target-col",
         type=str,
@@ -320,6 +386,13 @@ def main() -> None:
         else:
             raise ValueError("No GLS target found. Provide --report-xlsx or --target-col.")
 
+    if args.embedding_dim is not None:
+        if "embedding_dim" in df.columns:
+            df = df[df["embedding_dim"] == args.embedding_dim].copy()
+            logger.info(f"Filtered embeddings to embedding_dim={args.embedding_dim}, remaining rows: {len(df)}")
+        else:
+            logger.warning("--embedding-dim was provided but 'embedding_dim' column is missing; proceeding without filtering.")
+
     emb_col = _find_column(df, ["embedding"], required=True)
     df["embedding_vec"] = df[emb_col].apply(_parse_embedding)
     df = df[df["embedding_vec"].notna()].copy()
@@ -331,7 +404,18 @@ def main() -> None:
 
     emb_lengths = df["embedding_vec"].apply(lambda x: x.shape[0]).unique()
     if len(emb_lengths) != 1:
-        raise ValueError(f"Inconsistent embedding dimensions: {emb_lengths}")
+        if args.embedding_dim is None and "embedding_dim" in df.columns:
+            # Auto-select the most frequent dimension as a fallback for mixed MAE/STF files.
+            dim_counts = df["embedding_dim"].value_counts()
+            target_dim = int(dim_counts.idxmax())
+            df = df[df["embedding_dim"] == target_dim].copy()
+            emb_lengths = df["embedding_vec"].apply(lambda x: x.shape[0]).unique()
+            logger.info(
+                f"Detected mixed embedding dims; auto-selected embedding_dim={target_dim}. "
+                f"Remaining rows: {len(df)}"
+            )
+        else:
+            raise ValueError(f"Inconsistent embedding dimensions: {emb_lengths}")
     input_dim = int(emb_lengths[0])
 
     patient_col = _find_column(df, ["patient_id", "patient_num"], required=False)
@@ -351,6 +435,19 @@ def main() -> None:
     train_idx, val_idx = next(splitter.split(x, y, groups=groups))
     x_train, y_train = x[train_idx], y[train_idx]
     x_val, y_val = x[val_idx], y[val_idx]
+
+    # Standardize embeddings and targets using training statistics.
+    x_mean = x_train.mean(axis=0)
+    x_std = x_train.std(axis=0)
+    x_std = np.maximum(x_std, 1e-6)
+    x_train = ((x_train - x_mean) / x_std).astype(np.float32)
+    x_val = ((x_val - x_mean) / x_std).astype(np.float32)
+
+    y_mean = float(y_train.mean())
+    y_std = float(y_train.std())
+    y_std = max(y_std, 1e-6)
+    y_train = ((y_train - y_mean) / y_std).astype(np.float32)
+    y_val = ((y_val - y_mean) / y_std).astype(np.float32)
 
     train_ds = EmbeddingDataset(x_train, y_train)
     val_ds = EmbeddingDataset(x_val, y_val)
@@ -375,6 +472,13 @@ def main() -> None:
             lr=args.lr,
             weight_decay=args.weight_decay,
             out_path=out_path,
+            lr_factor=args.lr_factor,
+            lr_patience=args.lr_patience,
+            lr_min=args.lr_min,
+            y_mean=y_mean,
+            y_std=y_std,
+            loss_type=args.loss,
+            plot_every=5,
         )
         results["cnn"] = metrics
 
@@ -391,6 +495,13 @@ def main() -> None:
             lr=args.lr,
             weight_decay=args.weight_decay,
             out_path=out_path,
+            lr_factor=args.lr_factor,
+            lr_patience=args.lr_patience,
+            lr_min=args.lr_min,
+            y_mean=y_mean,
+            y_std=y_std,
+            loss_type=args.loss,
+            plot_every=5,
         )
         results["transformer"] = metrics
 

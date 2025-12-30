@@ -10,19 +10,20 @@ Output:
 
 Usage (PowerShell):
   .venv\\Scripts\\python ichilov_encode_dicoms.py ^
-    --input-xlsx "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Report_Ichilov_GLS_oron.xlsx" ^
+    --input-xlsx "$env:USERPROFILE\\OneDrive - Technion\\DS\\Report_Ichilov_GLS_oron.xlsx" ^
     --echo-root "D:\\DS\\Ichilov" ^
     --cropped-root "D:\\DS\\Ichilov_cropped" ^
     --weights "C:\\work\\us\\Echo-Vison-FM\\weights\\pytorch_model.bin" ^
-    --output-parquet "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Ichilov_GLS_embeddings.parquet"
+    --output-parquet "$env:USERPROFILE\\OneDrive - Technion\\DS\\Ichilov_GLS_embeddings.parquet"
 """
 from __future__ import annotations
 
 import argparse
 import logging
 import re
+import sys
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -48,6 +49,11 @@ logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("ichilov_encode_dicoms")
 
 VIEW_KEYS = ("A2C", "A4C")
+PROJECT_ROOT = Path(__file__).resolve().parent
+ECHO_VISION_ROOT = (PROJECT_ROOT / "Echo-Vison-FM").resolve()
+if ECHO_VISION_ROOT.exists():
+    sys.path.append(str(ECHO_VISION_ROOT))
+USER_HOME = Path.home()
 
 
 def _find_column(df: pd.DataFrame, candidates: Sequence[str], required: bool = False) -> Optional[str]:
@@ -209,7 +215,7 @@ def _to_tensor(frames: np.ndarray) -> torch.Tensor:
     return tensor
 
 
-def _load_cropped_dicom(dicom_path: Path, target_frames: int = 16) -> Optional[torch.Tensor]:
+def _load_cropped_dicom(dicom_path: Path, target_frames: int = 16) -> Optional[Tuple[torch.Tensor, torch.Tensor]]:
     try:
         ds = pydicom.dcmread(str(dicom_path), force=True)
     except Exception as exc:
@@ -239,12 +245,14 @@ def _load_cropped_dicom(dicom_path: Path, target_frames: int = 16) -> Optional[t
     if idx.size == 0:
         return None
     frames = frames[idx]
-    return _to_tensor(frames)
+    temporal_indices = torch.as_tensor(idx, dtype=torch.int32)
+    return _to_tensor(frames), temporal_indices
 
 
 def _load_encoder(weights_path: Path, device: torch.device) -> torch.nn.Module:
     config = VideoMAEConfig()
     config.image_size = 224
+    config.num_frames = 16
     model = VideoMAEForPreTraining.from_pretrained("MCG-NJU/videomae-base", config=config)
     checkpoint = torch.load(weights_path, map_location="cpu")
     if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
@@ -258,12 +266,43 @@ def _load_encoder(weights_path: Path, device: torch.device) -> torch.nn.Module:
     return encoder
 
 
-def _encode_tensor(model: torch.nn.Module, tensor: torch.Tensor, device: torch.device) -> np.ndarray:
+def _load_stf_net(device: torch.device) -> torch.nn.Module:
+    try:
+        from modeling.stff_net import SpatioTemporalFeatureFusionNet
+    except Exception as exc:  # pragma: no cover - runtime check
+        raise RuntimeError(
+            "Requested STF fusion but failed to import it. Make sure the Echo-Vison-FM submodule is present "
+            "and install its dependency: python -m pip install positional-encodings"
+        ) from exc
+
+    stf_net = SpatioTemporalFeatureFusionNet(feat_dim=768, size_feat_map=(8, 14, 14))
+    stf_net.eval()
+    stf_net.to(device)
+    return stf_net
+
+
+def _encode_tensor(
+    model: torch.nn.Module,
+    tensor: torch.Tensor,
+    device: torch.device,
+    stf_net: Optional[torch.nn.Module] = None,
+    temporal_indices: Optional[torch.Tensor] = None,
+) -> np.ndarray:
     # tensor shape: T,C,H,W
     pixel_values = tensor.unsqueeze(0).to(device)
+    temp_idx = temporal_indices
+    if temp_idx is not None:
+        temp_idx = temp_idx.to(device)
+        if temp_idx.ndim == 1:
+            temp_idx = temp_idx.unsqueeze(0)
     with torch.no_grad():
         out = model(pixel_values=pixel_values).last_hidden_state
-        emb = torch.max(out, dim=1)[0]
+        if stf_net is not None:
+            if temp_idx is None:
+                raise ValueError("temporal_indices must be provided when using STF net")
+            emb = stf_net(out, temp_idx)
+        else:
+            emb = torch.max(out, dim=1)[0]
     return emb.squeeze(0).cpu().numpy()
 
 
@@ -272,7 +311,7 @@ def main() -> None:
     parser.add_argument(
         "--input-xlsx",
         type=Path,
-        default=Path(r"C:\Users\oronbarazani\OneDrive - Technion\DS\Report_Ichilov_GLS_oron.xlsx"),
+        default=USER_HOME / "OneDrive - Technion" / "DS" / "Report_Ichilov_GLS_oron.xlsx",
         help="Input Excel with GLS source DICOM paths",
     )
     parser.add_argument(
@@ -290,14 +329,20 @@ def main() -> None:
     parser.add_argument(
         "--weights",
         type=Path,
-        default=Path(r"C:\Users\oronbarazani\OneDrive - Technion\models\Ichilov_GLS_models\Encoder_weights\pytorch_model.bin"),
+        default=USER_HOME / "OneDrive - Technion" / "models" / "Ichilov_GLS_models" / "Encoder_weights" / "pytorch_model.bin",
         help="Path to MAE weights",
     )
     parser.add_argument(
         "--output-parquet",
         type=Path,
-        default=Path(r"C:\Users\oronbarazani\OneDrive - Technion\DS\Ichilov_GLS_embeddings.parquet"),
+        default=USER_HOME / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full.parquet",
         help="Output parquet path",
+    )
+    parser.add_argument(
+        "--use-stf",
+        action="store_true",
+        default=True,
+        help="Use EchoVisionFM STF fusion head (outputs 1536-dim instead of 768-dim).",
     )
     args = parser.parse_args()
 
@@ -312,6 +357,9 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Loading encoder on {device}")
     model = _load_encoder(args.weights, device=device)
+    stf_net = _load_stf_net(device=device) if args.use_stf else None
+    if args.use_stf:
+        logger.info("STF fusion enabled (EchoVisionFM)")
 
     cache: Dict[str, np.ndarray] = {}
     rows: List[dict] = []
@@ -324,10 +372,12 @@ def main() -> None:
         for view in VIEW_KEYS:
             col = col_src.get(view)
             if not col:
+                logger.debug(f"Skipping view {view} - no source column")
                 continue
             src_path = _resolve_dicom_path(row[col], patient_num, study_dt, args.echo_root)
             if src_path is None:
-                continue
+               logger.warning(f"Failed to resolve source DICOM path for view {view}")
+               continue
             cropped_path = _to_cropped_path(src_path, args.echo_root, args.cropped_root)
             if cropped_path is None:
                 logger.warning(f"Cropped DICOM not found for {src_path}")
@@ -337,10 +387,18 @@ def main() -> None:
             if key in cache:
                 emb = cache[key]
             else:
-                tensor = _load_cropped_dicom(cropped_path, target_frames=16)
-                if tensor is None:
+                loaded = _load_cropped_dicom(cropped_path, target_frames=16)
+                if loaded is None:
+                    logger.warning(f"Failed to load cropped DICOM {cropped_path}")
                     continue
-                emb = _encode_tensor(model, tensor, device=device)
+                tensor, temporal_indices = loaded
+                emb = _encode_tensor(
+                    model,
+                    tensor,
+                    device=device,
+                    stf_net=stf_net,
+                    temporal_indices=temporal_indices,
+                )
                 cache[key] = emb
 
             rows.append(
