@@ -20,6 +20,7 @@ import argparse
 import ast
 import json
 import logging
+import random
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -42,6 +43,16 @@ logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("ichilov_train_gls")
 
 VIEW_KEYS = ("A2C", "A3C", "A4C")
+
+
+def _set_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def _find_column(df: pd.DataFrame, candidates: Sequence[str], required: bool = False) -> Optional[str]:
@@ -209,6 +220,50 @@ class TransformerRegressor(nn.Module):
         x = x.mean(dim=1)
         return self.head(x)
 
+class MLPRegressor(nn.Module):
+    """Strong baseline for fixed embeddings (no fake locality)."""
+    def __init__(self, input_dim: int, hidden: int = 256, depth: int = 3, dropout: float = 0.2):
+        super().__init__()
+        self.norm = nn.LayerNorm(input_dim)
+        layers = []
+        in_dim = input_dim
+        for i in range(depth):
+            layers += [
+                nn.Linear(in_dim, hidden),
+                nn.GELU(),
+                nn.Dropout(dropout),
+            ]
+            in_dim = hidden
+        self.backbone = nn.Sequential(*layers)
+        self.head = nn.Linear(hidden, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.norm(x)
+        x = self.backbone(x)
+        return self.head(x)
+
+
+class MLPHeteroscedastic(nn.Module):
+    """
+    Predict mean + log-variance for noisy GLS.
+    Outputs: (mu, log_var) in normalized target space.
+    """
+    def __init__(self, input_dim: int, hidden: int = 256, depth: int = 3, dropout: float = 0.2):
+        super().__init__()
+        self.norm = nn.LayerNorm(input_dim)
+        layers = []
+        in_dim = input_dim
+        for _ in range(depth):
+            layers += [nn.Linear(in_dim, hidden), nn.GELU(), nn.Dropout(dropout)]
+            in_dim = hidden
+        self.backbone = nn.Sequential(*layers)
+        self.mu = nn.Linear(hidden, 1)
+        self.log_var = nn.Linear(hidden, 1)
+
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        x = self.norm(x)
+        h = self.backbone(x)
+        return self.mu(h), self.log_var(h)
 
 def _evaluate(
     model: nn.Module,
@@ -251,7 +306,8 @@ def _train_model(
     y_std: float,
     loss_type: str,
     log_dir: Optional[Path] = None,
-    plot_every: int = 5,
+    plot_every: int = 10,
+    run_args: Optional[Dict[str, object]] = None,
 ) -> Dict[str, float]:
     model.to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -264,8 +320,62 @@ def _train_model(
         loss_fn = nn.MSELoss()
     best_val = float("inf")
     best_state = None
-    plot_dir = out_path.parent / f"pred_plots_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    def _normalize_run_args(values: Dict[str, object]) -> Dict[str, object]:
+        normalized: Dict[str, object] = {}
+        for key, val in values.items():
+            if isinstance(val, Path):
+                normalized[key] = str(val)
+            elif isinstance(val, (list, tuple)):
+                normalized[key] = [str(v) if isinstance(v, Path) else v for v in val]
+            else:
+                normalized[key] = val
+        return normalized
+
+    def _sanitize_token(token: str) -> str:
+        cleaned = []
+        for ch in str(token):
+            cleaned.append(ch if (ch.isalnum() or ch in ("-", "_")) else "-")
+        out = "".join(cleaned).strip("-_")
+        return out or "arg"
+
+    norm_args = _normalize_run_args(run_args) if run_args is not None else None
+    suffix = ""
+    if norm_args is not None:
+        last_args = None
+        model_name = str(norm_args.get("trained_model")) if "trained_model" in norm_args else None
+        candidates = []
+        for path in out_path.parent.glob("pred_plots_*"):
+            if not path.is_dir():
+                continue
+            args_file = path / "run_args.json"
+            if not args_file.exists():
+                continue
+            try:
+                with args_file.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                continue
+            if model_name is not None and str(data.get("trained_model")) != model_name:
+                continue
+            candidates.append((args_file.stat().st_mtime, data))
+        if candidates:
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            last_args = candidates[0][1]
+        if last_args is not None:
+            diff_keys = [k for k in sorted(norm_args.keys()) if last_args.get(k) != norm_args.get(k)]
+            if diff_keys:
+                suffix = "__" + "_".join(_sanitize_token(k) for k in diff_keys)
+
+    plot_dir = out_path.parent / f"pred_plots_{datetime.now().strftime('%Y%m%d_%H%M%S')}{suffix}"
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    if norm_args is not None:
+        args_path = plot_dir / "run_args.json"
+        with args_path.open("w", encoding="utf-8") as f:
+            json.dump(norm_args, f, indent=2, sort_keys=True)
+        logger.info(f"Saved run args: {args_path}")
     writer = SummaryWriter(str(log_dir)) if log_dir is not None else None
+    train_losses: List[float] = []
+    val_losses: List[float] = []
 
     for epoch in range(1, epochs + 1):
         model.train()
@@ -275,7 +385,14 @@ def _train_model(
             y = y.to(device)
             opt.zero_grad()
             out = model(x)
-            loss = loss_fn(out, y)
+            if isinstance(out, tuple) and len(out) == 2:
+                mu, log_var = out
+                # Gaussian NLL in normalized y space:
+                # 0.5 * (log_var + (y-mu)^2 / exp(log_var))
+                loss = 0.5 * (log_var + (y - mu) ** 2 / torch.exp(log_var))
+                loss = loss.mean()
+            else:
+                loss = loss_fn(out, y)
             loss.backward()
             opt.step()
             running += float(loss.item()) * x.size(0)
@@ -293,6 +410,8 @@ def _train_model(
 
         val_mae, val_rmse, val_mse, preds_arr, trues_arr = _evaluate(model, val_loader, device, y_mean, y_std)
         train_loss = running / len(train_loader.dataset)
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
         scheduler.step(val_mse)
         current_lr = opt.param_groups[0]["lr"]
         logger.info(
@@ -328,14 +447,93 @@ def _train_model(
         out_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(best_state, out_path)
 
+    eval_model = model
+    if best_state is not None:
+        eval_model.load_state_dict(best_state)
+    val_mae, val_rmse, val_mse, preds_arr, trues_arr = _evaluate(
+        eval_model, val_loader, device, y_mean, y_std
+    )
+    if len(preds_arr) > 1 and np.std(preds_arr) > 1e-8 and np.std(trues_arr) > 1e-8:
+        val_corr = float(np.corrcoef(preds_arr, trues_arr)[0, 1])
+    else:
+        val_corr = float("nan")
+
+    mean_vals = (preds_arr + trues_arr) / 2.0
+    diff_vals = preds_arr - trues_arr
+    diff_mean = float(np.mean(diff_vals)) if len(diff_vals) else float("nan")
+    diff_std = float(np.std(diff_vals)) if len(diff_vals) else float("nan")
+    loa_upper = diff_mean + 1.96 * diff_std if np.isfinite(diff_mean) and np.isfinite(diff_std) else float("nan")
+    loa_lower = diff_mean - 1.96 * diff_std if np.isfinite(diff_mean) and np.isfinite(diff_std) else float("nan")
+
+    if len(diff_vals):
+        plot_dir.mkdir(parents=True, exist_ok=True)
+        fig, ax = plt.subplots()
+        ax.scatter(mean_vals, diff_vals, alpha=0.6, s=12)
+        ax.axhline(diff_mean, color="red", linestyle="--", linewidth=1.5, label=f"mean={diff_mean:.3f}")
+        if np.isfinite(loa_upper) and np.isfinite(loa_lower):
+            ax.axhline(loa_upper, color="gray", linestyle="--", linewidth=1.0, label=f"+1.96 SD={loa_upper:.3f}")
+            ax.axhline(loa_lower, color="gray", linestyle="--", linewidth=1.0, label=f"-1.96 SD={loa_lower:.3f}")
+        ax.set_xlabel("Mean of true and pred")
+        ax.set_ylabel("Pred - True")
+        ax.set_title(f"{out_path.stem} Bland-Altman")
+        ax.legend()
+        fig.tight_layout()
+        ba_path = plot_dir / f"{out_path.stem}_bland_altman.png"
+        fig.savefig(ba_path)
+        plt.close(fig)
+        logger.info(f"Saved Bland-Altman plot: {ba_path}")
+
+        metrics_path = plot_dir / f"{out_path.stem}_val_metrics.json"
+        with metrics_path.open("w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "val_mae": val_mae,
+                    "val_rmse": val_rmse,
+                    "val_mse": val_mse,
+                    "val_corr": val_corr,
+                    "bland_altman_mean": diff_mean,
+                    "bland_altman_loa_lower": loa_lower,
+                    "bland_altman_loa_upper": loa_upper,
+                },
+                f,
+                indent=2,
+            )
+        logger.info(f"Saved validation metrics: {metrics_path}")
+
+    if train_losses and val_losses:
+        plot_dir.mkdir(parents=True, exist_ok=True)
+        fig, ax = plt.subplots()
+        epochs = np.arange(1, len(train_losses) + 1)
+        ax.plot(epochs, train_losses, label="train")
+        ax.plot(epochs, val_losses, label="val")
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Loss")
+        ax.set_title(f"{out_path.stem} train/val loss")
+        ax.legend()
+        fig.tight_layout()
+        loss_plot_path = plot_dir / f"{out_path.stem}_loss_curve.png"
+        fig.savefig(loss_plot_path)
+        plt.close(fig)
+        logger.info(f"Saved loss curve plot: {loss_plot_path}")
+
     if writer:
         writer.close()
 
-    return {"val_mse": best_val}
+    return {
+        "val_mse": val_mse,
+        "val_mae": val_mae,
+        "val_rmse": val_rmse,
+        "val_corr": val_corr,
+        "bland_altman_mean": diff_mean,
+        "bland_altman_loa_lower": loa_lower,
+        "bland_altman_loa_upper": loa_upper,
+    }
 
 
 def main() -> None:
     user_home = Path.home()
+    if user_home.name == "oronbar.RF":
+        user_home = Path("F:\\")
     parser = argparse.ArgumentParser(description="Train GLS prediction from embeddings.")
     parser.add_argument(
         "--input-embeddings",
@@ -369,7 +567,7 @@ def main() -> None:
         default="transformer",
         help="Model type to train",
     )
-    parser.add_argument("--epochs", type=int, default=40)
+    parser.add_argument("--epochs", type=int, default=90)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=2e-3)
     parser.add_argument("--weight-decay", type=float, default=0.0)
@@ -383,7 +581,7 @@ def main() -> None:
         "--loss",
         type=str,
         choices=["mse", "mae", "huber"],
-        default="mse",
+        default="huber",
         help="Regression loss to use (MAE/HUBER can reduce mean-collapse).",
     )
     parser.add_argument(
@@ -399,6 +597,18 @@ def main() -> None:
         help="Optional target column name (defaults to 'gls' if present)",
     )
     parser.add_argument(
+        "--gls-min",
+        type=float,
+        default=-23,
+        help="Optional minimum GLS filter (inclusive).",
+    )
+    parser.add_argument(
+        "--gls-max",
+        type=float,
+        default=-15,
+        help="Optional maximum GLS filter (inclusive).",
+    )
+    parser.add_argument(
         "--standardize",
         dest="standardize",
         action="store_true",
@@ -408,6 +618,7 @@ def main() -> None:
     args = parser.parse_args()
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_log_dir = args.log_dir or args.output_dir / "tensorboard" / run_id
+    _set_seed(args.seed)
 
     df = _load_embeddings(args.input_embeddings)
     df.columns = [str(c).strip() for c in df.columns]
@@ -437,6 +648,17 @@ def main() -> None:
     df = df[df["embedding_vec"].notna()].copy()
     df["gls"] = pd.to_numeric(df["gls"], errors="coerce")
     df = df[df["gls"].notna()].copy()
+    if args.gls_min is not None:
+        df = df[df["gls"] >= args.gls_min].copy()
+    if args.gls_max is not None:
+        df = df[df["gls"] <= args.gls_max].copy()
+    if args.gls_min is not None or args.gls_max is not None:
+        logger.info(
+            "Filtered GLS range to [%s, %s]; remaining rows: %d",
+            "min" if args.gls_min is None else f"{args.gls_min:g}",
+            "max" if args.gls_max is None else f"{args.gls_max:g}",
+            len(df),
+        )
 
     if df.empty:
         raise ValueError("No valid rows with embeddings and GLS targets.")
@@ -515,11 +737,14 @@ def main() -> None:
         device = torch.device(args.device)
 
     results = {}
+    base_args = dict(vars(args))
     if args.model in ("cnn", "both"):
         logger.info("Training CNN regressor...")
         model = CNNRegressor(input_dim)
         out_path = args.output_dir / "cnn_best.pt"
         cnn_log_dir = base_log_dir / "cnn" if args.model == "both" else base_log_dir
+        run_args = dict(base_args)
+        run_args["trained_model"] = "cnn"
         metrics = _train_model(
             model,
             train_loader,
@@ -536,7 +761,8 @@ def main() -> None:
             y_std=y_std,
             loss_type=args.loss,
             log_dir=cnn_log_dir,
-            plot_every=5,
+            plot_every=10,
+            run_args=run_args,
         )
         results["cnn"] = metrics
 
@@ -545,6 +771,8 @@ def main() -> None:
         model = TransformerRegressor(input_dim)
         out_path = args.output_dir / "transformer_best.pt"
         transformer_log_dir = base_log_dir / "transformer" if args.model == "both" else base_log_dir
+        run_args = dict(base_args)
+        run_args["trained_model"] = "transformer"
         metrics = _train_model(
             model,
             train_loader,
@@ -561,7 +789,8 @@ def main() -> None:
             y_std=y_std,
             loss_type=args.loss,
             log_dir=transformer_log_dir,
-            plot_every=5,
+            plot_every=10,
+            run_args=run_args,
         )
         results["transformer"] = metrics
 

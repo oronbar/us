@@ -1,5 +1,5 @@
 """
-Plot a t-SNE of embeddings with point size proportional to GLS magnitude.
+Plot a t-SNE of embeddings colored by GLS with marker size by time from first visit.
 
 Defaults:
   Input:  ~/OneDrive - Technion/DS/Ichilov_GLS_embeddings.parquet
@@ -111,6 +111,8 @@ def _add_gls_from_report(df: pd.DataFrame, report_xlsx: Path) -> pd.DataFrame:
 
 def main() -> None:
     user_home = Path.home()
+    if user_home.name == "oronbar.RF":
+        user_home = Path("F:\\")
     default_embeddings = user_home / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full.parquet"
     default_out_dir = user_home / "OneDrive - Technion" / "models" / "Ichilov_GLS_models" / "tsne_plots"
 
@@ -216,6 +218,8 @@ def main() -> None:
         required=False,
     )
     sizes = np.full(len(df), 60.0, dtype=float)
+    patients = None
+    dates = None
     if patient_col is None or date_col is None:
         logger.warning("Missing patient/date columns; using uniform marker size.")
     else:
@@ -254,82 +258,143 @@ def main() -> None:
     tsne = TSNE(**tsne_kwargs)
     coords = tsne.fit_transform(X_scaled)
 
-    # Marker shape per patient; split into multiple plots with at most 10 patients each (up to 8 plots).
-    patient_marker_col = patient_col or _find_column(df, ["patient_id", "patient", "patient_num"], required=False)
-    if patient_marker_col:
-        patients_for_marker = df[patient_marker_col].astype(str).fillna("unknown")
-    else:
-        patients_for_marker = pd.Series(["unknown"] * len(df))
-        logger.warning("Patient column missing; using a single marker for all points.")
-
-    unique_patients = list(pd.unique(patients_for_marker))
-    marker_cycle = ["o", "x", "^", "s", "D", "v", "<", ">"]
-
-    # Output base handling.
+    # Output handling.
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_base = args.output
     if out_base is None:
-        base_dir = default_out_dir
-        base_name = f"{args.input_embeddings.stem}_tsne_gls_{run_id}"
+        out_path = default_out_dir / f"{args.input_embeddings.stem}_tsne_gls_{run_id}.png"
     else:
         out_base = Path(out_base)
         if out_base.suffix:
-            base_dir = out_base.parent
-            base_name = out_base.stem
+            out_path = out_base
         else:
-            base_dir = out_base
-            base_name = f"{args.input_embeddings.stem}_tsne_gls_{run_id}"
-    base_dir.mkdir(parents=True, exist_ok=True)
+            out_path = out_base / f"{args.input_embeddings.stem}_tsne_gls_{run_id}.png"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Chunk patients into batches of up to 10; cap at 8 plots.
-    chunk_size = 10
-    max_plots = 8
-    chunks = [unique_patients[i : i + chunk_size] for i in range(0, len(unique_patients), chunk_size)]
-    chunks = chunks[:max_plots]
-    if not chunks:
-        chunks = [["unknown"]]
+    fig, ax = plt.subplots(figsize=(8, 6))
+    scatter = ax.scatter(
+        coords[:, 0],
+        coords[:, 1],
+        c=y,
+        s=sizes,
+        cmap="coolwarm",
+        alpha=0.8,
+        edgecolor="k",
+        linewidth=0.2,
+    )
 
-    for idx, chunk in enumerate(chunks, start=1):
-        marker_map = {p: marker_cycle[i % len(marker_cycle)] for i, p in enumerate(chunk)}
-        mask_chunk = patients_for_marker.isin(chunk)
-        if mask_chunk.sum() == 0:
-            continue
-
-        fig, ax = plt.subplots(figsize=(8, 6))
-        for patient_key, marker in marker_map.items():
-            mask = patients_for_marker == patient_key
-            if mask.sum() == 0:
+    vectors = []
+    vec_arr = None
+    if patients is not None and dates is not None:
+        prog_df = pd.DataFrame(
+            {
+                "patient": patients,
+                "date": dates,
+                "x": coords[:, 0],
+                "y": coords[:, 1],
+            }
+        )
+        prog_df = prog_df.dropna(subset=["date"])
+        for patient_id, group in prog_df.sort_values("date").groupby("patient"):
+            if len(group) < 2:
                 continue
-            ax.scatter(
-                coords[mask, 0],
-                coords[mask, 1],
-                c=y[mask],
-                s=sizes[mask],
-                cmap="coolwarm",
-                alpha=0.8,
-                edgecolor="k",
-                linewidth=0.2,
-                marker=marker,
-                label=patient_key,
+            diffs = group[["x", "y"]].diff().iloc[1:]
+            total = diffs.sum()
+            start = group.iloc[0][["x", "y"]]
+            vectors.append((start["x"], start["y"], total["x"], total["y"]))
+        if vectors:
+            vec_arr = np.array(vectors, dtype=float)
+            ax.quiver(
+                vec_arr[:, 0],
+                vec_arr[:, 1],
+                vec_arr[:, 2],
+                vec_arr[:, 3],
+                angles="xy",
+                scale_units="xy",
+                scale=2.5,
+                color="black",
+                alpha=0.6,
+                width=0.0015,
+                headwidth=3.0,
+                headlength=3.5,
             )
+        else:
+            logger.warning("Not enough dated visits per patient to plot progression vectors.")
+    else:
+        logger.warning("Patient/date columns missing; skipping progression vectors.")
 
-        if not ax.collections:
-            plt.close(fig)
-            continue
+    cbar = fig.colorbar(scatter, ax=ax)
+    cbar.set_label("GLS")
+    ax.set_title("t-SNE of embeddings with GLS coloring")
+    ax.set_xlabel("t-SNE 1")
+    ax.set_ylabel("t-SNE 2")
+    fig.tight_layout()
 
-        scatter_for_cbar = ax.collections[0]
-        cbar = fig.colorbar(scatter_for_cbar, ax=ax)
-        cbar.set_label("GLS")
-        ax.set_title(f"t-SNE of embeddings (patients {len(chunk)} | batch {idx}/{len(chunks)})")
-        ax.set_xlabel("t-SNE 1")
-        ax.set_ylabel("t-SNE 2")
-        ax.legend(title="Patient", loc="best")
-        fig.tight_layout()
+    fig.savefig(out_path, dpi=200)
+    plt.close(fig)
+    logger.info("Saved t-SNE plot: %s", out_path)
 
-        out_path = base_dir / f"{base_name}_part{idx:02d}.png"
-        fig.savefig(out_path, dpi=200)
-        plt.close(fig)
-        logger.info("Saved t-SNE plot: %s", out_path)
+    if vectors and vec_arr is not None:
+        mean_dx = float(np.mean(vec_arr[:, 2]))
+        mean_dy = float(np.mean(vec_arr[:, 3]))
+        fig_sum, ax_sum = plt.subplots(figsize=(8, 6))
+        ax_sum.scatter(
+            coords[:, 0],
+            coords[:, 1],
+            c=y,
+            s=sizes,
+            cmap="coolwarm",
+            alpha=0.35,
+            edgecolor="none",
+        )
+        ax_sum.quiver(
+            0.0,
+            0.0,
+            mean_dx,
+            mean_dy,
+            angles="xy",
+            scale_units="xy",
+            scale=2.5,
+            color="black",
+            alpha=0.9,
+            width=0.003,
+            headwidth=4.0,
+            headlength=4.5,
+        )
+        cbar_sum = fig_sum.colorbar(ax_sum.collections[0], ax=ax_sum)
+        cbar_sum.set_label("GLS")
+        ax_sum.set_title("t-SNE with mean patient progression vector")
+        ax_sum.set_xlabel("t-SNE 1")
+        ax_sum.set_ylabel("t-SNE 2")
+        fig_sum.tight_layout()
+
+        sum_out_path = out_path.with_name(f"{out_path.stem}_sumvec{out_path.suffix}")
+        fig_sum.savefig(sum_out_path, dpi=200)
+        plt.close(fig_sum)
+        logger.info("Saved summed progression plot: %s", sum_out_path)
+
+        fig_hist, axes = plt.subplots(1, 2, figsize=(10, 4))
+        dx_vals = vec_arr[:, 2]
+        dy_vals = vec_arr[:, 3]
+        axes[0].hist(dx_vals, bins=30, color="steelblue", alpha=0.8)
+        axes[0].axvline(mean_dx, color="red", linestyle="--", linewidth=1.5, label=f"mean={mean_dx:.3f}")
+        axes[0].set_title("Vector dx histogram")
+        axes[0].set_xlabel("dx")
+        axes[0].set_ylabel("count")
+        axes[0].legend()
+
+        axes[1].hist(dy_vals, bins=30, color="steelblue", alpha=0.8)
+        axes[1].axvline(mean_dy, color="red", linestyle="--", linewidth=1.5, label=f"mean={mean_dy:.3f}")
+        axes[1].set_title("Vector dy histogram")
+        axes[1].set_xlabel("dy")
+        axes[1].set_ylabel("count")
+        axes[1].legend()
+
+        fig_hist.tight_layout()
+        hist_out_path = out_path.with_name(f"{out_path.stem}_vec_hist{out_path.suffix}")
+        fig_hist.savefig(hist_out_path, dpi=200)
+        plt.close(fig_hist)
+        logger.info("Saved vector component histograms: %s", hist_out_path)
 
 
 if __name__ == "__main__":
