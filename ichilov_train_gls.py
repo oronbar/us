@@ -1,5 +1,5 @@
 """
-Train lightweight models (CNN or Transformer) for GLS prediction from embeddings.
+Train models (CNN/Transformer/MLP + baselines) for GLS prediction from embeddings.
 
 Input:
   - Parquet/CSV embeddings dataframe (from ichilov_encode_dicoms.py)
@@ -220,25 +220,47 @@ class TransformerRegressor(nn.Module):
         x = x.mean(dim=1)
         return self.head(x)
 
-class MLPRegressor(nn.Module):
-    """Strong baseline for fixed embeddings (no fake locality)."""
+class ResidualBlock(nn.Module):
+    def __init__(self, hidden: int, dropout: float):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(hidden, hidden),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden, hidden),
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x + self.net(x)
+
+
+class ResidualMLPBackbone(nn.Module):
     def __init__(self, input_dim: int, hidden: int = 256, depth: int = 3, dropout: float = 0.2):
         super().__init__()
         self.norm = nn.LayerNorm(input_dim)
-        layers = []
-        in_dim = input_dim
-        for i in range(depth):
-            layers += [
-                nn.Linear(in_dim, hidden),
-                nn.GELU(),
-                nn.Dropout(dropout),
-            ]
-            in_dim = hidden
-        self.backbone = nn.Sequential(*layers)
-        self.head = nn.Linear(hidden, 1)
+        self.in_proj = nn.Linear(input_dim, hidden)
+        self.act = nn.GELU()
+        self.drop = nn.Dropout(dropout)
+        self.blocks = nn.ModuleList([ResidualBlock(hidden, dropout) for _ in range(depth)])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.norm(x)
+        x = self.drop(self.act(self.in_proj(x)))
+        for block in self.blocks:
+            x = block(x)
+        return x
+
+
+class MLPRegressor(nn.Module):
+    """Strong baseline for fixed embeddings (no fake locality)."""
+
+    def __init__(self, input_dim: int, hidden: int = 256, depth: int = 3, dropout: float = 0.2):
+        super().__init__()
+        self.backbone = ResidualMLPBackbone(input_dim, hidden=hidden, depth=depth, dropout=dropout)
+        self.head = nn.Linear(hidden, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.backbone(x)
         return self.head(x)
 
@@ -250,20 +272,14 @@ class MLPHeteroscedastic(nn.Module):
     """
     def __init__(self, input_dim: int, hidden: int = 256, depth: int = 3, dropout: float = 0.2):
         super().__init__()
-        self.norm = nn.LayerNorm(input_dim)
-        layers = []
-        in_dim = input_dim
-        for _ in range(depth):
-            layers += [nn.Linear(in_dim, hidden), nn.GELU(), nn.Dropout(dropout)]
-            in_dim = hidden
-        self.backbone = nn.Sequential(*layers)
+        self.backbone = ResidualMLPBackbone(input_dim, hidden=hidden, depth=depth, dropout=dropout)
         self.mu = nn.Linear(hidden, 1)
         self.log_var = nn.Linear(hidden, 1)
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        x = self.norm(x)
         h = self.backbone(x)
         return self.mu(h), self.log_var(h)
+
 
 def _evaluate(
     model: nn.Module,
@@ -279,7 +295,10 @@ def _evaluate(
         for x, y in loader:
             x = x.to(device)
             y = y.to(device)
-            out = model(x).squeeze(1)
+            out = model(x)
+            if isinstance(out, tuple):
+                out = out[0]
+            out = out.squeeze(1)
             preds.extend(out.cpu().numpy().tolist())
             trues.extend(y.squeeze(1).cpu().numpy().tolist())
     preds_arr = np.asarray(preds, dtype=float) * y_std + y_mean
@@ -405,7 +424,13 @@ def _train_model(
                 x = x.to(device)
                 y = y.to(device)
                 out = model(x)
-                val_running += float(loss_fn(out, y).item()) * x.size(0)
+                if isinstance(out, tuple) and len(out) == 2:
+                    mu, log_var = out
+                    loss = 0.5 * (log_var + (y - mu) ** 2 / torch.exp(log_var))
+                    loss = loss.mean()
+                else:
+                    loss = loss_fn(out, y)
+                val_running += float(loss.item()) * x.size(0)
         val_loss = val_running / len(val_loader.dataset)
 
         val_mae, val_rmse, val_mse, preds_arr, trues_arr = _evaluate(model, val_loader, device, y_mean, y_std)
@@ -530,6 +555,98 @@ def _train_model(
     }
 
 
+def _regression_metrics(preds: np.ndarray, trues: np.ndarray) -> Dict[str, float]:
+    preds = np.asarray(preds, dtype=float)
+    trues = np.asarray(trues, dtype=float)
+    mae = float(np.mean(np.abs(preds - trues)))
+    rmse = float(np.sqrt(np.mean((preds - trues) ** 2)))
+    if len(preds) > 1 and np.std(preds) > 1e-8 and np.std(trues) > 1e-8:
+        corr = float(np.corrcoef(preds, trues)[0, 1])
+    else:
+        corr = float("nan")
+    return {"mae": mae, "rmse": rmse, "corr": corr}
+
+
+def _run_linear_baselines(
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    x_val: np.ndarray,
+    y_val: np.ndarray,
+) -> Dict[str, Dict[str, float]]:
+    from sklearn.linear_model import ElasticNet, HuberRegressor, Ridge
+
+    models = {
+        "ridge": Ridge(alpha=10.0),
+        "elasticnet": ElasticNet(alpha=0.01, l1_ratio=0.2, max_iter=10000),
+        "huber": HuberRegressor(),
+    }
+    results: Dict[str, Dict[str, float]] = {}
+    for name, model in models.items():
+        model.fit(x_train, y_train)
+        preds = model.predict(x_val)
+        results[name] = _regression_metrics(preds, y_val)
+    return results
+
+
+def _run_tree_baselines(
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    x_val: np.ndarray,
+    y_val: np.ndarray,
+    seed: int,
+) -> Dict[str, Dict[str, float]]:
+    results: Dict[str, Dict[str, float]] = {}
+    try:
+        import xgboost as xgb
+
+        xgb_model = xgb.XGBRegressor(
+            n_estimators=300,
+            max_depth=6,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=seed,
+        )
+        xgb_model.fit(x_train, y_train)
+        preds = xgb_model.predict(x_val)
+        results["xgboost"] = _regression_metrics(preds, y_val)
+    except Exception as exc:
+        logger.warning("XGBoost baseline skipped: %s", exc)
+
+    try:
+        import lightgbm as lgb
+
+        lgb_model = lgb.LGBMRegressor(
+            n_estimators=300,
+            learning_rate=0.05,
+            num_leaves=64,
+            random_state=seed,
+        )
+        lgb_model.fit(x_train, y_train)
+        preds = lgb_model.predict(x_val)
+        results["lightgbm"] = _regression_metrics(preds, y_val)
+    except Exception as exc:
+        logger.warning("LightGBM baseline skipped: %s", exc)
+
+    try:
+        from catboost import CatBoostRegressor
+
+        cat_model = CatBoostRegressor(
+            depth=6,
+            learning_rate=0.05,
+            iterations=300,
+            random_seed=seed,
+            verbose=False,
+        )
+        cat_model.fit(x_train, y_train)
+        preds = cat_model.predict(x_val)
+        results["catboost"] = _regression_metrics(preds, y_val)
+    except Exception as exc:
+        logger.warning("CatBoost baseline skipped: %s", exc)
+
+    return results
+
+
 def main() -> None:
     user_home = Path.home()
     if user_home.name == "oronbar.RF":
@@ -563,9 +680,9 @@ def main() -> None:
     parser.add_argument(
         "--model",
         type=str,
-        choices=["cnn", "transformer", "both"],
-        default="transformer",
-        help="Model type to train",
+        choices=["cnn", "transformer", "mlp", "mlp_unc", "both", "all"],
+        default="mlp",
+        help="Model type to train (both=cnn+transformer, all=cnn+transformer+mlp+mlp_unc)",
     )
     parser.add_argument("--epochs", type=int, default=90)
     parser.add_argument("--batch-size", type=int, default=64)
@@ -595,6 +712,21 @@ def main() -> None:
         type=str,
         default="",
         help="Optional target column name (defaults to 'gls' if present)",
+    )
+    parser.add_argument("--mlp-hidden", type=int, default=256, help="Hidden size for MLP models.")
+    parser.add_argument("--mlp-depth", type=int, default=3, help="Number of residual blocks in the MLP.")
+    parser.add_argument("--mlp-dropout", type=float, default=0.2, help="Dropout rate for MLP models.")
+    parser.add_argument(
+        "--run-baselines",
+        action="store_true",
+        default=False,
+        help="Run linear baselines (ridge/elasticnet/huber).",
+    )
+    parser.add_argument(
+        "--run-tree-baselines",
+        action="store_true",
+        default=False,
+        help="Run optional tree baselines (xgboost/lightgbm/catboost).",
     )
     parser.add_argument(
         "--gls-min",
@@ -738,11 +870,11 @@ def main() -> None:
 
     results = {}
     base_args = dict(vars(args))
-    if args.model in ("cnn", "both"):
+    if args.model in ("cnn", "both", "all"):
         logger.info("Training CNN regressor...")
         model = CNNRegressor(input_dim)
         out_path = args.output_dir / "cnn_best.pt"
-        cnn_log_dir = base_log_dir / "cnn" if args.model == "both" else base_log_dir
+        cnn_log_dir = base_log_dir / "cnn" if args.model in ("both", "all") else base_log_dir
         run_args = dict(base_args)
         run_args["trained_model"] = "cnn"
         metrics = _train_model(
@@ -766,11 +898,11 @@ def main() -> None:
         )
         results["cnn"] = metrics
 
-    if args.model in ("transformer", "both"):
+    if args.model in ("transformer", "both", "all"):
         logger.info("Training Transformer regressor...")
         model = TransformerRegressor(input_dim)
         out_path = args.output_dir / "transformer_best.pt"
-        transformer_log_dir = base_log_dir / "transformer" if args.model == "both" else base_log_dir
+        transformer_log_dir = base_log_dir / "transformer" if args.model in ("both", "all") else base_log_dir
         run_args = dict(base_args)
         run_args["trained_model"] = "transformer"
         metrics = _train_model(
@@ -793,6 +925,92 @@ def main() -> None:
             run_args=run_args,
         )
         results["transformer"] = metrics
+
+    if args.model in ("mlp", "all"):
+        logger.info("Training MLP regressor...")
+        model = MLPRegressor(
+            input_dim,
+            hidden=args.mlp_hidden,
+            depth=args.mlp_depth,
+            dropout=args.mlp_dropout,
+        )
+        out_path = args.output_dir / "mlp_best.pt"
+        mlp_log_dir = base_log_dir / "mlp" if args.model == "all" else base_log_dir
+        run_args = dict(base_args)
+        run_args["trained_model"] = "mlp"
+        metrics = _train_model(
+            model,
+            train_loader,
+            val_loader,
+            device=device,
+            epochs=args.epochs,
+            lr=args.lr,
+            weight_decay=args.weight_decay,
+            out_path=out_path,
+            lr_factor=args.lr_factor,
+            lr_patience=args.lr_patience,
+            lr_min=args.lr_min,
+            y_mean=y_mean,
+            y_std=y_std,
+            loss_type=args.loss,
+            log_dir=mlp_log_dir,
+            plot_every=10,
+            run_args=run_args,
+        )
+        results["mlp"] = metrics
+
+    if args.model in ("mlp_unc", "all"):
+        logger.info("Training MLP heteroscedastic regressor...")
+        model = MLPHeteroscedastic(
+            input_dim,
+            hidden=args.mlp_hidden,
+            depth=args.mlp_depth,
+            dropout=args.mlp_dropout,
+        )
+        out_path = args.output_dir / "mlp_unc_best.pt"
+        mlp_unc_log_dir = base_log_dir / "mlp_unc" if args.model == "all" else base_log_dir
+        run_args = dict(base_args)
+        run_args["trained_model"] = "mlp_unc"
+        metrics = _train_model(
+            model,
+            train_loader,
+            val_loader,
+            device=device,
+            epochs=args.epochs,
+            lr=args.lr,
+            weight_decay=args.weight_decay,
+            out_path=out_path,
+            lr_factor=args.lr_factor,
+            lr_patience=args.lr_patience,
+            lr_min=args.lr_min,
+            y_mean=y_mean,
+            y_std=y_std,
+            loss_type=args.loss,
+            log_dir=mlp_unc_log_dir,
+            plot_every=10,
+            run_args=run_args,
+        )
+        results["mlp_unc"] = metrics
+
+    run_baselines = args.run_baselines or args.model == "all"
+    run_tree_baselines = args.run_tree_baselines or args.model == "all"
+    if run_baselines:
+        logger.info("Running linear baselines...")
+        results["baselines"] = _run_linear_baselines(
+            x_train,
+            y_train_raw,
+            x_val,
+            y_val_raw,
+        )
+    if run_tree_baselines:
+        logger.info("Running tree baselines...")
+        results["tree_baselines"] = _run_tree_baselines(
+            x_train,
+            y_train_raw,
+            x_val,
+            y_val_raw,
+            seed=args.seed,
+        )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     metrics_path = args.output_dir / "metrics.json"
