@@ -13,6 +13,10 @@ Usage (PowerShell):
     --input-embeddings "$env:USERPROFILE\\OneDrive - Technion\\DS\\Ichilov_GLS_embeddings.parquet" ^
     --report-xlsx "$env:USERPROFILE\\OneDrive - Technion\\DS\\Report_Ichilov_GLS_oron.xlsx" ^
     --output-dir "$env:USERPROFILE\\OneDrive - Technion\\DS\\Ichilov_GLS_models"
+
+Notes:
+  - Use --target-mode delta for longitudinal delta GLS targets (requires a visit time column).
+  - Use --objective ranking for pairwise within-patient ranking loss.
 """
 from __future__ import annotations
 
@@ -33,6 +37,7 @@ import pandas as pd
 import torch
 from sklearn.model_selection import GroupShuffleSplit
 from torch import nn
+import torch.nn.functional as F
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
@@ -43,6 +48,23 @@ logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("ichilov_train_gls")
 
 VIEW_KEYS = ("A2C", "A3C", "A4C")
+TIME_COL_CANDIDATES = (
+    "study_datetime",
+    "study_date",
+    "visit_date",
+    "exam_date",
+    "acquisition_date",
+    "acquisition_time",
+    "scan_date",
+    "visit_time",
+    "date",
+    "datetime",
+    "visit_index",
+    "visit_num",
+    "visit_number",
+    "timepoint",
+    "time_point",
+)
 
 
 def _set_seed(seed: int) -> None:
@@ -149,6 +171,75 @@ def _add_gls_from_report(df: pd.DataFrame, report_xlsx: Path) -> pd.DataFrame:
     return df
 
 
+def _resolve_time_column(df: pd.DataFrame, requested: str) -> Optional[str]:
+    if requested:
+        if requested not in df.columns:
+            raise ValueError(f"Time column '{requested}' not found in embeddings df.")
+        return requested
+    return _find_column(df, TIME_COL_CANDIDATES, required=False)
+
+
+def _coerce_time_values(series: pd.Series) -> Optional[pd.Series]:
+    parsed = pd.to_datetime(series, errors="coerce")
+    if parsed.notna().any():
+        return parsed
+    numeric = pd.to_numeric(series, errors="coerce")
+    if numeric.notna().any():
+        return numeric
+    return None
+
+
+def _resolve_group_cols(df: pd.DataFrame, patient_col: str, group_by_view: bool) -> List[str]:
+    group_cols = [patient_col]
+    if group_by_view and "view" in df.columns:
+        group_cols.append("view")
+    return group_cols
+
+
+def _apply_target_transform(
+    df: pd.DataFrame,
+    target_mode: str,
+    group_cols: Sequence[str],
+    time_col: Optional[str],
+) -> Tuple[pd.DataFrame, str]:
+    df = df.copy()
+    if target_mode == "absolute":
+        df["target"] = df["gls"]
+        return df, "GLS"
+    if target_mode == "patient_centered":
+        df["target"] = df["gls"] - df.groupby(group_cols)["gls"].transform("mean")
+        return df, "Centered GLS"
+    if target_mode == "delta":
+        if time_col is None:
+            raise ValueError("Delta target requires a visit time column. Provide --time-col.")
+        if "_visit_time" not in df.columns:
+            time_vals = _coerce_time_values(df[time_col])
+            if time_vals is None or time_vals.isna().all():
+                raise ValueError(f"Could not parse visit time column '{time_col}'.")
+            df["_visit_time"] = time_vals
+        if df["_visit_time"].isna().any():
+            before = len(df)
+            df = df[df["_visit_time"].notna()].copy()
+            dropped = before - len(df)
+            if dropped:
+                logger.warning("Dropped %d rows with missing visit time for delta target.", dropped)
+        min_time = df.groupby(group_cols)["_visit_time"].transform("min")
+        baseline = (
+            df[df["_visit_time"] == min_time]
+            .groupby(group_cols)["gls"]
+            .mean()
+            .rename("_gls_baseline")
+        )
+        df = df.merge(baseline, on=group_cols, how="left")
+        df["target"] = df["gls"] - df["_gls_baseline"]
+        missing = df["_gls_baseline"].isna().sum()
+        if missing:
+            logger.warning("Dropped %d rows without baseline GLS for delta target.", missing)
+            df = df[df["_gls_baseline"].notna()].copy()
+        return df, "Delta GLS"
+    raise ValueError(f"Unknown target mode: {target_mode}")
+
+
 class EmbeddingDataset(Dataset):
     def __init__(self, x: np.ndarray, y: np.ndarray):
         self.x = torch.from_numpy(x).float()
@@ -159,6 +250,20 @@ class EmbeddingDataset(Dataset):
 
     def __getitem__(self, idx: int):
         return self.x[idx], self.y[idx]
+
+
+class PairwiseRankingDataset(Dataset):
+    def __init__(self, x: np.ndarray, pairs: np.ndarray, labels: np.ndarray):
+        self.x = torch.from_numpy(x).float()
+        self.pairs = pairs.astype(np.int64)
+        self.labels = torch.from_numpy(labels).float().view(-1, 1)
+
+    def __len__(self) -> int:
+        return self.pairs.shape[0]
+
+    def __getitem__(self, idx: int):
+        i, j = self.pairs[idx]
+        return self.x[i], self.x[j], self.labels[idx]
 
 
 class CNNRegressor(nn.Module):
@@ -281,6 +386,109 @@ class MLPHeteroscedastic(nn.Module):
         return self.mu(h), self.log_var(h)
 
 
+def _pairwise_loss(
+    scores_a: torch.Tensor,
+    scores_b: torch.Tensor,
+    target: torch.Tensor,
+    loss_type: str,
+    margin: float,
+) -> torch.Tensor:
+    diff = scores_a - scores_b
+    if loss_type == "hinge":
+        return torch.clamp(margin - target * diff, min=0.0).mean()
+    return F.softplus(-target * diff).mean()
+
+
+def _predict_scores(model: nn.Module, loader: DataLoader, device: torch.device) -> np.ndarray:
+    model.eval()
+    preds: List[float] = []
+    with torch.no_grad():
+        for batch in loader:
+            x = batch[0].to(device)
+            out = model(x)
+            if isinstance(out, tuple):
+                out = out[0]
+            out = out.squeeze(1)
+            preds.extend(out.cpu().numpy().tolist())
+    return np.asarray(preds, dtype=float)
+
+
+def _fit_linear_calibration(scores: np.ndarray, targets: np.ndarray) -> Tuple[float, float]:
+    scores = np.asarray(scores, dtype=float)
+    targets = np.asarray(targets, dtype=float)
+    if len(scores) < 2 or np.std(scores) < 1e-8:
+        return 0.0, float(np.nanmean(targets)) if len(targets) else 0.0
+    A = np.vstack([scores, np.ones_like(scores)]).T
+    coeffs, _, _, _ = np.linalg.lstsq(A, targets, rcond=None)
+    scale, bias = coeffs
+    return float(scale), float(bias)
+
+
+def _spearman_corr(preds: np.ndarray, trues: np.ndarray) -> float:
+    preds = np.asarray(preds, dtype=float)
+    trues = np.asarray(trues, dtype=float)
+    if len(preds) < 2 or np.std(preds) < 1e-8 or np.std(trues) < 1e-8:
+        return float("nan")
+    ranks_pred = pd.Series(preds).rank().to_numpy()
+    ranks_true = pd.Series(trues).rank().to_numpy()
+    return float(np.corrcoef(ranks_pred, ranks_true)[0, 1])
+
+
+def _build_pairwise_pairs(
+    df: pd.DataFrame,
+    group_cols: Sequence[str],
+    order_col: str,
+    label_source: str,
+    direction: str,
+    max_pairs_per_group: int,
+    rng: np.random.RandomState,
+) -> Tuple[np.ndarray, np.ndarray]:
+    pairs: List[Tuple[int, int]] = []
+    labels: List[int] = []
+    for _, grp in df.groupby(list(group_cols)):
+        grp = grp.dropna(subset=[order_col])
+        if len(grp) < 2:
+            continue
+        grp = grp.sort_values(order_col)
+        idx = grp.index.to_numpy()
+        local_pairs: List[Tuple[int, int]] = []
+        local_labels: List[int] = []
+        if label_source == "time":
+            if direction == "nondecreasing":
+                for i in range(len(idx) - 1):
+                    for j in range(i + 1, len(idx)):
+                        local_pairs.append((idx[j], idx[i]))
+                        local_labels.append(1)
+            else:
+                for i in range(len(idx) - 1):
+                    for j in range(i + 1, len(idx)):
+                        local_pairs.append((idx[i], idx[j]))
+                        local_labels.append(1)
+        else:
+            y = grp["target"].to_numpy()
+            for i in range(len(idx) - 1):
+                for j in range(i + 1, len(idx)):
+                    yi = y[i]
+                    yj = y[j]
+                    if not np.isfinite(yi) or not np.isfinite(yj) or yi == yj:
+                        continue
+                    if yi > yj:
+                        local_pairs.append((idx[i], idx[j]))
+                        local_labels.append(1)
+                    else:
+                        local_pairs.append((idx[j], idx[i]))
+                        local_labels.append(1)
+        if max_pairs_per_group > 0 and len(local_pairs) > max_pairs_per_group:
+            choices = rng.choice(len(local_pairs), size=max_pairs_per_group, replace=False)
+            local_pairs = [local_pairs[c] for c in choices]
+            local_labels = [local_labels[c] for c in choices]
+        pairs.extend(local_pairs)
+        labels.extend(local_labels)
+    if not pairs:
+        return np.empty((0, 2), dtype=int), np.empty((0,), dtype=float)
+    return np.asarray(pairs, dtype=int), np.asarray(labels, dtype=float)
+
+
 def _evaluate(
     model: nn.Module,
     loader: DataLoader,
@@ -327,10 +535,25 @@ def _train_model(
     log_dir: Optional[Path] = None,
     plot_every: int = 10,
     run_args: Optional[Dict[str, object]] = None,
+    objective: str = "regression",
+    pairwise_train_loader: Optional[DataLoader] = None,
+    pairwise_val_loader: Optional[DataLoader] = None,
+    ranking_loss: str = "hinge",
+    ranking_margin: float = 0.1,
+    train_eval_loader: Optional[DataLoader] = None,
+    val_eval_loader: Optional[DataLoader] = None,
+    y_train_raw: Optional[np.ndarray] = None,
+    y_val_raw: Optional[np.ndarray] = None,
+    target_label: str = "GLS",
 ) -> Dict[str, float]:
     model.to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = ReduceLROnPlateau(opt, mode="min", factor=lr_factor, patience=lr_patience, min_lr=lr_min)
+    if objective == "ranking":
+        if pairwise_train_loader is None or pairwise_val_loader is None:
+            raise ValueError("Pairwise loaders are required for ranking objective.")
+        if train_eval_loader is None or val_eval_loader is None or y_train_raw is None or y_val_raw is None:
+            raise ValueError("Eval loaders and raw targets are required for ranking objective.")
     if loss_type == "mae":
         loss_fn = nn.L1Loss()
     elif loss_type == "huber":
@@ -399,71 +622,131 @@ def _train_model(
     for epoch in range(1, epochs + 1):
         model.train()
         running = 0.0
-        for x, y in train_loader:
-            x = x.to(device)
-            y = y.to(device)
-            opt.zero_grad()
-            out = model(x)
-            if isinstance(out, tuple) and len(out) == 2:
-                mu, log_var = out
-                # Gaussian NLL in normalized y space:
-                # 0.5 * (log_var + (y-mu)^2 / exp(log_var))
-                loss = 0.5 * (log_var + (y - mu) ** 2 / torch.exp(log_var))
-                loss = loss.mean()
-            else:
-                loss = loss_fn(out, y)
-            loss.backward()
-            opt.step()
-            running += float(loss.item()) * x.size(0)
-
-        # Validation loss using the training loss function (normalized targets).
-        model.eval()
-        val_running = 0.0
-        with torch.no_grad():
-            for x, y in val_loader:
+        if objective == "ranking":
+            for x_a, x_b, target in pairwise_train_loader:
+                x_a = x_a.to(device)
+                x_b = x_b.to(device)
+                target = target.to(device).view(-1)
+                opt.zero_grad()
+                out_a = model(x_a)
+                out_b = model(x_b)
+                if isinstance(out_a, tuple):
+                    out_a = out_a[0]
+                if isinstance(out_b, tuple):
+                    out_b = out_b[0]
+                out_a = out_a.squeeze(1)
+                out_b = out_b.squeeze(1)
+                loss = _pairwise_loss(out_a, out_b, target, ranking_loss, ranking_margin)
+                loss.backward()
+                opt.step()
+                running += float(loss.item()) * x_a.size(0)
+            train_loss = running / len(pairwise_train_loader.dataset)
+        else:
+            for x, y in train_loader:
                 x = x.to(device)
                 y = y.to(device)
+                opt.zero_grad()
                 out = model(x)
                 if isinstance(out, tuple) and len(out) == 2:
                     mu, log_var = out
+                    # Gaussian NLL in normalized y space:
+                    # 0.5 * (log_var + (y-mu)^2 / exp(log_var))
                     loss = 0.5 * (log_var + (y - mu) ** 2 / torch.exp(log_var))
                     loss = loss.mean()
                 else:
                     loss = loss_fn(out, y)
-                val_running += float(loss.item()) * x.size(0)
-        val_loss = val_running / len(val_loader.dataset)
+                loss.backward()
+                opt.step()
+                running += float(loss.item()) * x.size(0)
+            train_loss = running / len(train_loader.dataset)
 
-        val_mae, val_rmse, val_mse, preds_arr, trues_arr = _evaluate(model, val_loader, device, y_mean, y_std)
-        train_loss = running / len(train_loader.dataset)
+        # Validation loss using the training loss function.
+        model.eval()
+        if objective == "ranking":
+            val_running = 0.0
+            correct = 0
+            total = 0
+            with torch.no_grad():
+                for x_a, x_b, target in pairwise_val_loader:
+                    x_a = x_a.to(device)
+                    x_b = x_b.to(device)
+                    target = target.to(device).view(-1)
+                    out_a = model(x_a)
+                    out_b = model(x_b)
+                    if isinstance(out_a, tuple):
+                        out_a = out_a[0]
+                    if isinstance(out_b, tuple):
+                        out_b = out_b[0]
+                    out_a = out_a.squeeze(1)
+                    out_b = out_b.squeeze(1)
+                    loss = _pairwise_loss(out_a, out_b, target, ranking_loss, ranking_margin)
+                    val_running += float(loss.item()) * x_a.size(0)
+                    diff = out_a - out_b
+                    correct += int((diff * target > 0).sum().item())
+                    total += int(target.numel())
+            val_loss = val_running / len(pairwise_val_loader.dataset)
+            val_pairwise_acc = correct / total if total else float("nan")
+            val_mse = val_loss
+        else:
+            val_running = 0.0
+            with torch.no_grad():
+                for x, y in val_loader:
+                    x = x.to(device)
+                    y = y.to(device)
+                    out = model(x)
+                    if isinstance(out, tuple) and len(out) == 2:
+                        mu, log_var = out
+                        loss = 0.5 * (log_var + (y - mu) ** 2 / torch.exp(log_var))
+                        loss = loss.mean()
+                    else:
+                        loss = loss_fn(out, y)
+                    val_running += float(loss.item()) * x.size(0)
+            val_loss = val_running / len(val_loader.dataset)
+            val_pairwise_acc = float("nan")
+            val_mae, val_rmse, val_mse, preds_arr, trues_arr = _evaluate(
+                model, val_loader, device, y_mean, y_std
+            )
+
         train_losses.append(train_loss)
         val_losses.append(val_loss)
         scheduler.step(val_mse)
         current_lr = opt.param_groups[0]["lr"]
-        logger.info(
-            f"Epoch {epoch:03d} | lr={current_lr:.2e} | train_loss={train_loss:.4f} | "
-            f"val_loss={val_loss:.4f} | val_mae={val_mae:.4f} | val_rmse={val_rmse:.4f}"
-        )
-        if writer:
-            writer.add_scalars("loss", {"train": train_loss, "val": val_loss}, epoch)
-            writer.add_scalar("metrics/val_mae", val_mae, epoch)
-            writer.add_scalar("metrics/val_rmse", val_rmse, epoch)
-            writer.add_scalar("metrics/val_mse", val_mse, epoch)
-            writer.add_scalar("lr", current_lr, epoch)
-            writer.flush()
-        if plot_every > 0 and epoch % plot_every == 0:
-            plot_dir.mkdir(parents=True, exist_ok=True)
-            fig, ax = plt.subplots()
-            ax.plot(trues_arr, label="true")
-            ax.plot(preds_arr, label="pred")
-            ax.set_xlabel("Sample")
-            ax.set_ylabel("GLS")
-            ax.set_title(f"{out_path.stem} epoch {epoch} predictions")
-            ax.legend()
-            fig.tight_layout()
-            plot_path = plot_dir / f"{out_path.stem}_epoch{epoch:03d}.png"
-            fig.savefig(plot_path)
-            plt.close(fig)
-            logger.info(f"Saved prediction plot: {plot_path}")
+        if objective == "ranking":
+            logger.info(
+                f"Epoch {epoch:03d} | lr={current_lr:.2e} | train_loss={train_loss:.4f} | "
+                f"val_loss={val_loss:.4f} | val_pairwise_acc={val_pairwise_acc:.4f}"
+            )
+            if writer:
+                writer.add_scalars("loss", {"train": train_loss, "val": val_loss}, epoch)
+                writer.add_scalar("metrics/val_pairwise_acc", val_pairwise_acc, epoch)
+                writer.add_scalar("lr", current_lr, epoch)
+                writer.flush()
+        else:
+            logger.info(
+                f"Epoch {epoch:03d} | lr={current_lr:.2e} | train_loss={train_loss:.4f} | "
+                f"val_loss={val_loss:.4f} | val_mae={val_mae:.4f} | val_rmse={val_rmse:.4f}"
+            )
+            if writer:
+                writer.add_scalars("loss", {"train": train_loss, "val": val_loss}, epoch)
+                writer.add_scalar("metrics/val_mae", val_mae, epoch)
+                writer.add_scalar("metrics/val_rmse", val_rmse, epoch)
+                writer.add_scalar("metrics/val_mse", val_mse, epoch)
+                writer.add_scalar("lr", current_lr, epoch)
+                writer.flush()
+            if plot_every > 0 and epoch % plot_every == 0:
+                plot_dir.mkdir(parents=True, exist_ok=True)
+                fig, ax = plt.subplots()
+                ax.plot(trues_arr, label="true")
+                ax.plot(preds_arr, label="pred")
+                ax.set_xlabel("Sample")
+                ax.set_ylabel(target_label)
+                ax.set_title(f"{out_path.stem} epoch {epoch} predictions")
+                ax.legend()
+                fig.tight_layout()
+                plot_path = plot_dir / f"{out_path.stem}_epoch{epoch:03d}.png"
+                fig.savefig(plot_path)
+                plt.close(fig)
+                logger.info(f"Saved prediction plot: {plot_path}")
         if val_mse < best_val:
             best_val = val_mse
             best_state = {k: v.detach().cpu() for k, v in model.state_dict().items()}
@@ -475,13 +758,56 @@ def _train_model(
     eval_model = model
     if best_state is not None:
         eval_model.load_state_dict(best_state)
-    val_mae, val_rmse, val_mse, preds_arr, trues_arr = _evaluate(
-        eval_model, val_loader, device, y_mean, y_std
-    )
-    if len(preds_arr) > 1 and np.std(preds_arr) > 1e-8 and np.std(trues_arr) > 1e-8:
-        val_corr = float(np.corrcoef(preds_arr, trues_arr)[0, 1])
+    if objective == "ranking":
+        val_running = 0.0
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for x_a, x_b, target in pairwise_val_loader:
+                x_a = x_a.to(device)
+                x_b = x_b.to(device)
+                target = target.to(device).view(-1)
+                out_a = eval_model(x_a)
+                out_b = eval_model(x_b)
+                if isinstance(out_a, tuple):
+                    out_a = out_a[0]
+                if isinstance(out_b, tuple):
+                    out_b = out_b[0]
+                out_a = out_a.squeeze(1)
+                out_b = out_b.squeeze(1)
+                loss = _pairwise_loss(out_a, out_b, target, ranking_loss, ranking_margin)
+                val_running += float(loss.item()) * x_a.size(0)
+                diff = out_a - out_b
+                correct += int((diff * target > 0).sum().item())
+                total += int(target.numel())
+        val_pairwise_loss = val_running / len(pairwise_val_loader.dataset)
+        val_pairwise_acc = correct / total if total else float("nan")
+        train_scores = _predict_scores(eval_model, train_eval_loader, device)
+        val_scores = _predict_scores(eval_model, val_eval_loader, device)
+        calib_scale, calib_bias = _fit_linear_calibration(train_scores, y_train_raw)
+        preds_arr = val_scores * calib_scale + calib_bias
+        trues_arr = np.asarray(y_val_raw, dtype=float)
+        val_mae = float(np.mean(np.abs(preds_arr - trues_arr))) if len(trues_arr) else float("nan")
+        val_rmse = float(np.sqrt(np.mean((preds_arr - trues_arr) ** 2))) if len(trues_arr) else float("nan")
+        val_mse = float(np.mean((preds_arr - trues_arr) ** 2)) if len(trues_arr) else float("nan")
+        if len(preds_arr) > 1 and np.std(preds_arr) > 1e-8 and np.std(trues_arr) > 1e-8:
+            val_corr = float(np.corrcoef(preds_arr, trues_arr)[0, 1])
+        else:
+            val_corr = float("nan")
+        val_spearman = _spearman_corr(val_scores, trues_arr)
     else:
-        val_corr = float("nan")
+        val_pairwise_loss = float("nan")
+        val_pairwise_acc = float("nan")
+        calib_scale = float("nan")
+        calib_bias = float("nan")
+        val_mae, val_rmse, val_mse, preds_arr, trues_arr = _evaluate(
+            eval_model, val_loader, device, y_mean, y_std
+        )
+        if len(preds_arr) > 1 and np.std(preds_arr) > 1e-8 and np.std(trues_arr) > 1e-8:
+            val_corr = float(np.corrcoef(preds_arr, trues_arr)[0, 1])
+        else:
+            val_corr = float("nan")
+        val_spearman = _spearman_corr(preds_arr, trues_arr)
 
     mean_vals = (preds_arr + trues_arr) / 2.0
     diff_vals = preds_arr - trues_arr
@@ -516,6 +842,12 @@ def _train_model(
                     "val_rmse": val_rmse,
                     "val_mse": val_mse,
                     "val_corr": val_corr,
+                    "val_spearman": val_spearman,
+                    "val_pairwise_loss": val_pairwise_loss,
+                    "val_pairwise_acc": val_pairwise_acc,
+                    "calibration_scale": calib_scale,
+                    "calibration_bias": calib_bias,
+                    "objective": objective,
                     "bland_altman_mean": diff_mean,
                     "bland_altman_loa_lower": loa_lower,
                     "bland_altman_loa_upper": loa_upper,
@@ -549,6 +881,11 @@ def _train_model(
         "val_mae": val_mae,
         "val_rmse": val_rmse,
         "val_corr": val_corr,
+        "val_spearman": val_spearman,
+        "val_pairwise_loss": val_pairwise_loss,
+        "val_pairwise_acc": val_pairwise_acc,
+        "calibration_scale": calib_scale,
+        "calibration_bias": calib_bias,
         "bland_altman_mean": diff_mean,
         "bland_altman_loa_lower": loa_lower,
         "bland_altman_loa_upper": loa_upper,
@@ -699,7 +1036,7 @@ def main() -> None:
         type=str,
         choices=["mse", "mae", "huber"],
         default="huber",
-        help="Regression loss to use (MAE/HUBER can reduce mean-collapse).",
+        help="Regression loss to use (regression objective only).",
     )
     parser.add_argument(
         "--embedding-dim",
@@ -713,32 +1050,110 @@ def main() -> None:
         default="",
         help="Optional target column name (defaults to 'gls' if present)",
     )
+    parser.add_argument(
+        "--target-mode",
+        type=str,
+        choices=["absolute", "delta", "patient_centered"],
+        default="absolute",
+        help="Target to learn: absolute GLS, delta vs earliest visit, or patient-centered GLS.",
+    )
+    parser.add_argument(
+        "--time-col",
+        type=str,
+        default="",
+        help="Optional visit time column for delta/ranking (auto-detect if empty).",
+    )
+    parser.add_argument(
+        "--group-by-view",
+        dest="group_by_view",
+        action="store_true",
+        default=True,
+        help="Group baselines/centering and ranking pairs within view when available.",
+    )
+    parser.add_argument(
+        "--no-group-by-view",
+        dest="group_by_view",
+        action="store_false",
+        help="Do not group baselines/centering or ranking pairs by view.",
+    )
+    parser.add_argument(
+        "--target-min",
+        type=float,
+        default=None,
+        help="Optional minimum filter on transformed target.",
+    )
+    parser.add_argument(
+        "--target-max",
+        type=float,
+        default=None,
+        help="Optional maximum filter on transformed target.",
+    )
+    parser.add_argument(
+        "--objective",
+        type=str,
+        choices=["regression", "ranking"],
+        default="regression",
+        help="Training objective: regression or within-patient ranking.",
+    )
+    parser.add_argument(
+        "--pairwise-label",
+        type=str,
+        choices=["time", "target"],
+        default="time",
+        help="For ranking: label pairs by visit time monotonicity or target ordering.",
+    )
+    parser.add_argument(
+        "--ranking-direction",
+        type=str,
+        choices=["nondecreasing", "nonincreasing"],
+        default="nondecreasing",
+        help="For pairwise-label=time: later >= earlier (nondecreasing) or later <= earlier (nonincreasing).",
+    )
+    parser.add_argument(
+        "--ranking-loss",
+        type=str,
+        choices=["hinge", "logistic"],
+        default="hinge",
+        help="Pairwise ranking loss.",
+    )
+    parser.add_argument(
+        "--ranking-margin",
+        type=float,
+        default=0.1,
+        help="Margin for hinge ranking loss.",
+    )
+    parser.add_argument(
+        "--max-pairs-per-group",
+        type=int,
+        default=0,
+        help="Limit number of pairs per patient/group for ranking (0 = all).",
+    )
     parser.add_argument("--mlp-hidden", type=int, default=256, help="Hidden size for MLP models.")
     parser.add_argument("--mlp-depth", type=int, default=3, help="Number of residual blocks in the MLP.")
     parser.add_argument("--mlp-dropout", type=float, default=0.2, help="Dropout rate for MLP models.")
     parser.add_argument(
         "--run-baselines",
         action="store_true",
-        default=False,
+        default=True,
         help="Run linear baselines (ridge/elasticnet/huber).",
     )
     parser.add_argument(
         "--run-tree-baselines",
         action="store_true",
-        default=False,
+        default=True,
         help="Run optional tree baselines (xgboost/lightgbm/catboost).",
     )
     parser.add_argument(
         "--gls-min",
         type=float,
         default=-23,
-        help="Optional minimum GLS filter (inclusive).",
+        help="Optional minimum raw GLS filter (inclusive).",
     )
     parser.add_argument(
         "--gls-max",
         type=float,
         default=-15,
-        help="Optional maximum GLS filter (inclusive).",
+        help="Optional maximum raw GLS filter (inclusive).",
     )
     parser.add_argument(
         "--standardize",
@@ -820,9 +1235,45 @@ def main() -> None:
     if patient_col is None:
         raise ValueError("No patient identifier column found for group split.")
 
+    group_cols = _resolve_group_cols(df, patient_col, args.group_by_view)
+    needs_time = args.target_mode == "delta" or args.objective == "ranking"
+    time_col = None
+    if needs_time:
+        time_col = _resolve_time_column(df, args.time_col)
+        if time_col is None:
+            raise ValueError("No visit time column found; pass --time-col.")
+        time_vals = _coerce_time_values(df[time_col])
+        if time_vals is None or time_vals.isna().all():
+            raise ValueError(f"Could not parse visit time column '{time_col}'.")
+        df = df.copy()
+        df["_visit_time"] = time_vals
+        before = len(df)
+        df = df[df["_visit_time"].notna()].copy()
+        dropped = before - len(df)
+        if dropped:
+            logger.warning("Dropped %d rows with missing visit time.", dropped)
+
+    df, target_label = _apply_target_transform(df, args.target_mode, group_cols, time_col)
+    df["target"] = pd.to_numeric(df["target"], errors="coerce")
+    df = df[df["target"].notna()].copy()
+    if args.target_min is not None:
+        df = df[df["target"] >= args.target_min].copy()
+    if args.target_max is not None:
+        df = df[df["target"] <= args.target_max].copy()
+    if args.target_min is not None or args.target_max is not None:
+        logger.info(
+            "Filtered %s range to [%s, %s]; remaining rows: %d",
+            target_label,
+            "min" if args.target_min is None else f"{args.target_min:g}",
+            "max" if args.target_max is None else f"{args.target_max:g}",
+            len(df),
+        )
+    if df.empty:
+        raise ValueError("No valid rows with embeddings and target values.")
+
     groups = df[patient_col].astype(str).fillna("unknown")
     x = np.stack(df["embedding_vec"].to_list()).astype(np.float32)
-    y = df["gls"].astype(np.float32).values
+    y = df["target"].astype(np.float32).values
 
     splitter = GroupShuffleSplit(n_splits=1, test_size=args.val_fraction, random_state=args.seed)
     train_idx, val_idx = next(splitter.split(x, y, groups=groups))
@@ -831,7 +1282,8 @@ def main() -> None:
     y_train_raw = y_train.copy()
     y_val_raw = y_val.copy()
     logger.info(
-        "GLS train: mean=%.4f std=%.4f | val: mean=%.4f std=%.4f",
+        "%s train: mean=%.4f std=%.4f | val: mean=%.4f std=%.4f",
+        target_label,
         float(np.mean(y_train_raw)),
         float(np.std(y_train_raw)),
         float(np.mean(y_val_raw)),
@@ -846,11 +1298,17 @@ def main() -> None:
         x_train = ((x_train - x_mean) / x_std).astype(np.float32)
         x_val = ((x_val - x_mean) / x_std).astype(np.float32)
 
-        y_mean = float(y_train.mean())
-        y_std = float(y_train.std())
-        y_std = max(y_std, 1e-6)
-        y_train = ((y_train - y_mean) / y_std).astype(np.float32)
-        y_val = ((y_val - y_mean) / y_std).astype(np.float32)
+        if args.objective == "regression":
+            y_mean = float(y_train.mean())
+            y_std = float(y_train.std())
+            y_std = max(y_std, 1e-6)
+            y_train = ((y_train - y_mean) / y_std).astype(np.float32)
+            y_val = ((y_val - y_mean) / y_std).astype(np.float32)
+        else:
+            y_train = y_train.astype(np.float32)
+            y_val = y_val.astype(np.float32)
+            y_mean = 0.0
+            y_std = 1.0
     else:
         x_train = x_train.astype(np.float32)
         x_val = x_val.astype(np.float32)
@@ -863,6 +1321,58 @@ def main() -> None:
     val_ds = EmbeddingDataset(x_val, y_val)
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
+
+    pairwise_train_loader = None
+    pairwise_val_loader = None
+    train_eval_loader = None
+    val_eval_loader = None
+    if args.objective == "ranking":
+        if "_visit_time" not in df.columns:
+            raise ValueError("Ranking objective requires visit time; check --time-col.")
+        df_train = df.iloc[train_idx].copy().reset_index(drop=True)
+        df_val = df.iloc[val_idx].copy().reset_index(drop=True)
+        rng = np.random.RandomState(args.seed)
+        train_pairs, train_labels = _build_pairwise_pairs(
+            df_train,
+            group_cols=group_cols,
+            order_col="_visit_time",
+            label_source=args.pairwise_label,
+            direction=args.ranking_direction,
+            max_pairs_per_group=args.max_pairs_per_group,
+            rng=rng,
+        )
+        val_pairs, val_labels = _build_pairwise_pairs(
+            df_val,
+            group_cols=group_cols,
+            order_col="_visit_time",
+            label_source=args.pairwise_label,
+            direction=args.ranking_direction,
+            max_pairs_per_group=args.max_pairs_per_group,
+            rng=rng,
+        )
+        if len(train_pairs) == 0 or len(val_pairs) == 0:
+            raise ValueError("Not enough visit pairs for ranking objective.")
+        pairwise_train_loader = DataLoader(
+            PairwiseRankingDataset(x_train, train_pairs, train_labels),
+            batch_size=args.batch_size,
+            shuffle=True,
+        )
+        pairwise_val_loader = DataLoader(
+            PairwiseRankingDataset(x_val, val_pairs, val_labels),
+            batch_size=args.batch_size,
+            shuffle=False,
+        )
+        train_eval_loader = DataLoader(
+            EmbeddingDataset(x_train, y_train_raw),
+            batch_size=args.batch_size,
+            shuffle=False,
+        )
+        val_eval_loader = DataLoader(
+            EmbeddingDataset(x_val, y_val_raw),
+            batch_size=args.batch_size,
+            shuffle=False,
+        )
+        logger.info("Ranking pairs: train=%d val=%d", len(train_pairs), len(val_pairs))
 
     device = torch.device("cuda" if args.device == "auto" and torch.cuda.is_available() else "cpu")
     if args.device not in ("auto", "cpu", "cuda"):
@@ -895,6 +1405,16 @@ def main() -> None:
             log_dir=cnn_log_dir,
             plot_every=10,
             run_args=run_args,
+            objective=args.objective,
+            pairwise_train_loader=pairwise_train_loader,
+            pairwise_val_loader=pairwise_val_loader,
+            ranking_loss=args.ranking_loss,
+            ranking_margin=args.ranking_margin,
+            train_eval_loader=train_eval_loader,
+            val_eval_loader=val_eval_loader,
+            y_train_raw=y_train_raw,
+            y_val_raw=y_val_raw,
+            target_label=target_label,
         )
         results["cnn"] = metrics
 
@@ -923,6 +1443,16 @@ def main() -> None:
             log_dir=transformer_log_dir,
             plot_every=10,
             run_args=run_args,
+            objective=args.objective,
+            pairwise_train_loader=pairwise_train_loader,
+            pairwise_val_loader=pairwise_val_loader,
+            ranking_loss=args.ranking_loss,
+            ranking_margin=args.ranking_margin,
+            train_eval_loader=train_eval_loader,
+            val_eval_loader=val_eval_loader,
+            y_train_raw=y_train_raw,
+            y_val_raw=y_val_raw,
+            target_label=target_label,
         )
         results["transformer"] = metrics
 
@@ -956,6 +1486,16 @@ def main() -> None:
             log_dir=mlp_log_dir,
             plot_every=10,
             run_args=run_args,
+            objective=args.objective,
+            pairwise_train_loader=pairwise_train_loader,
+            pairwise_val_loader=pairwise_val_loader,
+            ranking_loss=args.ranking_loss,
+            ranking_margin=args.ranking_margin,
+            train_eval_loader=train_eval_loader,
+            val_eval_loader=val_eval_loader,
+            y_train_raw=y_train_raw,
+            y_val_raw=y_val_raw,
+            target_label=target_label,
         )
         results["mlp"] = metrics
 
@@ -989,6 +1529,16 @@ def main() -> None:
             log_dir=mlp_unc_log_dir,
             plot_every=10,
             run_args=run_args,
+            objective=args.objective,
+            pairwise_train_loader=pairwise_train_loader,
+            pairwise_val_loader=pairwise_val_loader,
+            ranking_loss=args.ranking_loss,
+            ranking_margin=args.ranking_margin,
+            train_eval_loader=train_eval_loader,
+            val_eval_loader=val_eval_loader,
+            y_train_raw=y_train_raw,
+            y_val_raw=y_val_raw,
+            target_label=target_label,
         )
         results["mlp_unc"] = metrics
 
