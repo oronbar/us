@@ -17,6 +17,7 @@ Usage (PowerShell):
 Notes:
   - Use --target-mode delta for longitudinal delta GLS targets (requires a visit time column).
   - Use --objective ranking for pairwise within-patient ranking loss.
+  - Use --task visit to predict global visit GLS via softmax fusion across views.
 """
 from __future__ import annotations
 
@@ -65,6 +66,19 @@ TIME_COL_CANDIDATES = (
     "timepoint",
     "time_point",
 )
+VISIT_COL_CANDIDATES = (
+    "visit_id",
+    "visit",
+    "visit_index",
+    "visit_num",
+    "visit_number",
+    "study_id",
+    "study_uid",
+    "study_instance_uid",
+    "accession",
+    "accession_number",
+    "exam_id",
+) + TIME_COL_CANDIDATES
 
 
 def _set_seed(seed: int) -> None:
@@ -179,6 +193,14 @@ def _resolve_time_column(df: pd.DataFrame, requested: str) -> Optional[str]:
     return _find_column(df, TIME_COL_CANDIDATES, required=False)
 
 
+def _resolve_visit_column(df: pd.DataFrame, requested: str) -> Optional[str]:
+    if requested:
+        if requested not in df.columns:
+            raise ValueError(f"Visit column '{requested}' not found in embeddings df.")
+        return requested
+    return _find_column(df, VISIT_COL_CANDIDATES, required=False)
+
+
 def _coerce_time_values(series: pd.Series) -> Optional[pd.Series]:
     parsed = pd.to_datetime(series, errors="coerce")
     if parsed.notna().any():
@@ -240,6 +262,62 @@ def _apply_target_transform(
     raise ValueError(f"Unknown target mode: {target_mode}")
 
 
+def _build_visit_level_df(
+    df: pd.DataFrame,
+    patient_col: str,
+    visit_col: str,
+    min_views: int,
+) -> pd.DataFrame:
+    df = df.copy()
+    visit_vals = df[visit_col]
+    visit_time = _coerce_time_values(visit_vals)
+    df["_visit_key"] = visit_time if visit_time is not None else visit_vals
+    if df["_visit_key"].isna().any():
+        before = len(df)
+        df = df[df["_visit_key"].notna()].copy()
+        dropped = before - len(df)
+        if dropped:
+            logger.warning("Dropped %d rows with missing visit id/time.", dropped)
+    view_col = "view" if "view" in df.columns else None
+    rows: List[Dict[str, object]] = []
+    dropped_min_views = 0
+    dropped_no_gls = 0
+    for (patient_id, visit_key), grp in df.groupby([patient_col, "_visit_key"]):
+        emb_list: List[np.ndarray] = []
+        gls_list: List[float] = []
+        if view_col:
+            view_groups = grp.groupby(view_col)
+        else:
+            view_groups = [(None, grp)]
+        for _, view_grp in view_groups:
+            emb_stack = np.stack(view_grp["embedding_vec"].to_list())
+            emb_list.append(emb_stack.mean(axis=0).astype(np.float32))
+            gls_vals = pd.to_numeric(view_grp["gls"], errors="coerce").to_numpy(dtype=float)
+            gls_vals = gls_vals[np.isfinite(gls_vals)]
+            if len(gls_vals):
+                gls_list.append(float(np.mean(gls_vals)))
+        if len(emb_list) < min_views:
+            dropped_min_views += 1
+            continue
+        if not gls_list:
+            dropped_no_gls += 1
+            continue
+        rows.append(
+            {
+                patient_col: patient_id,
+                visit_col: visit_key,
+                "gls": float(np.mean(gls_list)),
+                "embedding_list": emb_list,
+                "view_count": len(emb_list),
+            }
+        )
+    if dropped_min_views:
+        logger.warning("Dropped %d visits with fewer than %d views.", dropped_min_views, min_views)
+    if dropped_no_gls:
+        logger.warning("Dropped %d visits without GLS values.", dropped_no_gls)
+    return pd.DataFrame(rows)
+
+
 class EmbeddingDataset(Dataset):
     def __init__(self, x: np.ndarray, y: np.ndarray):
         self.x = torch.from_numpy(x).float()
@@ -264,6 +342,32 @@ class PairwiseRankingDataset(Dataset):
     def __getitem__(self, idx: int):
         i, j = self.pairs[idx]
         return self.x[i], self.x[j], self.labels[idx]
+
+
+class VisitDataset(Dataset):
+    def __init__(self, views: List[np.ndarray], targets: np.ndarray):
+        self.views = [v.astype(np.float32) for v in views]
+        self.targets = targets.astype(np.float32)
+
+    def __len__(self) -> int:
+        return len(self.views)
+
+    def __getitem__(self, idx: int):
+        return self.views[idx], self.targets[idx]
+
+
+def _collate_visit_batch(batch: Sequence[Tuple[np.ndarray, float]]):
+    views, targets = zip(*batch)
+    max_views = max(v.shape[0] for v in views)
+    embed_dim = views[0].shape[1]
+    x = torch.zeros((len(views), max_views, embed_dim), dtype=torch.float32)
+    mask = torch.zeros((len(views), max_views), dtype=torch.float32)
+    for i, v in enumerate(views):
+        count = v.shape[0]
+        x[i, :count, :] = torch.from_numpy(v)
+        mask[i, :count] = 1.0
+    y = torch.tensor(targets, dtype=torch.float32).view(-1, 1)
+    return x, mask, y
 
 
 class ResidualBlock(nn.Module):
@@ -327,6 +431,49 @@ class MLPHeteroscedastic(nn.Module):
         return self.mu(h), self.log_var(h)
 
 
+class SoftmaxFusionRegressor(nn.Module):
+    """Learned softmax fusion over visit views, then regress GLS."""
+
+    def __init__(self, input_dim: int, hidden: int = 256, depth: int = 3, dropout: float = 0.2):
+        super().__init__()
+        self.scorer = nn.Linear(input_dim, 1)
+        self.backbone = ResidualMLPBackbone(input_dim, hidden=hidden, depth=depth, dropout=dropout)
+        self.head = nn.Linear(hidden, 1)
+
+    def _fuse(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        scores = self.scorer(x).squeeze(-1)
+        scores = scores.masked_fill(mask <= 0, -1e9)
+        weights = torch.softmax(scores, dim=1)
+        return torch.sum(weights.unsqueeze(-1) * x, dim=1)
+
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        fused = self._fuse(x, mask)
+        h = self.backbone(fused)
+        return self.head(h)
+
+
+class SoftmaxFusionHeteroscedastic(nn.Module):
+    """Learned softmax fusion over visit views with heteroscedastic head."""
+
+    def __init__(self, input_dim: int, hidden: int = 256, depth: int = 3, dropout: float = 0.2):
+        super().__init__()
+        self.scorer = nn.Linear(input_dim, 1)
+        self.backbone = ResidualMLPBackbone(input_dim, hidden=hidden, depth=depth, dropout=dropout)
+        self.mu = nn.Linear(hidden, 1)
+        self.log_var = nn.Linear(hidden, 1)
+
+    def _fuse(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        scores = self.scorer(x).squeeze(-1)
+        scores = scores.masked_fill(mask <= 0, -1e9)
+        weights = torch.softmax(scores, dim=1)
+        return torch.sum(weights.unsqueeze(-1) * x, dim=1)
+
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        fused = self._fuse(x, mask)
+        h = self.backbone(fused)
+        return self.mu(h), self.log_var(h)
+
+
 def _pairwise_loss(
     scores_a: torch.Tensor,
     scores_b: torch.Tensor,
@@ -340,13 +487,28 @@ def _pairwise_loss(
     return F.softplus(-target * diff).mean()
 
 
+def _unpack_regression_batch(batch: Sequence[torch.Tensor]):
+    if len(batch) == 2:
+        x, y = batch
+        return x, None, y
+    if len(batch) == 3:
+        x, mask, y = batch
+        return x, mask, y
+    raise ValueError("Unexpected batch format for regression.")
+
+
 def _predict_scores(model: nn.Module, loader: DataLoader, device: torch.device) -> np.ndarray:
     model.eval()
     preds: List[float] = []
     with torch.no_grad():
         for batch in loader:
-            x = batch[0].to(device)
-            out = model(x)
+            x, mask, _ = _unpack_regression_batch(batch)
+            x = x.to(device)
+            if mask is not None:
+                mask = mask.to(device)
+                out = model(x, mask)
+            else:
+                out = model(x)
             if isinstance(out, tuple):
                 out = out[0]
             out = out.squeeze(1)
@@ -453,10 +615,15 @@ def _evaluate(
     preds: List[float] = []
     trues: List[float] = []
     with torch.no_grad():
-        for x, y in loader:
+        for batch in loader:
+            x, mask, y = _unpack_regression_batch(batch)
             x = x.to(device)
             y = y.to(device)
-            out = model(x)
+            if mask is not None:
+                mask = mask.to(device)
+                out = model(x, mask)
+            else:
+                out = model(x)
             if isinstance(out, tuple):
                 out = out[0]
             out = out.squeeze(1)
@@ -598,11 +765,14 @@ def _train_model(
                 running += float(loss.item()) * x_a.size(0)
             train_loss = running / len(pairwise_train_loader.dataset)
         else:
-            for x, y in train_loader:
+            for batch in train_loader:
+                x, mask, y = _unpack_regression_batch(batch)
                 x = x.to(device)
                 y = y.to(device)
+                if mask is not None:
+                    mask = mask.to(device)
                 opt.zero_grad()
-                out = model(x)
+                out = model(x, mask) if mask is not None else model(x)
                 if isinstance(out, tuple) and len(out) == 2:
                     mu, log_var = out
                     # Gaussian NLL in normalized y space:
@@ -646,10 +816,13 @@ def _train_model(
         else:
             val_running = 0.0
             with torch.no_grad():
-                for x, y in val_loader:
+                for batch in val_loader:
+                    x, mask, y = _unpack_regression_batch(batch)
                     x = x.to(device)
                     y = y.to(device)
-                    out = model(x)
+                    if mask is not None:
+                        mask = mask.to(device)
+                    out = model(x, mask) if mask is not None else model(x)
                     if isinstance(out, tuple) and len(out) == 2:
                         mu, log_var = out
                         loss = 0.5 * (log_var + (y - mu) ** 2 / torch.exp(log_var))
@@ -1035,6 +1208,25 @@ def main() -> None:
         help="Optional target column name (defaults to 'gls' if present)",
     )
     parser.add_argument(
+        "--task",
+        type=str,
+        choices=["view", "visit"],
+        default="visit",
+        help="Predict per-view GLS (view) or per-visit global GLS with softmax fusion (visit).",
+    )
+    parser.add_argument(
+        "--visit-col",
+        type=str,
+        default="",
+        help="Optional visit identifier column for visit-level task (auto-detected if empty).",
+    )
+    parser.add_argument(
+        "--min-views",
+        type=int,
+        default=2,
+        help="Minimum number of views required per visit for visit-level task.",
+    )
+    parser.add_argument(
         "--target-mode",
         type=str,
         choices=["absolute", "delta", "patient_centered"],
@@ -1218,144 +1410,237 @@ def main() -> None:
     if patient_col is None:
         raise ValueError("No patient identifier column found for group split.")
 
-    group_cols = _resolve_group_cols(df, patient_col, args.group_by_view)
-    needs_time = args.target_mode == "delta" or args.objective == "ranking"
+    group_cols: List[str]
     time_col = None
-    if needs_time:
-        time_col = _resolve_time_column(df, args.time_col)
-        if time_col is None:
-            raise ValueError("No visit time column found; pass --time-col.")
-        time_vals = _coerce_time_values(df[time_col])
-        if time_vals is None or time_vals.isna().all():
-            raise ValueError(f"Could not parse visit time column '{time_col}'.")
-        df = df.copy()
-        df["_visit_time"] = time_vals
-        before = len(df)
-        df = df[df["_visit_time"].notna()].copy()
-        dropped = before - len(df)
-        if dropped:
-            logger.warning("Dropped %d rows with missing visit time.", dropped)
+    if args.task == "visit":
+        if args.objective != "regression":
+            raise ValueError("Visit-level task supports regression objective only.")
+        visit_col = _resolve_visit_column(df, args.visit_col)
+        if visit_col is None:
+            raise ValueError("Visit-level task requires a visit column. Provide --visit-col.")
+        visit_df = _build_visit_level_df(df, patient_col, visit_col, args.min_views)
+        if visit_df.empty:
+            raise ValueError("No valid visits with embeddings and GLS targets.")
+        group_cols = [patient_col]
+        if args.target_mode == "delta":
+            time_col = visit_col
+        visit_df, target_label = _apply_target_transform(visit_df, args.target_mode, group_cols, time_col)
+        visit_df["target"] = pd.to_numeric(visit_df["target"], errors="coerce")
+        visit_df = visit_df[visit_df["target"].notna()].copy()
+        if args.target_min is not None:
+            visit_df = visit_df[visit_df["target"] >= args.target_min].copy()
+        if args.target_max is not None:
+            visit_df = visit_df[visit_df["target"] <= args.target_max].copy()
+        if args.target_min is not None or args.target_max is not None:
+            logger.info(
+                "Filtered %s range to [%s, %s]; remaining rows: %d",
+                target_label,
+                "min" if args.target_min is None else f"{args.target_min:g}",
+                "max" if args.target_max is None else f"{args.target_max:g}",
+                len(visit_df),
+            )
+        if visit_df.empty:
+            raise ValueError("No valid visits with target values.")
+        if args.target_mode == "absolute":
+            target_label = "Visit GLS"
 
-    df, target_label = _apply_target_transform(df, args.target_mode, group_cols, time_col)
-    df["target"] = pd.to_numeric(df["target"], errors="coerce")
-    df = df[df["target"].notna()].copy()
-    if args.target_min is not None:
-        df = df[df["target"] >= args.target_min].copy()
-    if args.target_max is not None:
-        df = df[df["target"] <= args.target_max].copy()
-    if args.target_min is not None or args.target_max is not None:
+        groups = visit_df[patient_col].astype(str).fillna("unknown")
+        x_list = visit_df["embedding_list"].to_list()
+        y = visit_df["target"].astype(np.float32).values
+
+        splitter = GroupShuffleSplit(n_splits=1, test_size=args.val_fraction, random_state=args.seed)
+        splitter_x = np.zeros((len(y), 1), dtype=np.float32)
+        train_idx, val_idx = next(splitter.split(splitter_x, y, groups=groups))
+        x_train_list = [x_list[i] for i in train_idx]
+        x_val_list = [x_list[i] for i in val_idx]
+        y_train, y_val = y[train_idx], y[val_idx]
+        y_train_raw = y_train.copy()
+        y_val_raw = y_val.copy()
         logger.info(
-            "Filtered %s range to [%s, %s]; remaining rows: %d",
+            "%s train: mean=%.4f std=%.4f | val: mean=%.4f std=%.4f",
             target_label,
-            "min" if args.target_min is None else f"{args.target_min:g}",
-            "max" if args.target_max is None else f"{args.target_max:g}",
-            len(df),
+            float(np.mean(y_train_raw)),
+            float(np.std(y_train_raw)),
+            float(np.mean(y_val_raw)),
+            float(np.std(y_val_raw)),
         )
-    if df.empty:
-        raise ValueError("No valid rows with embeddings and target values.")
 
-    groups = df[patient_col].astype(str).fillna("unknown")
-    x = np.stack(df["embedding_vec"].to_list()).astype(np.float32)
-    y = df["target"].astype(np.float32).values
+        if args.standardize:
+            # Standardize view embeddings using training statistics.
+            all_train_views = np.concatenate(x_train_list, axis=0)
+            x_mean = all_train_views.mean(axis=0)
+            x_std = all_train_views.std(axis=0)
+            x_std = np.maximum(x_std, 1e-6)
 
-    splitter = GroupShuffleSplit(n_splits=1, test_size=args.val_fraction, random_state=args.seed)
-    train_idx, val_idx = next(splitter.split(x, y, groups=groups))
-    x_train, y_train = x[train_idx], y[train_idx]
-    x_val, y_val = x[val_idx], y[val_idx]
-    y_train_raw = y_train.copy()
-    y_val_raw = y_val.copy()
-    logger.info(
-        "%s train: mean=%.4f std=%.4f | val: mean=%.4f std=%.4f",
-        target_label,
-        float(np.mean(y_train_raw)),
-        float(np.std(y_train_raw)),
-        float(np.mean(y_val_raw)),
-        float(np.std(y_val_raw)),
-    )
+            def _standardize_views(view_list: List[np.ndarray]) -> List[np.ndarray]:
+                return [((v - x_mean) / x_std).astype(np.float32) for v in view_list]
 
-    if args.standardize:
-        # Standardize embeddings and targets using training statistics.
-        x_mean = x_train.mean(axis=0)
-        x_std = x_train.std(axis=0)
-        x_std = np.maximum(x_std, 1e-6)
-        x_train = ((x_train - x_mean) / x_std).astype(np.float32)
-        x_val = ((x_val - x_mean) / x_std).astype(np.float32)
+            x_train_list = _standardize_views(x_train_list)
+            x_val_list = _standardize_views(x_val_list)
 
-        if args.objective == "regression":
             y_mean = float(y_train.mean())
             y_std = float(y_train.std())
             y_std = max(y_std, 1e-6)
             y_train = ((y_train - y_mean) / y_std).astype(np.float32)
             y_val = ((y_val - y_mean) / y_std).astype(np.float32)
         else:
+            x_train_list = [v.astype(np.float32) for v in x_train_list]
+            x_val_list = [v.astype(np.float32) for v in x_val_list]
             y_train = y_train.astype(np.float32)
             y_val = y_val.astype(np.float32)
             y_mean = 0.0
             y_std = 1.0
+
+        train_ds = VisitDataset(x_train_list, y_train)
+        val_ds = VisitDataset(x_val_list, y_val)
+        train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=_collate_visit_batch)
+        val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=_collate_visit_batch)
+        pairwise_train_loader = None
+        pairwise_val_loader = None
+        train_eval_loader = None
+        val_eval_loader = None
+        x_train_baseline = np.stack([v.mean(axis=0) for v in x_train_list]).astype(np.float32)
+        x_val_baseline = np.stack([v.mean(axis=0) for v in x_val_list]).astype(np.float32)
     else:
-        x_train = x_train.astype(np.float32)
-        x_val = x_val.astype(np.float32)
-        y_train = y_train.astype(np.float32)
-        y_val = y_val.astype(np.float32)
-        y_mean = 0.0
-        y_std = 1.0
+        group_cols = _resolve_group_cols(df, patient_col, args.group_by_view)
+        needs_time = args.target_mode == "delta" or args.objective == "ranking"
+        if needs_time:
+            time_col = _resolve_time_column(df, args.time_col)
+            if time_col is None:
+                raise ValueError("No visit time column found; pass --time-col.")
+            time_vals = _coerce_time_values(df[time_col])
+            if time_vals is None or time_vals.isna().all():
+                raise ValueError(f"Could not parse visit time column '{time_col}'.")
+            df = df.copy()
+            df["_visit_time"] = time_vals
+            before = len(df)
+            df = df[df["_visit_time"].notna()].copy()
+            dropped = before - len(df)
+            if dropped:
+                logger.warning("Dropped %d rows with missing visit time.", dropped)
 
-    train_ds = EmbeddingDataset(x_train, y_train)
-    val_ds = EmbeddingDataset(x_val, y_val)
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
+        df, target_label = _apply_target_transform(df, args.target_mode, group_cols, time_col)
+        df["target"] = pd.to_numeric(df["target"], errors="coerce")
+        df = df[df["target"].notna()].copy()
+        if args.target_min is not None:
+            df = df[df["target"] >= args.target_min].copy()
+        if args.target_max is not None:
+            df = df[df["target"] <= args.target_max].copy()
+        if args.target_min is not None or args.target_max is not None:
+            logger.info(
+                "Filtered %s range to [%s, %s]; remaining rows: %d",
+                target_label,
+                "min" if args.target_min is None else f"{args.target_min:g}",
+                "max" if args.target_max is None else f"{args.target_max:g}",
+                len(df),
+            )
+        if df.empty:
+            raise ValueError("No valid rows with embeddings and target values.")
 
-    pairwise_train_loader = None
-    pairwise_val_loader = None
-    train_eval_loader = None
-    val_eval_loader = None
-    if args.objective == "ranking":
-        if "_visit_time" not in df.columns:
-            raise ValueError("Ranking objective requires visit time; check --time-col.")
-        df_train = df.iloc[train_idx].copy().reset_index(drop=True)
-        df_val = df.iloc[val_idx].copy().reset_index(drop=True)
-        rng = np.random.RandomState(args.seed)
-        train_pairs, train_labels = _build_pairwise_pairs(
-            df_train,
-            group_cols=group_cols,
-            order_col="_visit_time",
-            label_source=args.pairwise_label,
-            direction=args.ranking_direction,
-            max_pairs_per_group=args.max_pairs_per_group,
-            rng=rng,
+        groups = df[patient_col].astype(str).fillna("unknown")
+        x = np.stack(df["embedding_vec"].to_list()).astype(np.float32)
+        y = df["target"].astype(np.float32).values
+
+        splitter = GroupShuffleSplit(n_splits=1, test_size=args.val_fraction, random_state=args.seed)
+        train_idx, val_idx = next(splitter.split(x, y, groups=groups))
+        x_train, y_train = x[train_idx], y[train_idx]
+        x_val, y_val = x[val_idx], y[val_idx]
+        y_train_raw = y_train.copy()
+        y_val_raw = y_val.copy()
+        logger.info(
+            "%s train: mean=%.4f std=%.4f | val: mean=%.4f std=%.4f",
+            target_label,
+            float(np.mean(y_train_raw)),
+            float(np.std(y_train_raw)),
+            float(np.mean(y_val_raw)),
+            float(np.std(y_val_raw)),
         )
-        val_pairs, val_labels = _build_pairwise_pairs(
-            df_val,
-            group_cols=group_cols,
-            order_col="_visit_time",
-            label_source=args.pairwise_label,
-            direction=args.ranking_direction,
-            max_pairs_per_group=args.max_pairs_per_group,
-            rng=rng,
-        )
-        if len(train_pairs) == 0 or len(val_pairs) == 0:
-            raise ValueError("Not enough visit pairs for ranking objective.")
-        pairwise_train_loader = DataLoader(
-            PairwiseRankingDataset(x_train, train_pairs, train_labels),
-            batch_size=args.batch_size,
-            shuffle=True,
-        )
-        pairwise_val_loader = DataLoader(
-            PairwiseRankingDataset(x_val, val_pairs, val_labels),
-            batch_size=args.batch_size,
-            shuffle=False,
-        )
-        train_eval_loader = DataLoader(
-            EmbeddingDataset(x_train, y_train_raw),
-            batch_size=args.batch_size,
-            shuffle=False,
-        )
-        val_eval_loader = DataLoader(
-            EmbeddingDataset(x_val, y_val_raw),
-            batch_size=args.batch_size,
-            shuffle=False,
-        )
-        logger.info("Ranking pairs: train=%d val=%d", len(train_pairs), len(val_pairs))
+
+        if args.standardize:
+            # Standardize embeddings and targets using training statistics.
+            x_mean = x_train.mean(axis=0)
+            x_std = x_train.std(axis=0)
+            x_std = np.maximum(x_std, 1e-6)
+            x_train = ((x_train - x_mean) / x_std).astype(np.float32)
+            x_val = ((x_val - x_mean) / x_std).astype(np.float32)
+
+            if args.objective == "regression":
+                y_mean = float(y_train.mean())
+                y_std = float(y_train.std())
+                y_std = max(y_std, 1e-6)
+                y_train = ((y_train - y_mean) / y_std).astype(np.float32)
+                y_val = ((y_val - y_mean) / y_std).astype(np.float32)
+            else:
+                y_train = y_train.astype(np.float32)
+                y_val = y_val.astype(np.float32)
+                y_mean = 0.0
+                y_std = 1.0
+        else:
+            x_train = x_train.astype(np.float32)
+            x_val = x_val.astype(np.float32)
+            y_train = y_train.astype(np.float32)
+            y_val = y_val.astype(np.float32)
+            y_mean = 0.0
+            y_std = 1.0
+
+        train_ds = EmbeddingDataset(x_train, y_train)
+        val_ds = EmbeddingDataset(x_val, y_val)
+        train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
+        val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
+
+        pairwise_train_loader = None
+        pairwise_val_loader = None
+        train_eval_loader = None
+        val_eval_loader = None
+        if args.objective == "ranking":
+            if "_visit_time" not in df.columns:
+                raise ValueError("Ranking objective requires visit time; check --time-col.")
+            df_train = df.iloc[train_idx].copy().reset_index(drop=True)
+            df_val = df.iloc[val_idx].copy().reset_index(drop=True)
+            rng = np.random.RandomState(args.seed)
+            train_pairs, train_labels = _build_pairwise_pairs(
+                df_train,
+                group_cols=group_cols,
+                order_col="_visit_time",
+                label_source=args.pairwise_label,
+                direction=args.ranking_direction,
+                max_pairs_per_group=args.max_pairs_per_group,
+                rng=rng,
+            )
+            val_pairs, val_labels = _build_pairwise_pairs(
+                df_val,
+                group_cols=group_cols,
+                order_col="_visit_time",
+                label_source=args.pairwise_label,
+                direction=args.ranking_direction,
+                max_pairs_per_group=args.max_pairs_per_group,
+                rng=rng,
+            )
+            if len(train_pairs) == 0 or len(val_pairs) == 0:
+                raise ValueError("Not enough visit pairs for ranking objective.")
+            pairwise_train_loader = DataLoader(
+                PairwiseRankingDataset(x_train, train_pairs, train_labels),
+                batch_size=args.batch_size,
+                shuffle=True,
+            )
+            pairwise_val_loader = DataLoader(
+                PairwiseRankingDataset(x_val, val_pairs, val_labels),
+                batch_size=args.batch_size,
+                shuffle=False,
+            )
+            train_eval_loader = DataLoader(
+                EmbeddingDataset(x_train, y_train_raw),
+                batch_size=args.batch_size,
+                shuffle=False,
+            )
+            val_eval_loader = DataLoader(
+                EmbeddingDataset(x_val, y_val_raw),
+                batch_size=args.batch_size,
+                shuffle=False,
+            )
+            logger.info("Ranking pairs: train=%d val=%d", len(train_pairs), len(val_pairs))
+        x_train_baseline = x_train
+        x_val_baseline = x_val
 
     device = torch.device("cuda" if args.device == "auto" and torch.cuda.is_available() else "cpu")
     if args.device not in ("auto", "cpu", "cuda"):
@@ -1366,7 +1651,8 @@ def main() -> None:
     base_args = dict(vars(args))
     if args.model in ("mlp", "all"):
         logger.info("Training MLP regressor...")
-        model = MLPRegressor(
+        model_cls = SoftmaxFusionRegressor if args.task == "visit" else MLPRegressor
+        model = model_cls(
             input_dim,
             hidden=args.mlp_hidden,
             depth=args.mlp_depth,
@@ -1410,7 +1696,8 @@ def main() -> None:
 
     if args.model in ("mlp_unc", "all"):
         logger.info("Training MLP heteroscedastic regressor...")
-        model = MLPHeteroscedastic(
+        model_cls = SoftmaxFusionHeteroscedastic if args.task == "visit" else MLPHeteroscedastic
+        model = model_cls(
             input_dim,
             hidden=args.mlp_hidden,
             depth=args.mlp_depth,
@@ -1459,17 +1746,17 @@ def main() -> None:
     if run_baselines:
         logger.info("Running linear baselines...")
         results["baselines"] = _run_linear_baselines(
-            x_train,
+            x_train_baseline,
             y_train_raw,
-            x_val,
+            x_val_baseline,
             y_val_raw,
         )
     if run_tree_baselines:
         logger.info("Running tree baselines...")
         results["tree_baselines"] = _run_tree_baselines(
-            x_train,
+            x_train_baseline,
             y_train_raw,
-            x_val,
+            x_val_baseline,
             y_val_raw,
             seed=args.seed,
         )

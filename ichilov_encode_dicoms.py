@@ -48,7 +48,7 @@ except Exception as exc:  # pragma: no cover - runtime check
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("ichilov_encode_dicoms")
 
-VIEW_KEYS = ("A2C", "A4C")
+VIEW_KEYS = ("A2C", "A3C", "A4C")
 PROJECT_ROOT = Path(__file__).resolve().parent
 ECHO_VISION_ROOT = (PROJECT_ROOT / "Echo-Vison-FM").resolve()
 if ECHO_VISION_ROOT.exists():
@@ -329,13 +329,13 @@ def main() -> None:
     parser.add_argument(
         "--weights",
         type=Path,
-        default=USER_HOME / "OneDrive - Technion" / "models" / "Ichilov_GLS_models" / "Encoder_weights" / "pytorch_model.bin",
+        default=USER_HOME / "OneDrive - Technion" / "models" / "Encoder_weights" / "pytorch_model.bin",
         help="Path to MAE weights",
     )
     parser.add_argument(
         "--output-parquet",
         type=Path,
-        default=USER_HOME / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full.parquet",
+        default=USER_HOME / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full_A3C.parquet",
         help="Output parquet path",
     )
     parser.add_argument(
