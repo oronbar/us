@@ -9,13 +9,14 @@ Output:
 
 Usage (PowerShell):
   .venv\\Scripts\\python ichilov_gls_report.py ^
-    --input-xlsx "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Report_Ichilov_expanded_oron.xlsx" ^
-    --echo-root "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Ichilov" ^
-    --output-xlsx "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Report_Ichilov_GLS_oron.xlsx"
+    --input-xlsx \"$HOME\\OneDrive - Technion\\DS\\Report_Ichilov_expanded_oron.xlsx\" ^
+    --echo-root \"$HOME\\OneDrive - Technion\\DS\\Ichilov\" ^
+    --output-xlsx \"$HOME\\OneDrive - Technion\\DS\\Report_Ichilov_GLS_oron.xlsx\"
 """
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import re
 from dataclasses import dataclass
@@ -41,6 +42,11 @@ class AnalysisResult:
     gls: Optional[float]
     source_sop: Optional[str]
     label: Optional[str]
+    strain_curves: Optional[List[List[float]]]
+    frame_min: Optional[int]
+    frame_max: Optional[int]
+    end_diastole: Optional[int]
+    end_systole: Optional[int]
 
 
 def _clean_xml_text(raw: bytes) -> str:
@@ -151,6 +157,63 @@ def _parse_view(label: Optional[str], xtt_xml: Optional[str]) -> Optional[str]:
         if m:
             return m.group(0)
     return None
+
+
+def _safe_int(val: object) -> Optional[int]:
+    f = _safe_float(val)
+    if f is None:
+        return None
+    try:
+        return int(round(f))
+    except Exception:
+        return None
+
+
+def _parse_xtt_strain_curves(
+    xtt_xml: Optional[str],
+) -> Tuple[Optional[List[List[float]]], Optional[int], Optional[int], Optional[int], Optional[int]]:
+    if not xtt_xml:
+        return None, None, None, None, None
+    try:
+        root = ET.fromstring(xtt_xml)
+    except ET.ParseError:
+        return None, None, None, None, None
+
+    spline = root.find(".//AutoStrainSpline")
+    if spline is None:
+        return None, None, None, None, None
+
+    strain_vals = spline.find("StrainValues")
+    if strain_vals is None:
+        return None, None, None, None, None
+
+    frames: List[List[float]] = []
+    for child in strain_vals:
+        # Strain values are space-separated; commas (if any) are treated as delimiters as well.
+        text = (child.text or "").strip()
+        tokens = text.replace(",", " ").split()
+        row: List[float] = []
+        for tok in tokens:
+            v = _safe_float(tok)
+            if v is not None:
+                row.append(v)
+        if row:
+            frames.append(row)
+
+    if not frames:
+        return None, None, None, None, None
+
+    seg_len = min(len(r) for r in frames) if frames else 0
+    curves: List[List[float]] = []
+    for seg_idx in range(seg_len):
+        curves.append([row[seg_idx] for row in frames if len(row) > seg_idx])
+
+    frame_min = _safe_int(spline.findtext("FrameMinimum"))
+    frame_max = _safe_int(spline.findtext("FrameMaximum"))
+    end_diastole = _safe_int(spline.findtext("EndDiastole"))
+    end_systole = _safe_int(spline.findtext("EndSystole"))
+
+    return curves if curves else None, frame_min, frame_max, end_diastole, end_systole
 
 
 def _get_tag_value(data: bytes, group: int, element: int) -> Optional[str]:
@@ -299,6 +362,7 @@ def _scan_study(dicom_paths: List[Path]) -> Tuple[Dict[str, Path], List[Analysis
         tt_xml = _extract_tt_xml(data)
         label, _ = _parse_tt_label(tt_xml)
         gls, source_sop = _parse_xtt_gls_and_uid(xtt_xml)
+        strain_curves, frame_min, frame_max, end_diastole, end_systole = _parse_xtt_strain_curves(xtt_xml)
         view = _parse_view(label, xtt_xml)
         analyses.append(
             AnalysisResult(
@@ -307,6 +371,11 @@ def _scan_study(dicom_paths: List[Path]) -> Tuple[Dict[str, Path], List[Analysis
                 gls=gls,
                 source_sop=source_sop,
                 label=label,
+                strain_curves=strain_curves,
+                frame_min=frame_min,
+                frame_max=frame_max,
+                end_diastole=end_diastole,
+                end_systole=end_systole,
             )
         )
     return sop_map, analyses
@@ -386,6 +455,9 @@ def build_gls_report(
         out_cols[f"{view}_GLS"] = None
         out_cols[f"{view}_GLS_ANALYSIS_DICOM"] = None
         out_cols[f"{view}_GLS_SOURCE_DICOM"] = None
+        out_cols[f"{view}_STRAIN_CURVES_JSON"] = None
+        out_cols[f"{view}_END_DIASTOLE_FRAME"] = None
+        out_cols[f"{view}_END_SYSTOLE_FRAME"] = None
 
     for k, v in out_cols.items():
         if k not in df.columns:
@@ -450,6 +522,10 @@ def build_gls_report(
             df.at[idx, f"{view}_GLS"] = chosen.gls
             df.at[idx, f"{view}_GLS_ANALYSIS_DICOM"] = str(chosen.analysis_path)
             df.at[idx, f"{view}_GLS_SOURCE_DICOM"] = str(source_path) if source_path else None
+            if chosen.strain_curves:
+                df.at[idx, f"{view}_STRAIN_CURVES_JSON"] = json.dumps(chosen.strain_curves)
+            df.at[idx, f"{view}_END_DIASTOLE_FRAME"] = chosen.end_diastole
+            df.at[idx, f"{view}_END_SYSTOLE_FRAME"] = chosen.end_systole
 
     output_xlsx.parent.mkdir(parents=True, exist_ok=True)
     df.to_excel(output_xlsx, index=False)
@@ -458,23 +534,25 @@ def build_gls_report(
 
 
 def main() -> None:
+    home = Path.home()
+    default_ds = home / "OneDrive - Technion" / "DS"
     parser = argparse.ArgumentParser(description="Extract GLS per view and map to source DICOMs.")
     parser.add_argument(
         "--input-xlsx",
         type=Path,
-        default=Path(r"C:\Users\oronbarazani\OneDrive - Technion\DS\Report_Ichilov_expanded_oron.xlsx"),
+        default=default_ds / "Report_Ichilov_expanded_oron.xlsx",
         help="Input registry Excel",
     )
     parser.add_argument(
         "--echo-root",
         type=Path,
-        default=Path(r"D:\DS\Ichilov"),
+        default=Path("D:/DS/Ichilov"),
         help="Root folder containing patient DICOMs",
     )
     parser.add_argument(
         "--output-xlsx",
         type=Path,
-        default=Path(r"C:\Users\oronbarazani\OneDrive - Technion\DS\Report_Ichilov_GLS_oron.xlsx"),
+        default=default_ds / "Report_Ichilov_GLS_and_Strain_oron.xlsx",
         help="Output Excel path",
     )
     args = parser.parse_args()
