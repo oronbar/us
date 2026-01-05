@@ -1,12 +1,12 @@
 """
-Train models (CNN/Transformer/MLP + baselines) for GLS prediction from embeddings.
+Train models (MLP + baselines) for GLS prediction from embeddings.
 
 Input:
   - Parquet/CSV embeddings dataframe (from ichilov_encode_dicoms.py)
   - Optional Excel report to supply GLS targets
 
 Output:
-  - Model weights + metrics in output directory
+  - Model weights + metrics inside pred_plots_* run folders under the output directory
 
 Usage (PowerShell):
   .venv\\Scripts\\python ichilov_train_gls.py ^
@@ -266,65 +266,6 @@ class PairwiseRankingDataset(Dataset):
         return self.x[i], self.x[j], self.labels[idx]
 
 
-class CNNRegressor(nn.Module):
-    def __init__(self, input_dim: int):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Conv1d(1, 32, kernel_size=5, padding=2),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-            nn.Conv1d(32, 64, kernel_size=5, padding=2),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Conv1d(64, 128, kernel_size=5, padding=2),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool1d(1),
-        )
-        self.head = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Dropout(p=0.2),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, 1),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x.unsqueeze(1)
-        x = self.net(x)
-        return self.head(x)
-
-
-class TransformerRegressor(nn.Module):
-    def __init__(self, input_dim: int, d_model: int = 64, nhead: int = 4, num_layers: int = 2):
-        super().__init__()
-        self.input_dim = input_dim
-        self.input_proj = nn.Linear(1, d_model)
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model,
-            nhead=nhead,
-            dim_feedforward=128,
-            batch_first=True,
-            dropout=0.1,
-        )
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
-        self.pos = nn.Parameter(torch.zeros(1, input_dim, d_model))
-        self.head = nn.Sequential(
-            nn.Linear(d_model, 64),
-            nn.ReLU(),
-            nn.Linear(64, 1),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (B, L)
-        x = x.unsqueeze(-1)  # (B, L, 1)
-        x = self.input_proj(x) + self.pos
-        x = self.encoder(x)
-        x = x.mean(dim=1)
-        return self.head(x)
-
 class ResidualBlock(nn.Module):
     def __init__(self, hidden: int, dropout: float):
         super().__init__()
@@ -432,6 +373,18 @@ def _spearman_corr(preds: np.ndarray, trues: np.ndarray) -> float:
     ranks_pred = pd.Series(preds).rank().to_numpy()
     ranks_true = pd.Series(trues).rank().to_numpy()
     return float(np.corrcoef(ranks_pred, ranks_true)[0, 1])
+
+
+def _r2_score(preds: np.ndarray, trues: np.ndarray) -> float:
+    preds = np.asarray(preds, dtype=float)
+    trues = np.asarray(trues, dtype=float)
+    if len(trues) < 2:
+        return float("nan")
+    ss_tot = float(np.sum((trues - np.mean(trues)) ** 2))
+    if not np.isfinite(ss_tot) or ss_tot < 1e-12:
+        return float("nan")
+    ss_res = float(np.sum((trues - preds) ** 2))
+    return float(1.0 - ss_res / ss_tot)
 
 
 def _build_pairwise_pairs(
@@ -545,7 +498,7 @@ def _train_model(
     y_train_raw: Optional[np.ndarray] = None,
     y_val_raw: Optional[np.ndarray] = None,
     target_label: str = "GLS",
-) -> Dict[str, float]:
+) -> Tuple[Dict[str, float], Path]:
     model.to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = ReduceLROnPlateau(opt, mode="min", factor=lr_factor, patience=lr_patience, min_lr=lr_min)
@@ -610,11 +563,14 @@ def _train_model(
 
     plot_dir = out_path.parent / f"pred_plots_{datetime.now().strftime('%Y%m%d_%H%M%S')}{suffix}"
     plot_dir.mkdir(parents=True, exist_ok=True)
+    out_path = plot_dir / out_path.name
     if norm_args is not None:
         args_path = plot_dir / "run_args.json"
         with args_path.open("w", encoding="utf-8") as f:
             json.dump(norm_args, f, indent=2, sort_keys=True)
         logger.info(f"Saved run args: {args_path}")
+    if log_dir is None:
+        log_dir = plot_dir / "tensorboard"
     writer = SummaryWriter(str(log_dir)) if log_dir is not None else None
     train_losses: List[float] = []
     val_losses: List[float] = []
@@ -795,6 +751,7 @@ def _train_model(
         else:
             val_corr = float("nan")
         val_spearman = _spearman_corr(val_scores, trues_arr)
+        val_r2 = _r2_score(preds_arr, trues_arr)
     else:
         val_pairwise_loss = float("nan")
         val_pairwise_acc = float("nan")
@@ -808,6 +765,29 @@ def _train_model(
         else:
             val_corr = float("nan")
         val_spearman = _spearman_corr(preds_arr, trues_arr)
+        val_r2 = _r2_score(preds_arr, trues_arr)
+
+    if len(preds_arr):
+        plot_dir.mkdir(parents=True, exist_ok=True)
+        fig, ax = plt.subplots()
+        ax.scatter(trues_arr, preds_arr, alpha=0.6, s=12)
+        finite_mask = np.isfinite(trues_arr) & np.isfinite(preds_arr)
+        if np.any(finite_mask):
+            vals = np.concatenate([trues_arr[finite_mask], preds_arr[finite_mask]])
+            vmin = float(np.min(vals))
+            vmax = float(np.max(vals))
+            if vmin != vmax:
+                ax.plot([vmin, vmax], [vmin, vmax], color="gray", linestyle="--", linewidth=1.0)
+            ax.set_xlim(vmin, vmax)
+            ax.set_ylim(vmin, vmax)
+        ax.set_xlabel("True")
+        ax.set_ylabel("Pred")
+        ax.set_title(f"{out_path.stem} True vs Pred")
+        fig.tight_layout()
+        scatter_path = plot_dir / f"{out_path.stem}_true_vs_pred.png"
+        fig.savefig(scatter_path)
+        plt.close(fig)
+        logger.info(f"Saved true vs pred scatter: {scatter_path}")
 
     mean_vals = (preds_arr + trues_arr) / 2.0
     diff_vals = preds_arr - trues_arr
@@ -842,6 +822,7 @@ def _train_model(
                     "val_rmse": val_rmse,
                     "val_mse": val_mse,
                     "val_corr": val_corr,
+                    "val_r2": val_r2,
                     "val_spearman": val_spearman,
                     "val_pairwise_loss": val_pairwise_loss,
                     "val_pairwise_acc": val_pairwise_acc,
@@ -876,11 +857,12 @@ def _train_model(
     if writer:
         writer.close()
 
-    return {
+    metrics = {
         "val_mse": val_mse,
         "val_mae": val_mae,
         "val_rmse": val_rmse,
         "val_corr": val_corr,
+        "val_r2": val_r2,
         "val_spearman": val_spearman,
         "val_pairwise_loss": val_pairwise_loss,
         "val_pairwise_acc": val_pairwise_acc,
@@ -890,6 +872,7 @@ def _train_model(
         "bland_altman_loa_lower": loa_lower,
         "bland_altman_loa_upper": loa_upper,
     }
+    return metrics, plot_dir
 
 
 def _regression_metrics(preds: np.ndarray, trues: np.ndarray) -> Dict[str, float]:
@@ -901,7 +884,8 @@ def _regression_metrics(preds: np.ndarray, trues: np.ndarray) -> Dict[str, float
         corr = float(np.corrcoef(preds, trues)[0, 1])
     else:
         corr = float("nan")
-    return {"mae": mae, "rmse": rmse, "corr": corr}
+    r2 = _r2_score(preds, trues)
+    return {"mae": mae, "rmse": rmse, "corr": corr, "r2": r2}
 
 
 def _run_linear_baselines(
@@ -1005,21 +989,21 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=user_home / "OneDrive - Technion" / "models" / "Ichilov_GLS_models",
-        help="Output directory for model weights and metrics",
+        default=user_home / "OneDrive - Technion" / "Experiments" / "Ichilov_embedding_GLS_models",
+        help="Output root directory for pred_plots_* run folders",
     )
     parser.add_argument(
         "--log-dir",
         type=Path,
         default=None,
-        help="Optional TensorBoard log directory (default: OUTPUT_DIR/tensorboard/<timestamp>)",
+        help="Optional TensorBoard log directory (default: <run_dir>/tensorboard)",
     )
     parser.add_argument(
         "--model",
         type=str,
-        choices=["cnn", "transformer", "mlp", "mlp_unc", "both", "all"],
+        choices=["mlp", "mlp_unc", "all"],
         default="mlp",
-        help="Model type to train (both=cnn+transformer, all=cnn+transformer+mlp+mlp_unc)",
+        help="Model type to train (all=mlp+mlp_unc).",
     )
     parser.add_argument("--epochs", type=int, default=90)
     parser.add_argument("--batch-size", type=int, default=64)
@@ -1054,7 +1038,7 @@ def main() -> None:
         "--target-mode",
         type=str,
         choices=["absolute", "delta", "patient_centered"],
-        default="absolute",
+        default="patient_centered",
         help="Target to learn: absolute GLS, delta vs earliest visit, or patient-centered GLS.",
     )
     parser.add_argument(
@@ -1099,7 +1083,7 @@ def main() -> None:
         "--pairwise-label",
         type=str,
         choices=["time", "target"],
-        default="time",
+        default="target",
         help="For ranking: label pairs by visit time monotonicity or target ordering.",
     )
     parser.add_argument(
@@ -1163,8 +1147,7 @@ def main() -> None:
         help="Disable standardization of embeddings/targets (use raw values).",
     )
     args = parser.parse_args()
-    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_log_dir = args.log_dir or args.output_dir / "tensorboard" / run_id
+    base_log_dir = args.log_dir
     _set_seed(args.seed)
 
     df = _load_embeddings(args.input_embeddings)
@@ -1379,83 +1362,8 @@ def main() -> None:
         device = torch.device(args.device)
 
     results = {}
+    plot_dirs: List[Path] = []
     base_args = dict(vars(args))
-    if args.model in ("cnn", "both", "all"):
-        logger.info("Training CNN regressor...")
-        model = CNNRegressor(input_dim)
-        out_path = args.output_dir / "cnn_best.pt"
-        cnn_log_dir = base_log_dir / "cnn" if args.model in ("both", "all") else base_log_dir
-        run_args = dict(base_args)
-        run_args["trained_model"] = "cnn"
-        metrics = _train_model(
-            model,
-            train_loader,
-            val_loader,
-            device=device,
-            epochs=args.epochs,
-            lr=args.lr,
-            weight_decay=args.weight_decay,
-            out_path=out_path,
-            lr_factor=args.lr_factor,
-            lr_patience=args.lr_patience,
-            lr_min=args.lr_min,
-            y_mean=y_mean,
-            y_std=y_std,
-            loss_type=args.loss,
-            log_dir=cnn_log_dir,
-            plot_every=10,
-            run_args=run_args,
-            objective=args.objective,
-            pairwise_train_loader=pairwise_train_loader,
-            pairwise_val_loader=pairwise_val_loader,
-            ranking_loss=args.ranking_loss,
-            ranking_margin=args.ranking_margin,
-            train_eval_loader=train_eval_loader,
-            val_eval_loader=val_eval_loader,
-            y_train_raw=y_train_raw,
-            y_val_raw=y_val_raw,
-            target_label=target_label,
-        )
-        results["cnn"] = metrics
-
-    if args.model in ("transformer", "both", "all"):
-        logger.info("Training Transformer regressor...")
-        model = TransformerRegressor(input_dim)
-        out_path = args.output_dir / "transformer_best.pt"
-        transformer_log_dir = base_log_dir / "transformer" if args.model in ("both", "all") else base_log_dir
-        run_args = dict(base_args)
-        run_args["trained_model"] = "transformer"
-        metrics = _train_model(
-            model,
-            train_loader,
-            val_loader,
-            device=device,
-            epochs=args.epochs,
-            lr=args.lr,
-            weight_decay=args.weight_decay,
-            out_path=out_path,
-            lr_factor=args.lr_factor,
-            lr_patience=args.lr_patience,
-            lr_min=args.lr_min,
-            y_mean=y_mean,
-            y_std=y_std,
-            loss_type=args.loss,
-            log_dir=transformer_log_dir,
-            plot_every=10,
-            run_args=run_args,
-            objective=args.objective,
-            pairwise_train_loader=pairwise_train_loader,
-            pairwise_val_loader=pairwise_val_loader,
-            ranking_loss=args.ranking_loss,
-            ranking_margin=args.ranking_margin,
-            train_eval_loader=train_eval_loader,
-            val_eval_loader=val_eval_loader,
-            y_train_raw=y_train_raw,
-            y_val_raw=y_val_raw,
-            target_label=target_label,
-        )
-        results["transformer"] = metrics
-
     if args.model in ("mlp", "all"):
         logger.info("Training MLP regressor...")
         model = MLPRegressor(
@@ -1465,10 +1373,10 @@ def main() -> None:
             dropout=args.mlp_dropout,
         )
         out_path = args.output_dir / "mlp_best.pt"
-        mlp_log_dir = base_log_dir / "mlp" if args.model == "all" else base_log_dir
+        mlp_log_dir = base_log_dir / "mlp" if base_log_dir is not None and args.model == "all" else base_log_dir
         run_args = dict(base_args)
         run_args["trained_model"] = "mlp"
-        metrics = _train_model(
+        metrics, plot_dir = _train_model(
             model,
             train_loader,
             val_loader,
@@ -1498,6 +1406,7 @@ def main() -> None:
             target_label=target_label,
         )
         results["mlp"] = metrics
+        plot_dirs.append(plot_dir)
 
     if args.model in ("mlp_unc", "all"):
         logger.info("Training MLP heteroscedastic regressor...")
@@ -1508,10 +1417,12 @@ def main() -> None:
             dropout=args.mlp_dropout,
         )
         out_path = args.output_dir / "mlp_unc_best.pt"
-        mlp_unc_log_dir = base_log_dir / "mlp_unc" if args.model == "all" else base_log_dir
+        mlp_unc_log_dir = (
+            base_log_dir / "mlp_unc" if base_log_dir is not None and args.model == "all" else base_log_dir
+        )
         run_args = dict(base_args)
         run_args["trained_model"] = "mlp_unc"
-        metrics = _train_model(
+        metrics, plot_dir = _train_model(
             model,
             train_loader,
             val_loader,
@@ -1541,6 +1452,7 @@ def main() -> None:
             target_label=target_label,
         )
         results["mlp_unc"] = metrics
+        plot_dirs.append(plot_dir)
 
     run_baselines = args.run_baselines or args.model == "all"
     run_tree_baselines = args.run_tree_baselines or args.model == "all"
@@ -1562,11 +1474,13 @@ def main() -> None:
             seed=args.seed,
         )
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    metrics_path = args.output_dir / "metrics.json"
-    with metrics_path.open("w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2)
-    logger.info(f"Saved metrics: {metrics_path}")
+    metrics_payload = json.dumps(results, indent=2)
+    if plot_dirs:
+        for plot_dir in sorted(set(plot_dirs), key=lambda p: str(p)):
+            plot_dir.mkdir(parents=True, exist_ok=True)
+            plot_metrics_path = plot_dir / "metrics.json"
+            plot_metrics_path.write_text(metrics_payload, encoding="utf-8")
+            logger.info(f"Saved plot metrics: {plot_metrics_path}")
 
 
 if __name__ == "__main__":

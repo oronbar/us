@@ -1325,17 +1325,25 @@ def write_results_table(rows: List[Dict[str, object]], outpath: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="Train visit-based strain curve models.")
+    user_home = Path.home()
     ap.add_argument(
         "--parquet",
         type=Path,
-        default=Path(r"F:\DS\strain_dataset_combined.parquet"),
+        default=user_home / "OneDrive - Technion" / "DS" / "strain_dataset_combined.parquet",
         help="Path to combined parquet file.",
+    )
+    ap.add_argument(
+        "--experiment-name",
+        "--experiment_name",
+        type=str,
+        default="VVI_strain_curves_classification",
+        help="Subfolder name appended to --outdir.",
     )
     ap.add_argument(
         "--outdir",
         type=Path,
-        default=Path("models"),
-        help="Output directory for models and metrics.",
+        default=user_home / "OneDrive - Technion" / "Experiments",
+        help="Base output directory for models and metrics; experiment name is appended.",
     )
     ap.add_argument(
         "--curve",
@@ -1441,7 +1449,10 @@ def parse_args() -> argparse.Namespace:
     )
     ap.add_argument("--good-visits", type=int, default=2, help="Number of earliest visits labeled good.")
     ap.add_argument("--bad-visits", type=int, default=2, help="Number of subsequent visits labeled bad.")
-    return ap.parse_args()
+    args = ap.parse_args()
+    if args.experiment_name:
+        args.outdir = args.outdir / args.experiment_name
+    return args
 
 
 def main() -> None:
