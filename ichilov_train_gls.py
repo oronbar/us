@@ -1726,14 +1726,24 @@ def main() -> None:
             raise ValueError(f"Inconsistent embedding dimensions: {emb_lengths}")
     input_dim = int(emb_lengths[0])
 
-    patient_col = _find_column(df, ["patient_id", "patient_num"], required=False)
+    patient_col = _find_column(
+        df,
+        ["patient_id_base", "patient_num_base", "patient_id", "patient_num"],
+        required=False,
+    )
     if patient_col is None:
-        if "patient_id" in df.columns:
+        if "patient_id_base" in df.columns:
+            patient_col = "patient_id_base"
+        elif "patient_num_base" in df.columns:
+            patient_col = "patient_num_base"
+        elif "patient_id" in df.columns:
             patient_col = "patient_id"
         elif "patient_num" in df.columns:
             patient_col = "patient_num"
     if patient_col is None:
         raise ValueError("No patient identifier column found for group split.")
+    if patient_col in ("patient_id_base", "patient_num_base"):
+        logger.info("Using %s for group split to keep augmented patients together.", patient_col)
 
     group_cols: List[str]
     time_col = None
