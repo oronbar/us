@@ -639,6 +639,103 @@ def _unpack_pairwise_batch(batch: Sequence[torch.Tensor]):
     raise ValueError("Unexpected batch format for pairwise ranking.")
 
 
+def _linear_slope(x: np.ndarray, y: np.ndarray) -> float:
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    if len(x) < 2 or np.std(x) < 1e-8:
+        return float("nan")
+    x = x - np.mean(x)
+    y = y - np.mean(y)
+    denom = float(np.sum(x ** 2))
+    if denom <= 1e-12:
+        return float("nan")
+    return float(np.sum(x * y) / denom)
+
+
+def _compute_patient_trajectory(
+    preds: np.ndarray,
+    trues: np.ndarray,
+    patient_ids: Sequence[object],
+    visit_keys: Sequence[object],
+    visit_times: Optional[Sequence[object]] = None,
+) -> pd.DataFrame:
+    df = pd.DataFrame(
+        {
+            "patient_id": patient_ids,
+            "visit_key": visit_keys,
+            "pred": preds,
+            "true": trues,
+        }
+    )
+    if visit_times is not None:
+        df["visit_time"] = visit_times
+
+    df = df.dropna(subset=["patient_id", "visit_key"]).copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    agg = {"pred": "mean", "true": "mean"}
+    if "visit_time" in df.columns:
+        agg["visit_time"] = "mean"
+    visit_df = df.groupby(["patient_id", "visit_key"], dropna=False).agg(agg).reset_index()
+
+    rows: List[Dict[str, object]] = []
+    for pid, grp in visit_df.groupby("patient_id"):
+        grp = grp.copy()
+        if len(grp) < 2:
+            continue
+        time_axis = "index"
+        times: Optional[np.ndarray] = None
+        if "visit_time" in grp.columns:
+            time_vals = grp["visit_time"]
+            if np.issubdtype(time_vals.dtype, np.datetime64):
+                times = (
+                    (time_vals - time_vals.min()).dt.total_seconds().to_numpy(dtype=float) / 86400.0
+                )
+                time_axis = "days"
+            else:
+                numeric = pd.to_numeric(time_vals, errors="coerce")
+                if numeric.notna().any():
+                    times = numeric.to_numpy(dtype=float)
+                    times = times - np.nanmin(times)
+                    time_axis = "value"
+
+        if times is None:
+            grp = grp.sort_values("visit_key")
+            times = np.arange(len(grp), dtype=float)
+            time_axis = "index"
+        else:
+            finite = np.isfinite(times)
+            if finite.sum() < 2:
+                grp = grp.sort_values("visit_key")
+                times = np.arange(len(grp), dtype=float)
+                time_axis = "index"
+            else:
+                order = np.argsort(times)
+                grp = grp.iloc[order]
+                times = times[order]
+
+        pred_vals = grp["pred"].to_numpy(dtype=float)
+        true_vals = grp["true"].to_numpy(dtype=float)
+        pred_slope = _linear_slope(times, pred_vals)
+        true_slope = _linear_slope(times, true_vals)
+        rows.append(
+            {
+                "patient_id": pid,
+                "n_visits": int(len(grp)),
+                "time_span": float(times[-1] - times[0]) if len(times) else float("nan"),
+                "time_axis": time_axis,
+                "pred_slope": pred_slope,
+                "true_slope": true_slope,
+                "pred_delta": float(pred_vals[-1] - pred_vals[0]),
+                "true_delta": float(true_vals[-1] - true_vals[0]),
+                "pred_mean": float(np.mean(pred_vals)),
+                "true_mean": float(np.mean(true_vals)),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def _predict_scores(model: nn.Module, loader: DataLoader, device: torch.device) -> np.ndarray:
     model.eval()
     preds: List[float] = []
@@ -812,6 +909,9 @@ def _train_model(
     y_train_raw: Optional[np.ndarray] = None,
     y_val_raw: Optional[np.ndarray] = None,
     target_label: str = "GLS",
+    val_patient_ids: Optional[Sequence[object]] = None,
+    val_visit_keys: Optional[Sequence[object]] = None,
+    val_visit_times: Optional[Sequence[object]] = None,
 ) -> Tuple[Dict[str, float], Path]:
     model.to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -1128,6 +1228,43 @@ def _train_model(
         fig.savefig(scatter_path)
         plt.close(fig)
         logger.info(f"Saved true vs pred scatter: {scatter_path}")
+
+    if val_patient_ids is not None and val_visit_keys is not None:
+        if len(preds_arr) == len(val_patient_ids) == len(val_visit_keys):
+            trajectory_df = _compute_patient_trajectory(
+                preds_arr,
+                trues_arr,
+                val_patient_ids,
+                val_visit_keys,
+                visit_times=val_visit_times,
+            )
+            if not trajectory_df.empty:
+                traj_csv = plot_dir / f"{out_path.stem}_patient_trajectory.csv"
+                trajectory_df.to_csv(traj_csv, index=False)
+                logger.info(f"Saved patient trajectory table: {traj_csv}")
+
+                finite_mask = np.isfinite(trajectory_df["pred_slope"]) & np.isfinite(trajectory_df["true_slope"])
+                if finite_mask.any():
+                    fig, ax = plt.subplots()
+                    x_vals = trajectory_df.loc[finite_mask, "true_slope"].to_numpy(dtype=float)
+                    y_vals = trajectory_df.loc[finite_mask, "pred_slope"].to_numpy(dtype=float)
+                    ax.scatter(x_vals, y_vals, alpha=0.7, s=16)
+                    vmin = float(np.min(np.concatenate([x_vals, y_vals])))
+                    vmax = float(np.max(np.concatenate([x_vals, y_vals])))
+                    if vmin != vmax:
+                        ax.plot([vmin, vmax], [vmin, vmax], color="gray", linestyle="--", linewidth=1.0)
+                    ax.set_xlabel("True trajectory slope")
+                    ax.set_ylabel("Pred trajectory slope")
+                    ax.set_title(f"{out_path.stem} patient trajectory")
+                    fig.tight_layout()
+                    traj_plot = plot_dir / f"{out_path.stem}_patient_trajectory.png"
+                    fig.savefig(traj_plot)
+                    plt.close(fig)
+                    logger.info(f"Saved patient trajectory plot: {traj_plot}")
+                else:
+                    logger.warning("No finite trajectory slopes to plot.")
+        else:
+            logger.warning("Skipping trajectory: meta length mismatch with predictions.")
 
     mean_vals = (preds_arr + trues_arr) / 2.0
     diff_vals = preds_arr - trues_arr
@@ -1600,6 +1737,9 @@ def main() -> None:
 
     group_cols: List[str]
     time_col = None
+    val_patient_ids: Optional[np.ndarray] = None
+    val_visit_keys: Optional[np.ndarray] = None
+    val_visit_times: Optional[np.ndarray] = None
     if args.task == "visit":
         visit_col = _resolve_visit_column(df, args.visit_col)
         if visit_col is None:
@@ -1752,6 +1892,10 @@ def main() -> None:
                 collate_fn=_collate_visit_batch,
             )
             logger.info("Ranking pairs: train=%d val=%d", len(train_pairs), len(val_pairs))
+        val_patient_ids = visit_df.iloc[val_idx][patient_col].astype(str).to_numpy()
+        val_visit_keys = visit_df.iloc[val_idx][visit_col].to_numpy()
+        visit_times = _coerce_time_values(visit_df[visit_col])
+        val_visit_times = visit_times.iloc[val_idx].to_numpy() if visit_times is not None else None
         x_train_baseline = np.stack([v.mean(axis=0) for v in x_train_list]).astype(np.float32)
         x_val_baseline = np.stack([v.mean(axis=0) for v in x_val_list]).astype(np.float32)
     else:
@@ -1892,6 +2036,15 @@ def main() -> None:
                 shuffle=False,
             )
             logger.info("Ranking pairs: train=%d val=%d", len(train_pairs), len(val_pairs))
+        val_patient_ids = df.iloc[val_idx][patient_col].astype(str).to_numpy()
+        visit_col_for_traj = _resolve_visit_column(df, args.visit_col)
+        if visit_col_for_traj is None:
+            visit_col_for_traj = _resolve_time_column(df, args.time_col)
+        if visit_col_for_traj is not None:
+            visit_series = df[visit_col_for_traj]
+            val_visit_keys = visit_series.iloc[val_idx].to_numpy()
+            visit_times = _coerce_time_values(visit_series)
+            val_visit_times = visit_times.iloc[val_idx].to_numpy() if visit_times is not None else None
         x_train_baseline = x_train
         x_val_baseline = x_val
 
@@ -1961,6 +2114,9 @@ def main() -> None:
             y_train_raw=y_train_raw,
             y_val_raw=y_val_raw,
             target_label=target_label,
+            val_patient_ids=val_patient_ids,
+            val_visit_keys=val_visit_keys,
+            val_visit_times=val_visit_times,
         )
         results["mlp"] = metrics
         plot_dirs.append(plot_dir)
@@ -2026,6 +2182,9 @@ def main() -> None:
             y_train_raw=y_train_raw,
             y_val_raw=y_val_raw,
             target_label=target_label,
+            val_patient_ids=val_patient_ids,
+            val_visit_keys=val_visit_keys,
+            val_visit_times=val_visit_times,
         )
         results["mlp_unc"] = metrics
         plot_dirs.append(plot_dir)

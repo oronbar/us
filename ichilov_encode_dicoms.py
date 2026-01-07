@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 import re
 import sys
 from pathlib import Path
@@ -28,6 +29,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 
 try:
@@ -54,6 +56,8 @@ ECHO_VISION_ROOT = (PROJECT_ROOT / "Echo-Vison-FM").resolve()
 if ECHO_VISION_ROOT.exists():
     sys.path.append(str(ECHO_VISION_ROOT))
 USER_HOME = Path.home()
+if USER_HOME.name == "oronbar.RF":
+        USER_HOME = Path("F:\\")
 
 
 def _find_column(df: pd.DataFrame, candidates: Sequence[str], required: bool = False) -> Optional[str]:
@@ -215,6 +219,86 @@ def _to_tensor(frames: np.ndarray) -> torch.Tensor:
     return tensor
 
 
+def _sample_aug_factor(rng: np.random.Generator, max_delta: float) -> float:
+    if max_delta <= 0:
+        return 1.0
+    return 1.0 + float(rng.uniform(-max_delta, max_delta))
+
+
+def _build_patient_augmentations(
+    rng: np.random.Generator,
+    count: int,
+    brightness_max: float,
+    contrast_max: float,
+    rotate_max_deg: float,
+    stretch_max: float,
+) -> List[Dict[str, float]]:
+    augments: List[Dict[str, float]] = []
+    for _ in range(count):
+        brightness = _sample_aug_factor(rng, brightness_max)
+        contrast = _sample_aug_factor(rng, contrast_max)
+        rotation = float(rng.uniform(-rotate_max_deg, rotate_max_deg)) if rotate_max_deg > 0 else 0.0
+        scale_x = 1.0
+        scale_y = 1.0
+        if stretch_max > 0:
+            if rng.random() < 0.5:
+                scale_x = _sample_aug_factor(rng, stretch_max)
+            else:
+                scale_y = _sample_aug_factor(rng, stretch_max)
+        augments.append(
+            {
+                "brightness": brightness,
+                "contrast": contrast,
+                "rotation_deg": rotation,
+                "scale_x": scale_x,
+                "scale_y": scale_y,
+            }
+        )
+    return augments
+
+
+def _format_aug_key(aug: Optional[Dict[str, float]]) -> str:
+    if aug is None:
+        return "orig"
+    return (
+        f"b{aug['brightness']:.3f}_"
+        f"c{aug['contrast']:.3f}_"
+        f"r{aug['rotation_deg']:.2f}_"
+        f"sx{aug['scale_x']:.3f}_"
+        f"sy{aug['scale_y']:.3f}"
+    )
+
+
+def _apply_patient_augmentation(tensor: torch.Tensor, aug: Dict[str, float]) -> torch.Tensor:
+    out = tensor
+    angle = aug.get("rotation_deg", 0.0)
+    scale_x = aug.get("scale_x", 1.0)
+    scale_y = aug.get("scale_y", 1.0)
+    if angle != 0.0 or scale_x != 1.0 or scale_y != 1.0:
+        rad = math.radians(angle)
+        cos_a = math.cos(rad)
+        sin_a = math.sin(rad)
+        theta = torch.tensor(
+            [
+                [scale_x * cos_a, -scale_y * sin_a, 0.0],
+                [scale_x * sin_a, scale_y * cos_a, 0.0],
+            ],
+            dtype=out.dtype,
+            device=out.device,
+        )
+        theta = theta.unsqueeze(0).repeat(out.shape[0], 1, 1)
+        grid = F.affine_grid(theta, out.size(), align_corners=False)
+        out = F.grid_sample(out, grid, mode="bilinear", padding_mode="border", align_corners=False)
+    contrast = aug.get("contrast", 1.0)
+    if contrast != 1.0:
+        mean = out.mean(dim=(0, 2, 3), keepdim=True)
+        out = (out - mean) * contrast + mean
+    brightness = aug.get("brightness", 1.0)
+    if brightness != 1.0:
+        out = out * brightness
+    return out.clamp(0.0, 1.0)
+
+
 def _load_cropped_dicom(dicom_path: Path, target_frames: int = 16) -> Optional[Tuple[torch.Tensor, torch.Tensor]]:
     try:
         ds = pydicom.dcmread(str(dicom_path), force=True)
@@ -335,7 +419,7 @@ def main() -> None:
     parser.add_argument(
         "--output-parquet",
         type=Path,
-        default=USER_HOME / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full_A3C.parquet",
+        default=USER_HOME / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full_aug.parquet",
         help="Output parquet path",
     )
     parser.add_argument(
@@ -343,6 +427,42 @@ def main() -> None:
         action="store_true",
         default=True,
         help="Use EchoVisionFM STF fusion head (outputs 1536-dim instead of 768-dim).",
+    )
+    parser.add_argument(
+        "--aug-per-patient",
+        type=int,
+        default=2,
+        help="Number of augmented patient copies to generate per patient (0 disables).",
+    )
+    parser.add_argument(
+        "--aug-seed",
+        type=int,
+        default=42,
+        help="Random seed for patient-level augmentation sampling (default: random).",
+    )
+    parser.add_argument(
+        "--aug-brightness",
+        type=float,
+        default=0.1,
+        help="Max absolute brightness factor delta (e.g., 0.1 -> [0.9, 1.1]).",
+    )
+    parser.add_argument(
+        "--aug-contrast",
+        type=float,
+        default=0.1,
+        help="Max absolute contrast factor delta (e.g., 0.1 -> [0.9, 1.1]).",
+    )
+    parser.add_argument(
+        "--aug-rotate-deg",
+        type=float,
+        default=5.0,
+        help="Max absolute rotation in degrees.",
+    )
+    parser.add_argument(
+        "--aug-stretch",
+        type=float,
+        default=0.05,
+        help="Max absolute stretch factor delta along x or y axis.",
     )
     args = parser.parse_args()
 
@@ -361,13 +481,47 @@ def main() -> None:
     if args.use_stf:
         logger.info("STF fusion enabled (EchoVisionFM)")
 
-    cache: Dict[str, np.ndarray] = {}
+    aug_per_patient = max(int(args.aug_per_patient), 0)
+    rng = np.random.default_rng(args.aug_seed) if args.aug_seed is not None else np.random.default_rng()
+    patient_augments: Dict[str, List[Dict[str, float]]] = {}
+    cache: Dict[Tuple[str, str], np.ndarray] = {}
     rows: List[dict] = []
 
-    for _, row in tqdm(df.iterrows(), total=len(df), desc="Encoding"):
+    for row_idx, row in tqdm(df.iterrows(), total=len(df), desc="Encoding"):
         patient_num = str(row[col_patient]).strip() if col_patient and not pd.isna(row[col_patient]) else None
         patient_id = str(row[col_id]).strip() if col_id and not pd.isna(row[col_id]) else None
         study_dt = _parse_datetime(row[col_date]) if col_date else None
+
+        patient_key = patient_num or patient_id or f"row_{row_idx}"
+        if aug_per_patient > 0 and patient_key not in patient_augments:
+            patient_augments[patient_key] = _build_patient_augmentations(
+                rng,
+                aug_per_patient,
+                brightness_max=args.aug_brightness,
+                contrast_max=args.aug_contrast,
+                rotate_max_deg=args.aug_rotate_deg,
+                stretch_max=args.aug_stretch,
+            )
+        augments = patient_augments.get(patient_key, [])
+        variants = [
+            {
+                "aug_id": 0,
+                "label": "orig",
+                "params": None,
+                "patient_num": patient_num,
+                "patient_id": patient_id,
+            }
+        ]
+        for idx, aug in enumerate(augments, start=1):
+            variants.append(
+                {
+                    "aug_id": idx,
+                    "label": f"aug{idx}",
+                    "params": aug,
+                    "patient_num": f"{patient_num}_aug{idx}" if patient_num is not None else None,
+                    "patient_id": f"{patient_id}_aug{idx}" if patient_id is not None else None,
+                }
+            )
 
         for view in VIEW_KEYS:
             col = col_src.get(view)
@@ -383,36 +537,62 @@ def main() -> None:
                 logger.warning(f"Cropped DICOM not found for {src_path}")
                 continue
 
-            key = str(cropped_path)
-            if key in cache:
-                emb = cache[key]
-            else:
+            cropped_key = str(cropped_path)
+            variant_keys = [(v, _format_aug_key(v["params"])) for v in variants]
+            need_load = any((cropped_key, aug_key) not in cache for _, aug_key in variant_keys)
+            base_tensor: Optional[torch.Tensor] = None
+            temporal_indices: Optional[torch.Tensor] = None
+            if need_load:
                 loaded = _load_cropped_dicom(cropped_path, target_frames=16)
                 if loaded is None:
                     logger.warning(f"Failed to load cropped DICOM {cropped_path}")
                     continue
-                tensor, temporal_indices = loaded
-                emb = _encode_tensor(
-                    model,
-                    tensor,
-                    device=device,
-                    stf_net=stf_net,
-                    temporal_indices=temporal_indices,
-                )
-                cache[key] = emb
+                base_tensor, temporal_indices = loaded
 
-            rows.append(
-                {
-                    "patient_num": patient_num,
-                    "patient_id": patient_id,
-                    "study_datetime": study_dt,
-                    "view": view,
-                    "source_dicom": str(src_path),
-                    "cropped_dicom": str(cropped_path),
-                    "embedding": emb.tolist(),
-                    "embedding_dim": int(emb.shape[0]),
-                }
-            )
+            for variant, aug_key in variant_keys:
+                cache_key = (cropped_key, aug_key)
+                if cache_key in cache:
+                    emb = cache[cache_key]
+                else:
+                    if base_tensor is None or temporal_indices is None:
+                        logger.warning(f"Missing base tensor for {cropped_path} ({aug_key})")
+                        continue
+                    tensor = base_tensor
+                    if variant["params"] is not None:
+                        tensor = _apply_patient_augmentation(base_tensor, variant["params"])
+                    emb = _encode_tensor(
+                        model,
+                        tensor,
+                        device=device,
+                        stf_net=stf_net,
+                        temporal_indices=temporal_indices,
+                    )
+                    cache[cache_key] = emb
+
+                aug_params = variant["params"]
+                rows.append(
+                    {
+                        "patient_num": variant["patient_num"],
+                        "patient_id": variant["patient_id"],
+                        "patient_num_base": patient_num,
+                        "patient_id_base": patient_id,
+                        "augmentation": variant["label"],
+                        "augmentation_id": int(variant["aug_id"]),
+                        "augmentation_key": aug_key,
+                        "augmented": aug_params is not None,
+                        "aug_brightness": float(aug_params["brightness"]) if aug_params else 1.0,
+                        "aug_contrast": float(aug_params["contrast"]) if aug_params else 1.0,
+                        "aug_rotation_deg": float(aug_params["rotation_deg"]) if aug_params else 0.0,
+                        "aug_scale_x": float(aug_params["scale_x"]) if aug_params else 1.0,
+                        "aug_scale_y": float(aug_params["scale_y"]) if aug_params else 1.0,
+                        "study_datetime": study_dt,
+                        "view": view,
+                        "source_dicom": str(src_path),
+                        "cropped_dicom": str(cropped_path),
+                        "embedding": emb.tolist(),
+                        "embedding_dim": int(emb.shape[0]),
+                    }
+                )
 
     out_df = pd.DataFrame(rows)
     args.output_parquet.parent.mkdir(parents=True, exist_ok=True)
