@@ -17,7 +17,7 @@ Usage (PowerShell):
 Notes:
   - Use --target-mode delta for longitudinal delta GLS targets (requires a visit time column).
   - Use --objective ranking for pairwise within-patient ranking loss.
-  - Use --task visit to predict global visit GLS via softmax fusion across views.
+  - Use --task visit to predict global visit GLS via attention fusion across views.
 """
 from __future__ import annotations
 
@@ -370,6 +370,41 @@ def _collate_visit_batch(batch: Sequence[Tuple[np.ndarray, float]]):
     return x, mask, y
 
 
+class PairwiseVisitDataset(Dataset):
+    def __init__(self, views: List[np.ndarray], pairs: np.ndarray, labels: np.ndarray):
+        self.views = [v.astype(np.float32) for v in views]
+        self.pairs = pairs.astype(np.int64)
+        self.labels = labels.astype(np.float32)
+
+    def __len__(self) -> int:
+        return self.pairs.shape[0]
+
+    def __getitem__(self, idx: int):
+        i, j = self.pairs[idx]
+        return self.views[i], self.views[j], self.labels[idx]
+
+
+def _collate_pairwise_visit_batch(batch: Sequence[Tuple[np.ndarray, np.ndarray, float]]):
+    views_a, views_b, labels = zip(*batch)
+    max_a = max(v.shape[0] for v in views_a)
+    max_b = max(v.shape[0] for v in views_b)
+    embed_dim = views_a[0].shape[1]
+    x_a = torch.zeros((len(views_a), max_a, embed_dim), dtype=torch.float32)
+    mask_a = torch.zeros((len(views_a), max_a), dtype=torch.float32)
+    x_b = torch.zeros((len(views_b), max_b, embed_dim), dtype=torch.float32)
+    mask_b = torch.zeros((len(views_b), max_b), dtype=torch.float32)
+    for i, v in enumerate(views_a):
+        count = v.shape[0]
+        x_a[i, :count, :] = torch.from_numpy(v)
+        mask_a[i, :count] = 1.0
+    for i, v in enumerate(views_b):
+        count = v.shape[0]
+        x_b[i, :count, :] = torch.from_numpy(v)
+        mask_b[i, :count] = 1.0
+    y = torch.tensor(labels, dtype=torch.float32).view(-1, 1)
+    return x_a, mask_a, x_b, mask_b, y
+
+
 class ResidualBlock(nn.Module):
     def __init__(self, hidden: int, dropout: float):
         super().__init__()
@@ -474,6 +509,103 @@ class SoftmaxFusionHeteroscedastic(nn.Module):
         return self.mu(h), self.log_var(h)
 
 
+class AttentionFusionRegressor(nn.Module):
+    """Multi-head attention fusion over visit views, then regress GLS."""
+
+    def __init__(
+        self,
+        input_dim: int,
+        hidden: int = 256,
+        depth: int = 3,
+        dropout: float = 0.2,
+        num_heads: int = 4,
+        attn_dropout: float = 0.1,
+    ):
+        super().__init__()
+        heads = num_heads
+        if input_dim % heads != 0:
+            for h in range(heads, 0, -1):
+                if input_dim % h == 0:
+                    heads = h
+                    break
+            if heads != num_heads:
+                logger.warning(
+                    "Attention heads adjusted from %d to %d to divide input_dim=%d.",
+                    num_heads,
+                    heads,
+                    input_dim,
+                )
+        self.query = nn.Parameter(torch.zeros(1, 1, input_dim))
+        self.attn = nn.MultiheadAttention(
+            embed_dim=input_dim,
+            num_heads=heads,
+            dropout=attn_dropout,
+            batch_first=True,
+        )
+        self.backbone = ResidualMLPBackbone(input_dim, hidden=hidden, depth=depth, dropout=dropout)
+        self.head = nn.Linear(hidden, 1)
+
+    def _fuse(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        key_padding_mask = mask <= 0
+        query = self.query.expand(x.size(0), -1, -1)
+        fused, _ = self.attn(query, x, x, key_padding_mask=key_padding_mask, need_weights=False)
+        return fused.squeeze(1)
+
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        fused = self._fuse(x, mask)
+        h = self.backbone(fused)
+        return self.head(h)
+
+
+class AttentionFusionHeteroscedastic(nn.Module):
+    """Multi-head attention fusion over visit views with heteroscedastic head."""
+
+    def __init__(
+        self,
+        input_dim: int,
+        hidden: int = 256,
+        depth: int = 3,
+        dropout: float = 0.2,
+        num_heads: int = 4,
+        attn_dropout: float = 0.1,
+    ):
+        super().__init__()
+        heads = num_heads
+        if input_dim % heads != 0:
+            for h in range(heads, 0, -1):
+                if input_dim % h == 0:
+                    heads = h
+                    break
+            if heads != num_heads:
+                logger.warning(
+                    "Attention heads adjusted from %d to %d to divide input_dim=%d.",
+                    num_heads,
+                    heads,
+                    input_dim,
+                )
+        self.query = nn.Parameter(torch.zeros(1, 1, input_dim))
+        self.attn = nn.MultiheadAttention(
+            embed_dim=input_dim,
+            num_heads=heads,
+            dropout=attn_dropout,
+            batch_first=True,
+        )
+        self.backbone = ResidualMLPBackbone(input_dim, hidden=hidden, depth=depth, dropout=dropout)
+        self.mu = nn.Linear(hidden, 1)
+        self.log_var = nn.Linear(hidden, 1)
+
+    def _fuse(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        key_padding_mask = mask <= 0
+        query = self.query.expand(x.size(0), -1, -1)
+        fused, _ = self.attn(query, x, x, key_padding_mask=key_padding_mask, need_weights=False)
+        return fused.squeeze(1)
+
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        fused = self._fuse(x, mask)
+        h = self.backbone(fused)
+        return self.mu(h), self.log_var(h)
+
+
 def _pairwise_loss(
     scores_a: torch.Tensor,
     scores_b: torch.Tensor,
@@ -495,6 +627,16 @@ def _unpack_regression_batch(batch: Sequence[torch.Tensor]):
         x, mask, y = batch
         return x, mask, y
     raise ValueError("Unexpected batch format for regression.")
+
+
+def _unpack_pairwise_batch(batch: Sequence[torch.Tensor]):
+    if len(batch) == 3:
+        x_a, x_b, target = batch
+        return x_a, None, x_b, None, target
+    if len(batch) == 5:
+        x_a, mask_a, x_b, mask_b, target = batch
+        return x_a, mask_a, x_b, mask_b, target
+    raise ValueError("Unexpected batch format for pairwise ranking.")
 
 
 def _predict_scores(model: nn.Module, loader: DataLoader, device: torch.device) -> np.ndarray:
@@ -610,7 +752,7 @@ def _evaluate(
     device: torch.device,
     y_mean: float,
     y_std: float,
-) -> Tuple[float, float, float, np.ndarray, np.ndarray]:
+) -> Tuple[float, float, float, float, np.ndarray, np.ndarray]:
     model.eval()
     preds: List[float] = []
     trues: List[float] = []
@@ -634,7 +776,12 @@ def _evaluate(
     mae = float(np.mean(np.abs(preds_arr - trues_arr)))
     rmse = float(np.sqrt(np.mean((preds_arr - trues_arr) ** 2)))
     mse = float(np.mean((preds_arr - trues_arr) ** 2))
-    return mae, rmse, mse, preds_arr, trues_arr
+    if len(trues_arr):
+        mean_gt = float(np.mean(trues_arr))
+        mean_baseline_mae = float(np.mean(np.abs(trues_arr - mean_gt)))
+    else:
+        mean_baseline_mae = float("nan")
+    return mae, rmse, mse, mean_baseline_mae, preds_arr, trues_arr
 
 
 def _train_model(
@@ -746,13 +893,18 @@ def _train_model(
         model.train()
         running = 0.0
         if objective == "ranking":
-            for x_a, x_b, target in pairwise_train_loader:
+            for batch in pairwise_train_loader:
+                x_a, mask_a, x_b, mask_b, target = _unpack_pairwise_batch(batch)
                 x_a = x_a.to(device)
                 x_b = x_b.to(device)
                 target = target.to(device).view(-1)
+                if mask_a is not None:
+                    mask_a = mask_a.to(device)
+                if mask_b is not None:
+                    mask_b = mask_b.to(device)
                 opt.zero_grad()
-                out_a = model(x_a)
-                out_b = model(x_b)
+                out_a = model(x_a, mask_a) if mask_a is not None else model(x_a)
+                out_b = model(x_b, mask_b) if mask_b is not None else model(x_b)
                 if isinstance(out_a, tuple):
                     out_a = out_a[0]
                 if isinstance(out_b, tuple):
@@ -793,12 +945,17 @@ def _train_model(
             correct = 0
             total = 0
             with torch.no_grad():
-                for x_a, x_b, target in pairwise_val_loader:
+                for batch in pairwise_val_loader:
+                    x_a, mask_a, x_b, mask_b, target = _unpack_pairwise_batch(batch)
                     x_a = x_a.to(device)
                     x_b = x_b.to(device)
                     target = target.to(device).view(-1)
-                    out_a = model(x_a)
-                    out_b = model(x_b)
+                    if mask_a is not None:
+                        mask_a = mask_a.to(device)
+                    if mask_b is not None:
+                        mask_b = mask_b.to(device)
+                    out_a = model(x_a, mask_a) if mask_a is not None else model(x_a)
+                    out_b = model(x_b, mask_b) if mask_b is not None else model(x_b)
                     if isinstance(out_a, tuple):
                         out_a = out_a[0]
                     if isinstance(out_b, tuple):
@@ -832,7 +989,7 @@ def _train_model(
                     val_running += float(loss.item()) * x.size(0)
             val_loss = val_running / len(val_loader.dataset)
             val_pairwise_acc = float("nan")
-            val_mae, val_rmse, val_mse, preds_arr, trues_arr = _evaluate(
+            val_mae, val_rmse, val_mse, val_mean_baseline_mae, preds_arr, trues_arr = _evaluate(
                 model, val_loader, device, y_mean, y_std
             )
 
@@ -892,12 +1049,17 @@ def _train_model(
         correct = 0
         total = 0
         with torch.no_grad():
-            for x_a, x_b, target in pairwise_val_loader:
+            for batch in pairwise_val_loader:
+                x_a, mask_a, x_b, mask_b, target = _unpack_pairwise_batch(batch)
                 x_a = x_a.to(device)
                 x_b = x_b.to(device)
                 target = target.to(device).view(-1)
-                out_a = eval_model(x_a)
-                out_b = eval_model(x_b)
+                if mask_a is not None:
+                    mask_a = mask_a.to(device)
+                if mask_b is not None:
+                    mask_b = mask_b.to(device)
+                out_a = eval_model(x_a, mask_a) if mask_a is not None else eval_model(x_a)
+                out_b = eval_model(x_b, mask_b) if mask_b is not None else eval_model(x_b)
                 if isinstance(out_a, tuple):
                     out_a = out_a[0]
                 if isinstance(out_b, tuple):
@@ -916,6 +1078,11 @@ def _train_model(
         calib_scale, calib_bias = _fit_linear_calibration(train_scores, y_train_raw)
         preds_arr = val_scores * calib_scale + calib_bias
         trues_arr = np.asarray(y_val_raw, dtype=float)
+        if len(trues_arr):
+            mean_gt = float(np.mean(trues_arr))
+            val_mean_baseline_mae = float(np.mean(np.abs(trues_arr - mean_gt)))
+        else:
+            val_mean_baseline_mae = float("nan")
         val_mae = float(np.mean(np.abs(preds_arr - trues_arr))) if len(trues_arr) else float("nan")
         val_rmse = float(np.sqrt(np.mean((preds_arr - trues_arr) ** 2))) if len(trues_arr) else float("nan")
         val_mse = float(np.mean((preds_arr - trues_arr) ** 2)) if len(trues_arr) else float("nan")
@@ -930,7 +1097,7 @@ def _train_model(
         val_pairwise_acc = float("nan")
         calib_scale = float("nan")
         calib_bias = float("nan")
-        val_mae, val_rmse, val_mse, preds_arr, trues_arr = _evaluate(
+        val_mae, val_rmse, val_mse, val_mean_baseline_mae, preds_arr, trues_arr = _evaluate(
             eval_model, val_loader, device, y_mean, y_std
         )
         if len(preds_arr) > 1 and np.std(preds_arr) > 1e-8 and np.std(trues_arr) > 1e-8:
@@ -994,6 +1161,7 @@ def _train_model(
                     "val_mae": val_mae,
                     "val_rmse": val_rmse,
                     "val_mse": val_mse,
+                    "val_mean_baseline_mae": val_mean_baseline_mae,
                     "val_corr": val_corr,
                     "val_r2": val_r2,
                     "val_spearman": val_spearman,
@@ -1034,6 +1202,7 @@ def _train_model(
         "val_mse": val_mse,
         "val_mae": val_mae,
         "val_rmse": val_rmse,
+        "val_mean_baseline_mae": val_mean_baseline_mae,
         "val_corr": val_corr,
         "val_r2": val_r2,
         "val_spearman": val_spearman,
@@ -1149,7 +1318,7 @@ def main() -> None:
     parser.add_argument(
         "--input-embeddings",
         type=Path,
-        default=user_home / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full.parquet",
+        default=user_home / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full_A3C.parquet",
         help="Embedding dataframe (parquet/csv) from ichilov_encode_dicoms.py",
     )
     parser.add_argument(
@@ -1212,7 +1381,7 @@ def main() -> None:
         type=str,
         choices=["view", "visit"],
         default="visit",
-        help="Predict per-view GLS (view) or per-visit global GLS with softmax fusion (visit).",
+        help="Predict per-view GLS (view) or per-visit global GLS with view fusion (visit).",
     )
     parser.add_argument(
         "--visit-col",
@@ -1227,10 +1396,29 @@ def main() -> None:
         help="Minimum number of views required per visit for visit-level task.",
     )
     parser.add_argument(
+        "--visit-fusion",
+        type=str,
+        choices=["softmax", "attention"],
+        default="attention",
+        help="Visit-level fusion module over views.",
+    )
+    parser.add_argument(
+        "--attn-heads",
+        type=int,
+        default=4,
+        help="Number of attention heads for visit-level fusion.",
+    )
+    parser.add_argument(
+        "--attn-dropout",
+        type=float,
+        default=0.1,
+        help="Attention dropout for visit-level fusion.",
+    )
+    parser.add_argument(
         "--target-mode",
         type=str,
         choices=["absolute", "delta", "patient_centered"],
-        default="patient_centered",
+        default="absolute",
         help="Target to learn: absolute GLS, delta vs earliest visit, or patient-centered GLS.",
     )
     parser.add_argument(
@@ -1268,7 +1456,7 @@ def main() -> None:
         "--objective",
         type=str,
         choices=["regression", "ranking"],
-        default="regression",
+        default="ranking",
         help="Training objective: regression or within-patient ranking.",
     )
     parser.add_argument(
@@ -1413,8 +1601,6 @@ def main() -> None:
     group_cols: List[str]
     time_col = None
     if args.task == "visit":
-        if args.objective != "regression":
-            raise ValueError("Visit-level task supports regression objective only.")
         visit_col = _resolve_visit_column(df, args.visit_col)
         if visit_col is None:
             raise ValueError("Visit-level task requires a visit column. Provide --visit-col.")
@@ -1478,11 +1664,17 @@ def main() -> None:
             x_train_list = _standardize_views(x_train_list)
             x_val_list = _standardize_views(x_val_list)
 
-            y_mean = float(y_train.mean())
-            y_std = float(y_train.std())
-            y_std = max(y_std, 1e-6)
-            y_train = ((y_train - y_mean) / y_std).astype(np.float32)
-            y_val = ((y_val - y_mean) / y_std).astype(np.float32)
+            if args.objective == "regression":
+                y_mean = float(y_train.mean())
+                y_std = float(y_train.std())
+                y_std = max(y_std, 1e-6)
+                y_train = ((y_train - y_mean) / y_std).astype(np.float32)
+                y_val = ((y_val - y_mean) / y_std).astype(np.float32)
+            else:
+                y_train = y_train.astype(np.float32)
+                y_val = y_val.astype(np.float32)
+                y_mean = 0.0
+                y_std = 1.0
         else:
             x_train_list = [v.astype(np.float32) for v in x_train_list]
             x_val_list = [v.astype(np.float32) for v in x_val_list]
@@ -1499,6 +1691,67 @@ def main() -> None:
         pairwise_val_loader = None
         train_eval_loader = None
         val_eval_loader = None
+        if args.objective == "ranking":
+            visit_order = None
+            order_col = visit_col
+            if args.pairwise_label == "time":
+                visit_order = _coerce_time_values(visit_df[visit_col])
+                if visit_order is None or visit_order.isna().all():
+                    raise ValueError(
+                        "Visit-level ranking with time labels requires a parseable visit column."
+                    )
+            if visit_order is not None:
+                visit_df = visit_df.copy()
+                visit_df["_visit_time"] = visit_order
+                order_col = "_visit_time"
+            df_train = visit_df.iloc[train_idx].copy().reset_index(drop=True)
+            df_val = visit_df.iloc[val_idx].copy().reset_index(drop=True)
+            rng = np.random.RandomState(args.seed)
+            train_pairs, train_labels = _build_pairwise_pairs(
+                df_train,
+                group_cols=group_cols,
+                order_col=order_col,
+                label_source=args.pairwise_label,
+                direction=args.ranking_direction,
+                max_pairs_per_group=args.max_pairs_per_group,
+                rng=rng,
+            )
+            val_pairs, val_labels = _build_pairwise_pairs(
+                df_val,
+                group_cols=group_cols,
+                order_col=order_col,
+                label_source=args.pairwise_label,
+                direction=args.ranking_direction,
+                max_pairs_per_group=args.max_pairs_per_group,
+                rng=rng,
+            )
+            if len(train_pairs) == 0 or len(val_pairs) == 0:
+                raise ValueError("Not enough visit pairs for ranking objective.")
+            pairwise_train_loader = DataLoader(
+                PairwiseVisitDataset(x_train_list, train_pairs, train_labels),
+                batch_size=args.batch_size,
+                shuffle=True,
+                collate_fn=_collate_pairwise_visit_batch,
+            )
+            pairwise_val_loader = DataLoader(
+                PairwiseVisitDataset(x_val_list, val_pairs, val_labels),
+                batch_size=args.batch_size,
+                shuffle=False,
+                collate_fn=_collate_pairwise_visit_batch,
+            )
+            train_eval_loader = DataLoader(
+                VisitDataset(x_train_list, y_train_raw),
+                batch_size=args.batch_size,
+                shuffle=False,
+                collate_fn=_collate_visit_batch,
+            )
+            val_eval_loader = DataLoader(
+                VisitDataset(x_val_list, y_val_raw),
+                batch_size=args.batch_size,
+                shuffle=False,
+                collate_fn=_collate_visit_batch,
+            )
+            logger.info("Ranking pairs: train=%d val=%d", len(train_pairs), len(val_pairs))
         x_train_baseline = np.stack([v.mean(axis=0) for v in x_train_list]).astype(np.float32)
         x_val_baseline = np.stack([v.mean(axis=0) for v in x_val_list]).astype(np.float32)
     else:
@@ -1651,13 +1904,31 @@ def main() -> None:
     base_args = dict(vars(args))
     if args.model in ("mlp", "all"):
         logger.info("Training MLP regressor...")
-        model_cls = SoftmaxFusionRegressor if args.task == "visit" else MLPRegressor
-        model = model_cls(
-            input_dim,
-            hidden=args.mlp_hidden,
-            depth=args.mlp_depth,
-            dropout=args.mlp_dropout,
-        )
+        if args.task == "visit":
+            if args.visit_fusion == "attention":
+                model = AttentionFusionRegressor(
+                    input_dim,
+                    hidden=args.mlp_hidden,
+                    depth=args.mlp_depth,
+                    dropout=args.mlp_dropout,
+                    num_heads=args.attn_heads,
+                    attn_dropout=args.attn_dropout,
+                )
+            else:
+                model = SoftmaxFusionRegressor(
+                    input_dim,
+                    hidden=args.mlp_hidden,
+                    depth=args.mlp_depth,
+                    dropout=args.mlp_dropout,
+                )
+        else:
+            model_cls = MLPRegressor
+            model = model_cls(
+                input_dim,
+                hidden=args.mlp_hidden,
+                depth=args.mlp_depth,
+                dropout=args.mlp_dropout,
+            )
         out_path = args.output_dir / "mlp_best.pt"
         mlp_log_dir = base_log_dir / "mlp" if base_log_dir is not None and args.model == "all" else base_log_dir
         run_args = dict(base_args)
@@ -1696,13 +1967,31 @@ def main() -> None:
 
     if args.model in ("mlp_unc", "all"):
         logger.info("Training MLP heteroscedastic regressor...")
-        model_cls = SoftmaxFusionHeteroscedastic if args.task == "visit" else MLPHeteroscedastic
-        model = model_cls(
-            input_dim,
-            hidden=args.mlp_hidden,
-            depth=args.mlp_depth,
-            dropout=args.mlp_dropout,
-        )
+        if args.task == "visit":
+            if args.visit_fusion == "attention":
+                model = AttentionFusionHeteroscedastic(
+                    input_dim,
+                    hidden=args.mlp_hidden,
+                    depth=args.mlp_depth,
+                    dropout=args.mlp_dropout,
+                    num_heads=args.attn_heads,
+                    attn_dropout=args.attn_dropout,
+                )
+            else:
+                model = SoftmaxFusionHeteroscedastic(
+                    input_dim,
+                    hidden=args.mlp_hidden,
+                    depth=args.mlp_depth,
+                    dropout=args.mlp_dropout,
+                )
+        else:
+            model_cls = MLPHeteroscedastic
+            model = model_cls(
+                input_dim,
+                hidden=args.mlp_hidden,
+                depth=args.mlp_depth,
+                dropout=args.mlp_dropout,
+            )
         out_path = args.output_dir / "mlp_unc_best.pt"
         mlp_unc_log_dir = (
             base_log_dir / "mlp_unc" if base_log_dir is not None and args.model == "all" else base_log_dir
