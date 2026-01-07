@@ -6,13 +6,14 @@ Usage (PowerShell):
   .venv\\Scripts\\python ichilov_train_echovisionfm_last_layer.py ^
     --cropped-root "F:\\OneDrive - Technion\\DS\\Ichilov_cropped" ^
     --weights "F:\\OneDrive - Technion\\models\\Encoder_weights\\pytorch_model.bin" ^
-    --output-dir "F:\\OneDrive - Technion\\DS\\Ichilov_EchoVisionFM_pretrain_last_layers"
+    --output-dir "C:\\Users\\oronbarazani\\OneDrive - Technion\\models\\Encoder_weights"
 """
 from __future__ import annotations
 
 import argparse
 import json
 import logging
+import math
 import random
 from datetime import datetime
 from pathlib import Path
@@ -42,6 +43,15 @@ try:
 except Exception as exc:  # pragma: no cover - runtime check
     raise RuntimeError(
         "transformers is required. Install with: .venv\\Scripts\\python -m pip install transformers"
+    ) from exc
+
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+except Exception as exc:  # pragma: no cover - runtime check
+    raise RuntimeError(
+        "matplotlib is required. Install with: .venv\\Scripts\\python -m pip install matplotlib"
     ) from exc
 
 
@@ -330,14 +340,14 @@ def main() -> None:
     parser.add_argument(
         "--weights",
         type=Path,
-        default=USER_HOME / "OneDrive - Technion" / "models" / "Encoder_weights" / "pytorch_model.bin",
+        default=USER_HOME / "OneDrive - Technion" / "models" / "Encoder_weights" / "echovisionfm_mae_20260107_224622_best_mae.pt",
         help="Path to EchoVisionFM pretraining weights.",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=USER_HOME / "OneDrive - Technion" / "DS" / "Ichilov_EchoVisionFM_pretrain_last_layers",
-        help="Output directory for checkpoints and metrics.",
+        default=USER_HOME / "OneDrive - Technion" / "models" / "Encoder_weights",
+        help="Existing directory for checkpoints and metrics.",
     )
     parser.add_argument(
         "--frames",
@@ -426,7 +436,7 @@ def main() -> None:
         "--run-name",
         type=str,
         default=None,
-        help="Optional run folder name (defaults to timestamp).",
+        help="Optional filename prefix (defaults to timestamp).",
     )
     args = parser.parse_args()
 
@@ -440,10 +450,10 @@ def main() -> None:
         raise ValueError("--mask-ratio must be in (0, 1].")
     if not (0.0 < args.data_ratio <= 1.0):
         raise ValueError("--data-ratio must be in (0, 1].")
+    if not args.output_dir.exists() or not args.output_dir.is_dir():
+        raise FileNotFoundError(f"Output directory must exist: {args.output_dir}")
 
     run_name = args.run_name or datetime.now().strftime("echovisionfm_mae_%Y%m%d_%H%M%S")
-    run_dir = args.output_dir / run_name
-    run_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info("Listing cropped DICOMs...")
     paths = _list_dicom_paths(args.cropped_root, args.data_ratio, args.max_samples, args.seed)
@@ -498,7 +508,7 @@ def main() -> None:
     seq_length = _seq_length(model.config, args.frames)
     history: List[dict] = []
     best_loss = float("inf")
-    best_path = run_dir / "best_mae.pt"
+    best_path = args.output_dir / f"{run_name}_best_mae.pt"
 
     for epoch in range(1, args.epochs + 1):
         train_loss = _train_one_epoch(
@@ -537,12 +547,36 @@ def main() -> None:
                 best_path,
             )
 
-    with (run_dir / "metrics.json").open("w", encoding="utf-8") as f:
-        json.dump(history, f, indent=2)
-    with (run_dir / "config.json").open("w", encoding="utf-8") as f:
-        json.dump(vars(args), f, indent=2)
+    metrics_path = args.output_dir / f"{run_name}_metrics.json"
+    config_path = args.output_dir / f"{run_name}_config.json"
+    loss_plot_path = args.output_dir / f"{run_name}_loss.png"
 
-    logger.info(f"Saved metrics to {run_dir / 'metrics.json'}")
+    with metrics_path.open("w", encoding="utf-8") as f:
+        json.dump(history, f, indent=2)
+    with config_path.open("w", encoding="utf-8") as f:
+        config = {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()}
+        json.dump(config, f, indent=2)
+
+    epochs_axis = [entry["epoch"] for entry in history]
+    train_losses = [entry["train_loss"] for entry in history]
+    val_losses = [entry["val_loss"] for entry in history]
+
+    plt.figure(figsize=(6, 4))
+    plt.plot(epochs_axis, train_losses, label="Train Loss")
+    if any(not math.isnan(val) for val in val_losses):
+        plt.plot(epochs_axis, val_losses, label="Val Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("MAE Training Loss")
+    plt.grid(True, linestyle="--", alpha=0.5)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(loss_plot_path)
+    plt.close()
+
+    logger.info(f"Saved metrics to {metrics_path}")
+    logger.info(f"Saved config to {config_path}")
+    logger.info(f"Saved loss plot to {loss_plot_path}")
     logger.info(f"Best checkpoint: {best_path}")
 
 

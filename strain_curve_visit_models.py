@@ -527,6 +527,28 @@ def build_torch_model(model_type: str, in_channels: int, T: int):
     import torch
     import torch.nn as nn
 
+    class SmallMLP(nn.Module):
+        def __init__(self, in_ch: int, seq_len: int):
+            super().__init__()
+            hidden = 128
+            in_dim = in_ch * seq_len
+            self.backbone = nn.Sequential(
+                nn.Linear(in_dim, hidden),
+                nn.ReLU(),
+                nn.Dropout(0.1),
+                nn.Linear(hidden, hidden),
+                nn.ReLU(),
+            )
+            self.head = nn.Linear(hidden, 1)
+
+        def forward_features(self, x):
+            h = x.reshape(x.size(0), -1)
+            return self.backbone(h)
+
+        def forward(self, x):
+            h = self.forward_features(x)
+            return self.head(h).squeeze(-1)
+
     class SmallCNN(nn.Module):
         def __init__(self, in_ch: int):
             super().__init__()
@@ -573,6 +595,8 @@ def build_torch_model(model_type: str, in_channels: int, T: int):
             h = self.forward_features(x)
             return self.head(h).squeeze(-1)
 
+    if model_type == "mlp":
+        return SmallMLP(in_channels, T)
     if model_type == "cnn":
         return SmallCNN(in_channels)
     if model_type == "transformer":

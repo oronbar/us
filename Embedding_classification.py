@@ -229,7 +229,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument(
         "--input-parquet",
         type=Path,
-        default=user_home / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full.parquet",
+        default=user_home / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full_A3C.parquet",
         help="Path to parquet file containing embeddings.",
     )
     ap.add_argument(
@@ -276,15 +276,15 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument(
         "--model",
         type=str,
-        choices=["linear", "cnn", "transformer", "all"],
-        default="cnn",
+        choices=["linear", "mlp", "cnn", "transformer", "all"],
+        default="mlp",
         help="Model type to train.",
     )
     ap.add_argument("--test-size", type=float, default=0.2, help="Validation split fraction by patient.")
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--epochs", type=int, default=20, help="Epochs for CNN/Transformer training.")
-    ap.add_argument("--batch", type=int, default=64, help="Batch size for CNN/Transformer training.")
-    ap.add_argument("--lr", type=float, default=1e-3, help="Learning rate for CNN/Transformer training.")
+    ap.add_argument("--epochs", type=int, default=20, help="Epochs for MLP/CNN/Transformer training.")
+    ap.add_argument("--batch", type=int, default=64, help="Batch size for MLP/CNN/Transformer training.")
+    ap.add_argument("--lr", type=float, default=1e-3, help="Learning rate for MLP/CNN/Transformer training.")
     ap.add_argument(
         "--tsne",
         default=True,
@@ -335,7 +335,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    use_torch = args.model in ("cnn", "transformer", "all")
+    use_torch = args.model in ("mlp", "cnn", "transformer", "all")
     set_seed(args.seed, use_torch=use_torch)
 
     if not args.input_parquet.is_file():
@@ -391,7 +391,7 @@ def main() -> None:
     run_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = args.outdir / run_stamp
     logdir = args.logdir if args.logdir is not None else run_dir / "tensorboard"
-    model_types = ["linear", "cnn", "transformer"] if args.model == "all" else [args.model]
+    model_types = ["linear", "mlp", "cnn", "transformer"] if args.model == "all" else [args.model]
 
     results: Dict[str, object] = {
         "input_parquet": str(args.input_parquet),

@@ -1455,7 +1455,7 @@ def main() -> None:
     parser.add_argument(
         "--input-embeddings",
         type=Path,
-        default=user_home / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full_A3C.parquet",
+        default=user_home / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full_trained.parquet",
         help="Embedding dataframe (parquet/csv) from ichilov_encode_dicoms.py",
     )
     parser.add_argument(
@@ -1555,7 +1555,7 @@ def main() -> None:
         "--target-mode",
         type=str,
         choices=["absolute", "delta", "patient_centered"],
-        default="absolute",
+        default="patient_centered",
         help="Target to learn: absolute GLS, delta vs earliest visit, or patient-centered GLS.",
     )
     parser.add_argument(

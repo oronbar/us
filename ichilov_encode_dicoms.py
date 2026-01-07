@@ -338,11 +338,34 @@ def _load_encoder(weights_path: Path, device: torch.device) -> torch.nn.Module:
     config.image_size = 224
     config.num_frames = 16
     model = VideoMAEForPreTraining.from_pretrained("MCG-NJU/videomae-base", config=config)
-    checkpoint = torch.load(weights_path, map_location="cpu")
-    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
-        checkpoint = checkpoint["state_dict"]
+    suffix = weights_path.suffix.lower()
+    if suffix not in {".pt", ".bin"}:
+        raise ValueError(f"Unsupported weights extension {weights_path.suffix!r}; expected .pt or .bin")
+    try:
+        checkpoint = torch.load(str(weights_path), map_location="cpu")
+    except OSError as exc:
+        fallback = weights_path.with_suffix(".bin") if suffix == ".pt" else None
+        if fallback is not None and fallback.exists():
+            logger.warning(
+                "Failed to load %s (%s). Falling back to %s", weights_path, exc, fallback
+            )
+            checkpoint = torch.load(str(fallback), map_location="cpu")
+        else:
+            raise OSError(
+                f"Failed to read weights at {weights_path}. If this is a cloud/OneDrive file, "
+                "make sure it is available offline or provide a .bin checkpoint."
+            ) from exc
+    if isinstance(checkpoint, dict):
+        if "model_state_dict" in checkpoint:
+            checkpoint = checkpoint["model_state_dict"]
+        elif "state_dict" in checkpoint:
+            checkpoint = checkpoint["state_dict"]
+        elif "model" in checkpoint and isinstance(checkpoint["model"], dict):
+            checkpoint = checkpoint["model"]
     if isinstance(checkpoint, dict) and all(k.startswith("module.") for k in checkpoint.keys()):
         checkpoint = {k[len("module.") :]: v for k, v in checkpoint.items()}
+    if not isinstance(checkpoint, dict):
+        raise TypeError(f"Unexpected checkpoint format in {weights_path}")
     model.load_state_dict(checkpoint)
     encoder = model.videomae
     encoder.eval()
@@ -413,13 +436,13 @@ def main() -> None:
     parser.add_argument(
         "--weights",
         type=Path,
-        default=USER_HOME / "OneDrive - Technion" / "models" / "Encoder_weights" / "pytorch_model.bin",
+        default=USER_HOME / "OneDrive - Technion" / "models" / "Encoder_weights" / "01_best_mae.pt",
         help="Path to MAE weights",
     )
     parser.add_argument(
         "--output-parquet",
         type=Path,
-        default=USER_HOME / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full_aug.parquet",
+        default=USER_HOME / "OneDrive - Technion" / "DS" / "Ichilov_GLS_embeddings_full_trained_aug.parquet",
         help="Output parquet path",
     )
     parser.add_argument(
