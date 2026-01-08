@@ -2,11 +2,11 @@
 Crop Ichilov DICOM cine clips to fixed temporal/spatial sizes.
 
 Workflow:
-  - Load Excel registry (Report_Ichilov_GLS_oron.xlsx by default)
-  - Collect 2C/4C source DICOM paths
+  - Load Excel registry (Report_Ichilov_GLS_and_Strain_oron.xlsx by default)
+  - Collect 2C/3C/4C source DICOM paths
   - For each DICOM:
-      * pick a 1-second window based on FrameTime
-      * sample 16 frames uniformly inside the window
+      * pick a 1-second window based on FrameTime (window mode)
+      * OR sample 16 frames between ED/ES using phase interpolation (phase mode)
       * compute a mask per sampled frame (RGB > 5), keep only largest blob
       * average blob masks and use it for the crop box (height == blob height)
       * x center is the mean of the top-20 tallest columns in y
@@ -15,15 +15,17 @@ Workflow:
 
 Usage (PowerShell):
   .venv\\Scripts\\python ichilov_crop_dicoms.py ^
-    --input-xlsx "C:\\Users\\oronbarazani\\OneDrive - Technion\\DS\\Report_Ichilov_GLS_oron.xlsx" ^
+    --input-xlsx "$env:USERPROFILE\\OneDrive - Technion\\DS\\Report_Ichilov_GLS_and_Strain_oron.xlsx" ^
     --echo-root "D:\\DS\\Ichilov" ^
-    --output-root "D:\\DS\\Ichilov_cropped"
+    --output-root "D:\\DS\\Ichilov_cropped" ^
+    --sampling-mode phase
 """
 from __future__ import annotations
 
 import argparse
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -43,6 +45,18 @@ except Exception as exc:  # pragma: no cover - runtime check
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("ichilov_crop_dicoms")
+USER_HOME = Path.home()
+fallback_drive = Path("F:\\")
+if not (USER_HOME / "OneDrive - Technion").exists() and (fallback_drive / "OneDrive - Technion").exists():
+    USER_HOME = fallback_drive
+
+
+@dataclass
+class DicomEntry:
+    path: Path
+    view: Optional[str]
+    end_diastole: Optional[int]
+    end_systole: Optional[int]
 
 
 def _find_column(df: pd.DataFrame, candidates: Sequence[str], required: bool = False) -> Optional[str]:
@@ -72,6 +86,24 @@ def _parse_datetime(val: object) -> Optional[pd.Timestamp]:
     s = s.replace("_", "-").replace("\\", "-").replace("/", "-")
     dt = pd.to_datetime(s, errors="coerce")
     return None if pd.isna(dt) else dt
+
+
+def _safe_int(val: object) -> Optional[int]:
+    if pd.isna(val):
+        return None
+    if isinstance(val, (int, np.integer)):
+        return int(val)
+    if isinstance(val, float):
+        if np.isnan(val):
+            return None
+        return int(round(val))
+    s = str(val).strip()
+    if not s:
+        return None
+    try:
+        return int(round(float(s)))
+    except ValueError:
+        return None
 
 
 def _split_dicom_list(val: object) -> List[str]:
@@ -269,7 +301,9 @@ def _resize_frame(frame: np.ndarray, out_size: int) -> np.ndarray:
     return resized.astype(dtype)
 
 
-def _sample_indices(n_frames: int, frame_time_ms: float, target: int = 16, window_sec: float = 1.0) -> np.ndarray:
+def _sample_indices_window(
+    n_frames: int, frame_time_ms: float, target: int = 16, window_sec: float = 1.0
+) -> np.ndarray:
     if n_frames <= 0:
         return np.array([], dtype=int)
     if frame_time_ms <= 0:
@@ -288,6 +322,76 @@ def _sample_indices(n_frames: int, frame_time_ms: float, target: int = 16, windo
     return idx
 
 
+def _sample_indices_phase(start_idx: int, end_idx: int, target: int = 16) -> np.ndarray:
+    if target <= 0:
+        return np.array([], dtype=np.float32)
+    return np.linspace(float(start_idx), float(end_idx), target, dtype=np.float32)
+
+
+def _sample_frames_from_indices(frames: np.ndarray, indices: np.ndarray) -> List[np.ndarray]:
+    if indices.size == 0:
+        return []
+    if indices.dtype.kind in "iu":
+        return [frames[int(i)] for i in indices]
+    n_frames = frames.shape[0]
+    dtype = frames.dtype
+    out: List[np.ndarray] = []
+    for idx in indices:
+        i0 = int(np.floor(idx))
+        i1 = int(np.ceil(idx))
+        i0 = max(0, min(i0, n_frames - 1))
+        i1 = max(0, min(i1, n_frames - 1))
+        if i0 == i1:
+            out.append(frames[i0])
+            continue
+        alpha = float(idx - i0)
+        frame = (1.0 - alpha) * frames[i0].astype(np.float32) + alpha * frames[i1].astype(np.float32)
+        if np.issubdtype(dtype, np.integer):
+            info = np.iinfo(dtype)
+            frame = np.clip(np.round(frame), info.min, info.max)
+        out.append(frame.astype(dtype))
+    return out
+
+
+def _sampled_frames(
+    frames: np.ndarray,
+    frame_time_ms: float,
+    target_frames: int,
+    window_sec: float,
+    sampling_mode: str,
+    end_diastole: Optional[int],
+    end_systole: Optional[int],
+    dicom_path: Path,
+    view: Optional[str],
+) -> List[np.ndarray]:
+    n_frames = frames.shape[0]
+    if n_frames <= 0:
+        return []
+    label = f" ({view})" if view else ""
+    if sampling_mode == "phase":
+        if end_diastole is None or end_systole is None:
+            logger.warning(f"Missing ED/ES for {dicom_path}{label}; falling back to window sampling.")
+            indices = _sample_indices_window(n_frames, frame_time_ms, target=target_frames, window_sec=window_sec)
+            return _sample_frames_from_indices(frames, indices)
+        ed = int(end_diastole)
+        es = int(end_systole)
+        if ed < 0 or es < 0:
+            logger.warning(f"Invalid ED/ES for {dicom_path}{label}; falling back to window sampling.")
+            indices = _sample_indices_window(n_frames, frame_time_ms, target=target_frames, window_sec=window_sec)
+            return _sample_frames_from_indices(frames, indices)
+        if ed > es:
+            logger.warning(f"ED > ES for {dicom_path}{label}; swapping indices.")
+            ed, es = es, ed
+        ed = max(0, min(ed, n_frames - 1))
+        es = max(0, min(es, n_frames - 1))
+        indices = _sample_indices_phase(ed, es, target=target_frames)
+        return _sample_frames_from_indices(frames, indices)
+    if sampling_mode == "window":
+        indices = _sample_indices_window(n_frames, frame_time_ms, target=target_frames, window_sec=window_sec)
+        return _sample_frames_from_indices(frames, indices)
+    raise ValueError(f"Unknown sampling mode: {sampling_mode}")
+
+
 def _process_dicom(
     dicom_path: Path,
     echo_root: Path,
@@ -296,6 +400,10 @@ def _process_dicom(
     target_frames: int = 16,
     window_sec: float = 1.0,
     overwrite: bool = False,
+    sampling_mode: str = "window",
+    end_diastole: Optional[int] = None,
+    end_systole: Optional[int] = None,
+    view: Optional[str] = None,
 ) -> Optional[Path]:
     try:
         ds = pydicom.dcmread(str(dicom_path), force=True)
@@ -318,21 +426,30 @@ def _process_dicom(
         logger.warning(f"No frames in {dicom_path}")
         return None
 
-    idx = _sample_indices(n_frames, frame_time_ms, target=target_frames, window_sec=window_sec)
-    if idx.size == 0:
-        logger.warning(f"No sample indices for {dicom_path}")
+    sampled_frames = _sampled_frames(
+        frames=frames,
+        frame_time_ms=frame_time_ms,
+        target_frames=target_frames,
+        window_sec=window_sec,
+        sampling_mode=sampling_mode,
+        end_diastole=end_diastole,
+        end_systole=end_systole,
+        dicom_path=dicom_path,
+        view=view,
+    )
+    if not sampled_frames:
+        logger.warning(f"No sampled frames for {dicom_path}")
         return None
 
     acc = np.zeros(frames.shape[1:3], dtype=np.float32)
-    for i in idx:
-        frame = frames[int(i)]
+    for frame in sampled_frames:
         if channels > 1:
             raw_mask = np.any(frame[..., :3] > 5, axis=-1)
         else:
             raw_mask = frame[..., 0] > 5
         acc += _largest_blob_mask(raw_mask).astype(np.float32)
 
-    avg_mask = acc / float(len(idx))
+    avg_mask = acc / float(len(sampled_frames))
     avg_bin = avg_mask > 0.5
     if not np.any(avg_bin):
         avg_bin = avg_mask > 0
@@ -340,8 +457,7 @@ def _process_dicom(
     x_center = _mask_longest_y_center(avg_bin)
 
     out_frames: List[np.ndarray] = []
-    for i in idx:
-        frame = frames[int(i)]
+    for frame in sampled_frames:
         if channels > 1:
             raw_mask = np.any(frame[..., :3] > 5, axis=-1)
         else:
@@ -400,36 +516,91 @@ def _process_dicom(
     return out_path
 
 
-def _collect_dicoms(df: pd.DataFrame, echo_root: Path) -> List[Path]:
+def _collect_dicoms(df: pd.DataFrame, echo_root: Path) -> List[DicomEntry]:
     col_patient = _find_column(df, ["PatientNum", "Patient Num", "Patient Number"], required=False)
     col_date = _find_column(df, ["Study Date", "StudyDate", "Date"], required=False)
     col_a2c = _find_column(df, ["A2C_GLS_SOURCE_DICOM"], required=False)
+    col_a3c = _find_column(df, ["A3C_GLS_SOURCE_DICOM"], required=False)
     col_a4c = _find_column(df, ["A4C_GLS_SOURCE_DICOM"], required=False)
     col_2c = _find_column(df, ["2-Chambers", "2C", "2 Chambers"], required=False)
+    col_3c = _find_column(df, ["3-Chambers", "3C", "3 Chambers"], required=False)
     col_4c = _find_column(df, ["4-Chambers", "4C", "4 Chambers"], required=False)
+    col_ed = {
+        "A2C": _find_column(df, ["A2C_END_DIASTOLE_FRAME"], required=False),
+        "A3C": _find_column(df, ["A3C_END_DIASTOLE_FRAME"], required=False),
+        "A4C": _find_column(df, ["A4C_END_DIASTOLE_FRAME"], required=False),
+    }
+    col_es = {
+        "A2C": _find_column(df, ["A2C_END_SYSTOLE_FRAME"], required=False),
+        "A3C": _find_column(df, ["A3C_END_SYSTOLE_FRAME"], required=False),
+        "A4C": _find_column(df, ["A4C_END_SYSTOLE_FRAME"], required=False),
+    }
 
-    dicoms: Dict[str, Path] = {}
+    dicoms: Dict[str, DicomEntry] = {}
+
+    def add_entry(
+        p: Optional[Path],
+        view: Optional[str],
+        end_diastole: Optional[int],
+        end_systole: Optional[int],
+    ) -> None:
+        if not p or not p.is_file():
+            return
+        key = str(p)
+        entry = dicoms.get(key)
+        if entry is None:
+            dicoms[key] = DicomEntry(
+                path=p,
+                view=view,
+                end_diastole=end_diastole,
+                end_systole=end_systole,
+            )
+            return
+        if entry.view is None and view is not None:
+            entry.view = view
+        if entry.end_diastole is None and end_diastole is not None:
+            entry.end_diastole = end_diastole
+        if entry.end_systole is None and end_systole is not None:
+            entry.end_systole = end_systole
+
     for _, row in df.iterrows():
         patient_num = str(row[col_patient]).strip() if col_patient and not pd.isna(row[col_patient]) else None
         study_dt = _parse_datetime(row[col_date]) if col_date else None
 
-        for col in (col_a2c, col_a4c):
-            if not col:
-                continue
-            p = _resolve_dicom_path(row[col], patient_num, study_dt, echo_root)
-            if p and p.is_file():
-                dicoms[str(p)] = p
+        view_frames = {}
+        for view in ("A2C", "A3C", "A4C"):
+            ed = _safe_int(row[col_ed[view]]) if col_ed[view] else None
+            es = _safe_int(row[col_es[view]]) if col_es[view] else None
+            view_frames[view] = (ed, es)
+
+        if col_a2c:
+            p = _resolve_dicom_path(row[col_a2c], patient_num, study_dt, echo_root)
+            ed, es = view_frames["A2C"]
+            add_entry(p, "A2C", ed, es)
+        if col_a3c:
+            p = _resolve_dicom_path(row[col_a3c], patient_num, study_dt, echo_root)
+            ed, es = view_frames["A3C"]
+            add_entry(p, "A3C", ed, es)
+        if col_a4c:
+            p = _resolve_dicom_path(row[col_a4c], patient_num, study_dt, echo_root)
+            ed, es = view_frames["A4C"]
+            add_entry(p, "A4C", ed, es)
 
         if col_2c:
+            ed, es = view_frames["A2C"]
             for base in _split_dicom_list(row[col_2c]):
                 p = _resolve_dicom_path(base, patient_num, study_dt, echo_root)
-                if p and p.is_file():
-                    dicoms[str(p)] = p
+                add_entry(p, "A2C", ed, es)
+        if col_3c:
+            ed, es = view_frames["A3C"]
+            for base in _split_dicom_list(row[col_3c]):
+                p = _resolve_dicom_path(base, patient_num, study_dt, echo_root)
+                add_entry(p, "A3C", ed, es)
         if col_4c:
+            ed, es = view_frames["A4C"]
             for base in _split_dicom_list(row[col_4c]):
                 p = _resolve_dicom_path(base, patient_num, study_dt, echo_root)
-                if p and p.is_file():
-                    dicoms[str(p)] = p
+                add_entry(p, "A4C", ed, es)
 
     return list(dicoms.values())
 
@@ -439,7 +610,7 @@ def main() -> None:
     parser.add_argument(
         "--input-xlsx",
         type=Path,
-        default=Path(r"C:\Users\oronbarazani\OneDrive - Technion\DS\Report_Ichilov_GLS_oron.xlsx"),
+        default=USER_HOME / "OneDrive - Technion" / "DS" / "Report_Ichilov_GLS_and_Strain_oron.xlsx",
         help="Input Excel with GLS source DICOM paths",
     )
     parser.add_argument(
@@ -454,6 +625,12 @@ def main() -> None:
         default=Path(r"D:\DS\Ichilov_cropped"),
         help="Root directory to save cropped DICOMs",
     )
+    parser.add_argument(
+        "--sampling-mode",
+        choices=("window", "phase"),
+        default="window",
+        help="Sampling mode: 'window' uses a 1s window; 'phase' interpolates ED->ES frames.",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing outputs")
     args = parser.parse_args()
 
@@ -461,12 +638,16 @@ def main() -> None:
     dicoms = _collect_dicoms(df, args.echo_root)
     logger.info(f"Found {len(dicoms)} DICOMs to process")
 
-    for dicom_path in tqdm(dicoms, desc="Cropping DICOMs"):
+    for entry in tqdm(dicoms, desc="Cropping DICOMs"):
         _process_dicom(
-            dicom_path=dicom_path,
+            dicom_path=entry.path,
             echo_root=args.echo_root,
             output_root=args.output_root,
             overwrite=args.overwrite,
+            sampling_mode=args.sampling_mode,
+            end_diastole=entry.end_diastole,
+            end_systole=entry.end_systole,
+            view=entry.view,
         )
 
 
