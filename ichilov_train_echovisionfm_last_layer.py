@@ -1,6 +1,7 @@
 """
 Fine-tune the EchoVisionFM encoder-decoder (MAE reconstruction) on cropped DICOM clips.
 Trains only the last N encoder blocks (and optionally the decoder) with no GLS head.
+Supports sliding-window sampling to expose all frames during pretraining.
 
 Usage (PowerShell):
   .venv\\Scripts\\python ichilov_train_echovisionfm_last_layer.py ^
@@ -82,6 +83,39 @@ def _sample_indices(n_frames: int, target: int = 16) -> np.ndarray:
     return np.clip(np.round(idx).astype(int), 0, n_frames - 1)
 
 
+def _sliding_window_starts(
+    n_frames: int,
+    clip_length: int,
+    stride: int,
+    include_last: bool,
+) -> List[int]:
+    if n_frames <= 0:
+        return []
+    if n_frames < clip_length:
+        return [0]
+    stride = max(int(stride), 1)
+    last_start = n_frames - clip_length
+    starts = list(range(0, last_start + 1, stride))
+    if include_last and starts and starts[-1] != last_start:
+        starts.append(last_start)
+    return starts
+
+
+def _read_frame_count(dicom_path: Path) -> Optional[int]:
+    try:
+        ds = pydicom.dcmread(str(dicom_path), force=True, stop_before_pixels=True)
+    except Exception as exc:
+        logger.warning(f"Failed to read header {dicom_path}: {exc}")
+        return None
+    n_frames = getattr(ds, "NumberOfFrames", None)
+    if n_frames is None:
+        return 1
+    try:
+        return int(n_frames)
+    except Exception:
+        return None
+
+
 def _to_tensor(frames: np.ndarray) -> torch.Tensor:
     # frames: T,H,W,C with C in {1,3}
     if frames.ndim != 4:
@@ -99,7 +133,11 @@ def _to_tensor(frames: np.ndarray) -> torch.Tensor:
     return tensor
 
 
-def _load_cropped_dicom(dicom_path: Path, target_frames: int = 16) -> Optional[torch.Tensor]:
+def _load_cropped_dicom(
+    dicom_path: Path,
+    target_frames: int = 16,
+    clip_start: Optional[int] = None,
+) -> Optional[torch.Tensor]:
     try:
         ds = pydicom.dcmread(str(dicom_path), force=True)
     except Exception as exc:
@@ -125,7 +163,11 @@ def _load_cropped_dicom(dicom_path: Path, target_frames: int = 16) -> Optional[t
         return None
 
     n_frames = frames.shape[0]
-    idx = _sample_indices(n_frames, target=target_frames)
+    if clip_start is None or n_frames < target_frames:
+        idx = _sample_indices(n_frames, target=target_frames)
+    else:
+        start = max(0, min(int(clip_start), n_frames - target_frames))
+        idx = np.arange(start, start + target_frames, dtype=int)
     if idx.size == 0:
         return None
     frames = frames[idx]
@@ -133,16 +175,42 @@ def _load_cropped_dicom(dicom_path: Path, target_frames: int = 16) -> Optional[t
 
 
 class CroppedDicomDataset(Dataset):
-    def __init__(self, dicom_paths: Sequence[Path], target_frames: int = 16) -> None:
-        self._paths = list(dicom_paths)
+    def __init__(
+        self,
+        dicom_paths: Sequence[Path],
+        target_frames: int = 16,
+        sampling_mode: str = "uniform",
+        clip_stride: int = 4,
+        include_last_window: bool = True,
+    ) -> None:
         self._target_frames = int(target_frames)
+        self._items: List[Tuple[Path, Optional[int]]] = []
+        sampling_mode = sampling_mode.lower()
+        for path in dicom_paths:
+            if sampling_mode == "sliding_window":
+                n_frames = _read_frame_count(path)
+                if n_frames is None or n_frames <= 0:
+                    self._items.append((path, None))
+                    continue
+                starts = _sliding_window_starts(n_frames, self._target_frames, clip_stride, include_last_window)
+                if not starts:
+                    self._items.append((path, None))
+                    continue
+                for start in starts:
+                    self._items.append((path, int(start)))
+            else:
+                self._items.append((path, None))
 
     def __len__(self) -> int:
-        return len(self._paths)
+        return len(self._items)
 
     def __getitem__(self, idx: int) -> Optional[torch.Tensor]:
-        dicom_path = self._paths[idx]
-        return _load_cropped_dicom(dicom_path, target_frames=self._target_frames)
+        dicom_path, clip_start = self._items[idx]
+        return _load_cropped_dicom(
+            dicom_path,
+            target_frames=self._target_frames,
+            clip_start=clip_start,
+        )
 
 
 def _collate_batch(batch: Sequence[Optional[torch.Tensor]]) -> Optional[torch.Tensor]:
@@ -340,7 +408,7 @@ def main() -> None:
     parser.add_argument(
         "--weights",
         type=Path,
-        default=USER_HOME / "OneDrive - Technion" / "models" / "Encoder_weights" / "echovisionfm_mae_20260107_224622_best_mae.pt",
+        default=USER_HOME / "OneDrive - Technion" / "models" / "Encoder_weights" / "pytorch_model.bin",
         help="Path to EchoVisionFM pretraining weights.",
     )
     parser.add_argument(
@@ -354,6 +422,32 @@ def main() -> None:
         type=int,
         default=16,
         help="Number of frames per clip (must match pretraining weights).",
+    )
+    parser.add_argument(
+        "--sampling-mode",
+        type=str,
+        choices=["uniform", "sliding_window"],
+        default="uniform",
+        help="Clip sampling: uniform single clip or sliding_window over all frames.",
+    )
+    parser.add_argument(
+        "--clip-stride",
+        type=int,
+        default=4,
+        help="Stride between sliding-window clips (frames).",
+    )
+    parser.add_argument(
+        "--include-last-window",
+        dest="include_last_window",
+        action="store_true",
+        default=True,
+        help="Ensure the last window ends at the final frame when sliding.",
+    )
+    parser.add_argument(
+        "--no-include-last-window",
+        dest="include_last_window",
+        action="store_false",
+        help="Disable forcing the last window to end at the final frame when sliding.",
     )
     parser.add_argument(
         "--mask-ratio",
@@ -460,8 +554,24 @@ def main() -> None:
     train_paths, val_paths = _split_paths(paths, args.cropped_root, args.val_ratio, args.seed)
     logger.info(f"Train DICOMs: {len(train_paths)}, Val DICOMs: {len(val_paths)}")
 
-    train_ds = CroppedDicomDataset(train_paths, target_frames=args.frames)
-    val_ds = CroppedDicomDataset(val_paths, target_frames=args.frames) if val_paths else None
+    train_ds = CroppedDicomDataset(
+        train_paths,
+        target_frames=args.frames,
+        sampling_mode=args.sampling_mode,
+        clip_stride=args.clip_stride,
+        include_last_window=args.include_last_window,
+    )
+    val_ds = (
+        CroppedDicomDataset(
+            val_paths,
+            target_frames=args.frames,
+            sampling_mode=args.sampling_mode,
+            clip_stride=args.clip_stride,
+            include_last_window=args.include_last_window,
+        )
+        if val_paths
+        else None
+    )
 
     train_loader = DataLoader(
         train_ds,

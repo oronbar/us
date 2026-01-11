@@ -6,7 +6,7 @@ Input:
   - Cropped DICOMs under D:\\DS\\Ichilov_cropped (same relative tree)
 
 Output:
-  - Parquet file with one row per (patient, view, dicom) and embedding vector
+  - Parquet file with one row per clip (sliding_window) or per DICOM (uniform)
 
 Usage (PowerShell):
   .venv\\Scripts\\python ichilov_encode_dicoms.py ^
@@ -14,7 +14,10 @@ Usage (PowerShell):
     --echo-root "D:\\DS\\Ichilov" ^
     --cropped-root "D:\\DS\\Ichilov_cropped" ^
     --weights "C:\\work\\us\\Echo-Vison-FM\\weights\\pytorch_model.bin" ^
-    --output-parquet "$env:USERPROFILE\\OneDrive - Technion\\DS\\Ichilov_GLS_embeddings.parquet"
+    --output-parquet "$env:USERPROFILE\\OneDrive - Technion\\DS\\Ichilov_GLS_embeddings.parquet" ^
+    --sampling-mode sliding_window ^
+    --clip-length 16 ^
+    --clip-stride 4
 """
 from __future__ import annotations
 
@@ -23,6 +26,7 @@ import logging
 import math
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -57,7 +61,7 @@ if ECHO_VISION_ROOT.exists():
     sys.path.append(str(ECHO_VISION_ROOT))
 USER_HOME = Path.home()
 if USER_HOME.name == "oronbar.RF":
-        USER_HOME = Path("F:\\")
+    USER_HOME = Path("F:\\")
 
 
 def _find_column(df: pd.DataFrame, candidates: Sequence[str], required: bool = False) -> Optional[str]:
@@ -299,7 +303,7 @@ def _apply_patient_augmentation(tensor: torch.Tensor, aug: Dict[str, float]) -> 
     return out.clamp(0.0, 1.0)
 
 
-def _load_cropped_dicom(dicom_path: Path, target_frames: int = 16) -> Optional[Tuple[torch.Tensor, torch.Tensor]]:
+def _load_cropped_frames(dicom_path: Path) -> Optional[np.ndarray]:
     try:
         ds = pydicom.dcmread(str(dicom_path), force=True)
     except Exception as exc:
@@ -312,25 +316,80 @@ def _load_cropped_dicom(dicom_path: Path, target_frames: int = 16) -> Optional[T
         return None
 
     if arr.ndim == 2:
-        frames = arr[None, ..., None]
-    elif arr.ndim == 3:
+        return arr[None, ..., None]
+    if arr.ndim == 3:
         if int(getattr(ds, "SamplesPerPixel", 1)) > 1:
-            frames = arr[None, ...]
-        else:
-            frames = arr[..., None]
-    elif arr.ndim == 4:
-        frames = arr
-    else:
-        logger.warning(f"Unexpected pixel array shape {arr.shape} for {dicom_path}")
-        return None
+            return arr[None, ...]
+        return arr[..., None]
+    if arr.ndim == 4:
+        return arr
+    logger.warning(f"Unexpected pixel array shape {arr.shape} for {dicom_path}")
+    return None
 
-    n_frames = frames.shape[0]
-    idx = _sample_indices(n_frames, target=target_frames)
+
+def _clip_indices_uniform(n_frames: int, clip_length: int) -> List[np.ndarray]:
+    idx = _sample_indices(n_frames, target=clip_length)
     if idx.size == 0:
+        return []
+    return [idx]
+
+
+def _clip_indices_sliding(
+    n_frames: int,
+    clip_length: int,
+    stride: int,
+    include_last: bool,
+) -> List[np.ndarray]:
+    if n_frames <= 0:
+        return []
+    if n_frames < clip_length:
+        return _clip_indices_uniform(n_frames, clip_length)
+    stride = max(int(stride), 1)
+    last_start = n_frames - clip_length
+    starts = list(range(0, last_start + 1, stride))
+    if include_last and starts and starts[-1] != last_start:
+        starts.append(last_start)
+    return [np.arange(start, start + clip_length, dtype=int) for start in starts]
+
+
+def _iter_cropped_clips(
+    dicom_path: Path,
+    clip_length: int,
+    sampling_mode: str,
+    clip_stride: int,
+    include_last: bool,
+) -> Optional[List[Dict[str, object]]]:
+    frames = _load_cropped_frames(dicom_path)
+    if frames is None:
         return None
-    frames = frames[idx]
-    temporal_indices = torch.as_tensor(idx, dtype=torch.int32)
-    return _to_tensor(frames), temporal_indices
+    n_frames = int(frames.shape[0])
+    if sampling_mode == "uniform":
+        indices_list = _clip_indices_uniform(n_frames, clip_length)
+    elif sampling_mode == "sliding_window":
+        indices_list = _clip_indices_sliding(n_frames, clip_length, clip_stride, include_last)
+    else:
+        raise ValueError(f"Unknown sampling mode: {sampling_mode}")
+    if not indices_list:
+        return None
+    clip_count = len(indices_list)
+    clips: List[Dict[str, object]] = []
+    for clip_idx, indices in enumerate(indices_list):
+        clip_frames = frames[indices]
+        tensor = _to_tensor(clip_frames)
+        temporal_indices = torch.as_tensor(indices, dtype=torch.int32)
+        clips.append(
+            {
+                "tensor": tensor,
+                "temporal_indices": temporal_indices,
+                "clip_index": int(clip_idx),
+                "clip_start": int(indices[0]),
+                "clip_end": int(indices[-1]),
+                "clip_length": int(len(indices)),
+                "clip_count": int(clip_count),
+                "frame_count": int(n_frames),
+            }
+        )
+    return clips
 
 
 def _load_encoder(weights_path: Path, device: torch.device) -> torch.nn.Module:
@@ -446,6 +505,43 @@ def main() -> None:
         help="Output parquet path",
     )
     parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite output parquet if it already exists.",
+    )
+    parser.add_argument(
+        "--sampling-mode",
+        type=str,
+        choices=["uniform", "sliding_window"],
+        default="uniform",
+        help="Clip sampling mode: uniform (single clip) or sliding_window (overlapping clips).",
+    )
+    parser.add_argument(
+        "--clip-length",
+        type=int,
+        default=16,
+        help="Frames per clip for encoding.",
+    )
+    parser.add_argument(
+        "--clip-stride",
+        type=int,
+        default=4,
+        help="Stride between sliding-window clips (frames).",
+    )
+    parser.add_argument(
+        "--include-last-window",
+        dest="include_last_window",
+        action="store_true",
+        default=True,
+        help="Ensure the last window ends at the final frame when sliding.",
+    )
+    parser.add_argument(
+        "--no-include-last-window",
+        dest="include_last_window",
+        action="store_false",
+        help="Disable forcing the last window to end at the final frame when sliding.",
+    )
+    parser.add_argument(
         "--use-stf",
         action="store_true",
         default=True,
@@ -507,7 +603,6 @@ def main() -> None:
     aug_per_patient = max(int(args.aug_per_patient), 0)
     rng = np.random.default_rng(args.aug_seed) if args.aug_seed is not None else np.random.default_rng()
     patient_augments: Dict[str, List[Dict[str, float]]] = {}
-    cache: Dict[Tuple[str, str], np.ndarray] = {}
     rows: List[dict] = []
 
     for row_idx, row in tqdm(df.iterrows(), total=len(df), desc="Encoding"):
@@ -560,67 +655,79 @@ def main() -> None:
                 logger.warning(f"Cropped DICOM not found for {src_path}")
                 continue
 
-            cropped_key = str(cropped_path)
-            variant_keys = [(v, _format_aug_key(v["params"])) for v in variants]
-            need_load = any((cropped_key, aug_key) not in cache for _, aug_key in variant_keys)
-            base_tensor: Optional[torch.Tensor] = None
-            temporal_indices: Optional[torch.Tensor] = None
-            if need_load:
-                loaded = _load_cropped_dicom(cropped_path, target_frames=16)
-                if loaded is None:
-                    logger.warning(f"Failed to load cropped DICOM {cropped_path}")
-                    continue
-                base_tensor, temporal_indices = loaded
+            clip_items = _iter_cropped_clips(
+                cropped_path,
+                clip_length=args.clip_length,
+                sampling_mode=args.sampling_mode,
+                clip_stride=args.clip_stride,
+                include_last=args.include_last_window,
+            )
+            if not clip_items:
+                logger.warning(f"Failed to load cropped DICOM {cropped_path}")
+                continue
 
-            for variant, aug_key in variant_keys:
-                cache_key = (cropped_key, aug_key)
-                if cache_key in cache:
-                    emb = cache[cache_key]
-                else:
-                    if base_tensor is None or temporal_indices is None:
-                        logger.warning(f"Missing base tensor for {cropped_path} ({aug_key})")
-                        continue
-                    tensor = base_tensor
-                    if variant["params"] is not None:
-                        tensor = _apply_patient_augmentation(base_tensor, variant["params"])
-                    emb = _encode_tensor(
-                        model,
-                        tensor,
-                        device=device,
-                        stf_net=stf_net,
-                        temporal_indices=temporal_indices,
+            clip_cache: Dict[Tuple[str, int], np.ndarray] = {}
+            for variant in variants:
+                aug_key = _format_aug_key(variant["params"])
+                for clip in clip_items:
+                    cache_key = (aug_key, clip["clip_index"])
+                    if cache_key in clip_cache:
+                        emb = clip_cache[cache_key]
+                    else:
+                        tensor = clip["tensor"]
+                        if variant["params"] is not None:
+                            tensor = _apply_patient_augmentation(tensor, variant["params"])
+                        emb = _encode_tensor(
+                            model,
+                            tensor,
+                            device=device,
+                            stf_net=stf_net,
+                            temporal_indices=clip["temporal_indices"],
+                        )
+                        clip_cache[cache_key] = emb
+
+                    aug_params = variant["params"]
+                    rows.append(
+                        {
+                            "patient_num": variant["patient_num"],
+                            "patient_id": variant["patient_id"],
+                            "patient_num_base": patient_num,
+                            "patient_id_base": patient_id,
+                            "augmentation": variant["label"],
+                            "augmentation_id": int(variant["aug_id"]),
+                            "augmentation_key": aug_key,
+                            "augmented": aug_params is not None,
+                            "aug_brightness": float(aug_params["brightness"]) if aug_params else 1.0,
+                            "aug_contrast": float(aug_params["contrast"]) if aug_params else 1.0,
+                            "aug_rotation_deg": float(aug_params["rotation_deg"]) if aug_params else 0.0,
+                            "aug_scale_x": float(aug_params["scale_x"]) if aug_params else 1.0,
+                            "aug_scale_y": float(aug_params["scale_y"]) if aug_params else 1.0,
+                            "study_datetime": study_dt,
+                            "view": view,
+                            "source_dicom": str(src_path),
+                            "cropped_dicom": str(cropped_path),
+                            "sampling_mode": args.sampling_mode,
+                            "clip_index": int(clip["clip_index"]),
+                            "clip_start": int(clip["clip_start"]),
+                            "clip_end": int(clip["clip_end"]),
+                            "clip_length": int(clip["clip_length"]),
+                            "clip_stride": int(args.clip_stride) if args.sampling_mode == "sliding_window" else 0,
+                            "clip_count": int(clip["clip_count"]),
+                            "frame_count": int(clip["frame_count"]),
+                            "embedding": emb.tolist(),
+                            "embedding_dim": int(emb.shape[0]),
+                        }
                     )
-                    cache[cache_key] = emb
-
-                aug_params = variant["params"]
-                rows.append(
-                    {
-                        "patient_num": variant["patient_num"],
-                        "patient_id": variant["patient_id"],
-                        "patient_num_base": patient_num,
-                        "patient_id_base": patient_id,
-                        "augmentation": variant["label"],
-                        "augmentation_id": int(variant["aug_id"]),
-                        "augmentation_key": aug_key,
-                        "augmented": aug_params is not None,
-                        "aug_brightness": float(aug_params["brightness"]) if aug_params else 1.0,
-                        "aug_contrast": float(aug_params["contrast"]) if aug_params else 1.0,
-                        "aug_rotation_deg": float(aug_params["rotation_deg"]) if aug_params else 0.0,
-                        "aug_scale_x": float(aug_params["scale_x"]) if aug_params else 1.0,
-                        "aug_scale_y": float(aug_params["scale_y"]) if aug_params else 1.0,
-                        "study_datetime": study_dt,
-                        "view": view,
-                        "source_dicom": str(src_path),
-                        "cropped_dicom": str(cropped_path),
-                        "embedding": emb.tolist(),
-                        "embedding_dim": int(emb.shape[0]),
-                    }
-                )
 
     out_df = pd.DataFrame(rows)
-    args.output_parquet.parent.mkdir(parents=True, exist_ok=True)
-    out_df.to_parquet(args.output_parquet, index=False)
-    logger.info(f"Saved embeddings: {args.output_parquet} ({len(out_df)} rows)")
+    output_path = args.output_parquet
+    if output_path.exists() and not args.overwrite:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = output_path.with_name(f"{output_path.stem}_{stamp}{output_path.suffix}")
+        logger.warning("Output exists; writing embeddings to %s", output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    out_df.to_parquet(output_path, index=False)
+    logger.info(f"Saved embeddings: {output_path} ({len(out_df)} rows)")
 
 
 if __name__ == "__main__":

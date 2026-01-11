@@ -19,6 +19,9 @@ Usage (PowerShell):
     --echo-root "D:\\DS\\Ichilov" ^
     --output-root "D:\\DS\\Ichilov_cropped" ^
     --sampling-mode phase
+
+  Sliding-window mode keeps all frames (spatially cropped) so the encoder can
+  run overlapping 16-frame clips later.
 """
 from __future__ import annotations
 
@@ -389,6 +392,8 @@ def _sampled_frames(
     if sampling_mode == "window":
         indices = _sample_indices_window(n_frames, frame_time_ms, target=target_frames, window_sec=window_sec)
         return _sample_frames_from_indices(frames, indices)
+    if sampling_mode == "sliding_window":
+        return [frames[i] for i in range(n_frames)]
     raise ValueError(f"Unknown sampling mode: {sampling_mode}")
 
 
@@ -606,7 +611,7 @@ def _collect_dicoms(df: pd.DataFrame, echo_root: Path) -> List[DicomEntry]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Crop Ichilov DICOMs to 16x224x224.")
+    parser = argparse.ArgumentParser(description="Crop Ichilov DICOMs to 224x224 with optional 16-frame sampling.")
     parser.add_argument(
         "--input-xlsx",
         type=Path,
@@ -626,10 +631,23 @@ def main() -> None:
         help="Root directory to save cropped DICOMs",
     )
     parser.add_argument(
+        "--clip-length",
+        type=int,
+        default=16,
+        help="Frames per clip for window/phase sampling (sliding_window keeps full length).",
+    )
+    parser.add_argument(
+        "--window-sec",
+        type=float,
+        default=1.0,
+        help="Temporal window length in seconds for window sampling.",
+    )
+    parser.add_argument(
         "--sampling-mode",
-        choices=("window", "phase"),
+        choices=("window", "phase", "sliding_window"),
         default="window",
-        help="Sampling mode: 'window' uses a 1s window; 'phase' interpolates ED->ES frames.",
+        help="Sampling mode: 'window' uses a 1s window; 'phase' interpolates ED->ES frames; "
+             "'sliding_window' keeps all frames for clip-level MIL.",
     )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing outputs")
     args = parser.parse_args()
@@ -645,6 +663,8 @@ def main() -> None:
             output_root=args.output_root,
             overwrite=args.overwrite,
             sampling_mode=args.sampling_mode,
+            target_frames=args.clip_length,
+            window_sec=args.window_sec,
             end_diastole=entry.end_diastole,
             end_systole=entry.end_systole,
             view=entry.view,

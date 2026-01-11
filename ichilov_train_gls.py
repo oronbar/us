@@ -18,6 +18,7 @@ Notes:
   - Use --target-mode delta for longitudinal delta GLS targets (requires a visit time column).
   - Use --objective ranking for pairwise within-patient ranking loss.
   - Use --task visit to predict global visit GLS via attention fusion across views.
+  - Use --clip-fusion to aggregate sliding-window clip embeddings per DICOM.
 """
 from __future__ import annotations
 
@@ -318,6 +319,138 @@ def _build_visit_level_df(
     return pd.DataFrame(rows)
 
 
+def _resolve_dicom_column(df: pd.DataFrame) -> Optional[str]:
+    for cand in ("source_dicom", "cropped_dicom", "dicom_path", "dicom"):
+        if cand in df.columns:
+            return cand
+    return None
+
+
+def _first_non_null(series: pd.Series) -> Optional[object]:
+    vals = series.dropna()
+    if vals.empty:
+        return None
+    return vals.iloc[0]
+
+
+def _aggregate_clip_embeddings(
+    df: pd.DataFrame,
+    group_cols: Sequence[str],
+    clip_index_col: Optional[str],
+    extra_cols: Sequence[str],
+) -> pd.DataFrame:
+    rows: List[Dict[str, object]] = []
+    for key, grp in df.groupby(list(group_cols)):
+        if len(group_cols) == 1:
+            key_vals = (key,)
+        else:
+            key_vals = key
+        row = {col: val for col, val in zip(group_cols, key_vals)}
+        emb_list = grp["embedding_vec"].to_list()
+        if clip_index_col and clip_index_col in grp.columns:
+            order = pd.to_numeric(grp[clip_index_col], errors="coerce").fillna(0).to_numpy()
+            emb_list = [emb for _, emb in sorted(zip(order, emb_list), key=lambda x: x[0])]
+        row["embedding_list"] = emb_list
+        row["clip_count"] = int(len(emb_list))
+        gls_vals = pd.to_numeric(grp["gls"], errors="coerce").to_numpy(dtype=float)
+        gls_vals = gls_vals[np.isfinite(gls_vals)]
+        row["gls"] = float(np.mean(gls_vals)) if len(gls_vals) else float("nan")
+        for col in extra_cols:
+            if col in grp.columns:
+                row[col] = _first_non_null(grp[col])
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def _stack_embedding_list(emb_list: object) -> np.ndarray:
+    if isinstance(emb_list, np.ndarray):
+        if emb_list.ndim == 1:
+            return emb_list[None, :]
+        return emb_list.astype(np.float32)
+    if isinstance(emb_list, list):
+        if not emb_list:
+            return np.zeros((0, 0), dtype=np.float32)
+        if isinstance(emb_list[0], np.ndarray):
+            return np.stack(emb_list).astype(np.float32)
+        return np.asarray(emb_list, dtype=np.float32)
+    return np.asarray(emb_list, dtype=np.float32)
+
+
+def _flatten_nested_embeddings(views: List[List[np.ndarray]]) -> Optional[np.ndarray]:
+    chunks: List[np.ndarray] = []
+    for view_list in views:
+        for clips in view_list:
+            arr = _stack_embedding_list(clips)
+            if arr.size:
+                chunks.append(arr)
+    if not chunks:
+        return None
+    return np.concatenate(chunks, axis=0)
+
+
+def _build_visit_level_clip_df(
+    df: pd.DataFrame,
+    patient_col: str,
+    visit_col: str,
+    min_views: int,
+) -> pd.DataFrame:
+    df = df.copy()
+    visit_vals = df[visit_col]
+    visit_time = _coerce_time_values(visit_vals)
+    df["_visit_key"] = visit_time if visit_time is not None else visit_vals
+    if df["_visit_key"].isna().any():
+        before = len(df)
+        df = df[df["_visit_key"].notna()].copy()
+        dropped = before - len(df)
+        if dropped:
+            logger.warning("Dropped %d rows with missing visit id/time.", dropped)
+    view_col = "view" if "view" in df.columns else None
+    rows: List[Dict[str, object]] = []
+    dropped_min_views = 0
+    dropped_no_gls = 0
+    for (patient_id, visit_key), grp in df.groupby([patient_col, "_visit_key"]):
+        view_clip_list: List[np.ndarray] = []
+        gls_list: List[float] = []
+        if view_col:
+            view_groups = grp.groupby(view_col)
+        else:
+            view_groups = [(None, grp)]
+        for _, view_grp in view_groups:
+            clip_arrays: List[np.ndarray] = []
+            for entry in view_grp["embedding_list"].to_list():
+                clip_arr = _stack_embedding_list(entry)
+                if clip_arr.size:
+                    clip_arrays.append(clip_arr)
+            if not clip_arrays:
+                continue
+            clips = np.concatenate(clip_arrays, axis=0).astype(np.float32)
+            view_clip_list.append(clips)
+            gls_vals = pd.to_numeric(view_grp["gls"], errors="coerce").to_numpy(dtype=float)
+            gls_vals = gls_vals[np.isfinite(gls_vals)]
+            if len(gls_vals):
+                gls_list.append(float(np.mean(gls_vals)))
+        if len(view_clip_list) < min_views:
+            dropped_min_views += 1
+            continue
+        if not gls_list:
+            dropped_no_gls += 1
+            continue
+        rows.append(
+            {
+                patient_col: patient_id,
+                visit_col: visit_key,
+                "gls": float(np.mean(gls_list)),
+                "embedding_list": view_clip_list,
+                "view_count": len(view_clip_list),
+            }
+        )
+    if dropped_min_views:
+        logger.warning("Dropped %d visits with fewer than %d views.", dropped_min_views, min_views)
+    if dropped_no_gls:
+        logger.warning("Dropped %d visits without GLS values.", dropped_no_gls)
+    return pd.DataFrame(rows)
+
+
 class EmbeddingDataset(Dataset):
     def __init__(self, x: np.ndarray, y: np.ndarray):
         self.x = torch.from_numpy(x).float()
@@ -405,6 +538,79 @@ def _collate_pairwise_visit_batch(batch: Sequence[Tuple[np.ndarray, np.ndarray, 
     return x_a, mask_a, x_b, mask_b, y
 
 
+class HierarchicalVisitDataset(Dataset):
+    def __init__(self, views: List[List[np.ndarray]], targets: np.ndarray):
+        self.views = [[v.astype(np.float32) for v in view_list] for view_list in views]
+        self.targets = targets.astype(np.float32)
+
+    def __len__(self) -> int:
+        return len(self.views)
+
+    def __getitem__(self, idx: int):
+        return self.views[idx], self.targets[idx]
+
+
+def _collate_hierarchical_visit_batch(batch: Sequence[Tuple[List[np.ndarray], float]]):
+    views, targets = zip(*batch)
+    max_views = max(len(v) for v in views)
+    max_clips = max(clip.shape[0] for v in views for clip in v)
+    embed_dim = next(clip.shape[1] for v in views for clip in v)
+    x = torch.zeros((len(views), max_views, max_clips, embed_dim), dtype=torch.float32)
+    view_mask = torch.zeros((len(views), max_views), dtype=torch.float32)
+    clip_mask = torch.zeros((len(views), max_views, max_clips), dtype=torch.float32)
+    for i, vlist in enumerate(views):
+        for j, clips in enumerate(vlist):
+            count = clips.shape[0]
+            x[i, j, :count, :] = torch.from_numpy(clips)
+            view_mask[i, j] = 1.0
+            clip_mask[i, j, :count] = 1.0
+    y = torch.tensor(targets, dtype=torch.float32).view(-1, 1)
+    return x, view_mask, clip_mask, y
+
+
+class PairwiseHierarchicalDataset(Dataset):
+    def __init__(self, views: List[List[np.ndarray]], pairs: np.ndarray, labels: np.ndarray):
+        self.views = [[v.astype(np.float32) for v in view_list] for view_list in views]
+        self.pairs = pairs.astype(np.int64)
+        self.labels = labels.astype(np.float32)
+
+    def __len__(self) -> int:
+        return self.pairs.shape[0]
+
+    def __getitem__(self, idx: int):
+        i, j = self.pairs[idx]
+        return self.views[i], self.views[j], self.labels[idx]
+
+
+def _collate_pairwise_hierarchical_batch(batch: Sequence[Tuple[List[np.ndarray], List[np.ndarray], float]]):
+    views_a, views_b, labels = zip(*batch)
+    max_views_a = max(len(v) for v in views_a)
+    max_views_b = max(len(v) for v in views_b)
+    max_clips_a = max(clip.shape[0] for v in views_a for clip in v)
+    max_clips_b = max(clip.shape[0] for v in views_b for clip in v)
+    embed_dim = next(clip.shape[1] for v in views_a for clip in v)
+    x_a = torch.zeros((len(views_a), max_views_a, max_clips_a, embed_dim), dtype=torch.float32)
+    view_mask_a = torch.zeros((len(views_a), max_views_a), dtype=torch.float32)
+    clip_mask_a = torch.zeros((len(views_a), max_views_a, max_clips_a), dtype=torch.float32)
+    x_b = torch.zeros((len(views_b), max_views_b, max_clips_b, embed_dim), dtype=torch.float32)
+    view_mask_b = torch.zeros((len(views_b), max_views_b), dtype=torch.float32)
+    clip_mask_b = torch.zeros((len(views_b), max_views_b, max_clips_b), dtype=torch.float32)
+    for i, vlist in enumerate(views_a):
+        for j, clips in enumerate(vlist):
+            count = clips.shape[0]
+            x_a[i, j, :count, :] = torch.from_numpy(clips)
+            view_mask_a[i, j] = 1.0
+            clip_mask_a[i, j, :count] = 1.0
+    for i, vlist in enumerate(views_b):
+        for j, clips in enumerate(vlist):
+            count = clips.shape[0]
+            x_b[i, j, :count, :] = torch.from_numpy(clips)
+            view_mask_b[i, j] = 1.0
+            clip_mask_b[i, j, :count] = 1.0
+    y = torch.tensor(labels, dtype=torch.float32).view(-1, 1)
+    return x_a, view_mask_a, clip_mask_a, x_b, view_mask_b, clip_mask_b, y
+
+
 class ResidualBlock(nn.Module):
     def __init__(self, hidden: int, dropout: float):
         super().__init__()
@@ -435,6 +641,59 @@ class ResidualMLPBackbone(nn.Module):
         for block in self.blocks:
             x = block(x)
         return x
+
+
+class SoftmaxFuser(nn.Module):
+    def __init__(self, input_dim: int):
+        super().__init__()
+        self.scorer = nn.Linear(input_dim, 1)
+
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        scores = self.scorer(x).squeeze(-1)
+        scores = scores.masked_fill(mask <= 0, -1e9)
+        weights = torch.softmax(scores, dim=1)
+        weights = weights * mask
+        denom = weights.sum(dim=1, keepdim=True).clamp_min(1e-6)
+        weights = weights / denom
+        return torch.sum(weights.unsqueeze(-1) * x, dim=1)
+
+
+class AttentionFuser(nn.Module):
+    def __init__(self, input_dim: int, num_heads: int = 4, attn_dropout: float = 0.1):
+        super().__init__()
+        heads = num_heads
+        if input_dim % heads != 0:
+            for h in range(heads, 0, -1):
+                if input_dim % h == 0:
+                    heads = h
+                    break
+            if heads != num_heads:
+                logger.warning(
+                    "Attention heads adjusted from %d to %d to divide input_dim=%d.",
+                    num_heads,
+                    heads,
+                    input_dim,
+                )
+        self.query = nn.Parameter(torch.zeros(1, 1, input_dim))
+        self.attn = nn.MultiheadAttention(
+            embed_dim=input_dim,
+            num_heads=heads,
+            dropout=attn_dropout,
+            batch_first=True,
+        )
+
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        key_padding_mask = mask <= 0
+        if key_padding_mask.any():
+            all_masked = key_padding_mask.all(dim=1)
+            if all_masked.any():
+                key_padding_mask = key_padding_mask.clone()
+                key_padding_mask[all_masked, 0] = False
+                x = x.clone()
+                x[all_masked, 0, :] = 0
+        query = self.query.expand(x.size(0), -1, -1)
+        fused, _ = self.attn(query, x, x, key_padding_mask=key_padding_mask, need_weights=False)
+        return fused.squeeze(1)
 
 
 class MLPRegressor(nn.Module):
@@ -606,6 +865,115 @@ class AttentionFusionHeteroscedastic(nn.Module):
         return self.mu(h), self.log_var(h)
 
 
+class HierarchicalFusionRegressor(nn.Module):
+    """Fuse clips within views, then fuse views for visit-level GLS."""
+
+    def __init__(
+        self,
+        input_dim: int,
+        hidden: int = 256,
+        depth: int = 3,
+        dropout: float = 0.2,
+        clip_fusion: str = "attention",
+        view_fusion: str = "attention",
+        num_heads: int = 4,
+        attn_dropout: float = 0.1,
+    ):
+        super().__init__()
+        self.clip_fusion = clip_fusion
+        self.view_fusion = view_fusion
+        if clip_fusion == "softmax":
+            self.clip_fuser: Optional[nn.Module] = SoftmaxFuser(input_dim)
+        elif clip_fusion == "attention":
+            self.clip_fuser = AttentionFuser(input_dim, num_heads=num_heads, attn_dropout=attn_dropout)
+        else:
+            self.clip_fuser = None
+
+        if view_fusion == "attention":
+            self.view_fuser = AttentionFuser(input_dim, num_heads=num_heads, attn_dropout=attn_dropout)
+        else:
+            self.view_fuser = SoftmaxFuser(input_dim)
+
+        self.backbone = ResidualMLPBackbone(input_dim, hidden=hidden, depth=depth, dropout=dropout)
+        self.head = nn.Linear(hidden, 1)
+
+    def _fuse_clips(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        if self.clip_fusion == "mean":
+            denom = mask.sum(dim=1, keepdim=True).clamp_min(1e-6)
+            return torch.sum(x * mask.unsqueeze(-1), dim=1) / denom
+        if self.clip_fusion == "max":
+            masked = x.masked_fill(mask.unsqueeze(-1) <= 0, -1e9)
+            return torch.max(masked, dim=1)[0]
+        if self.clip_fuser is None:
+            raise ValueError("clip_fuser not initialized for clip_fusion mode.")
+        return self.clip_fuser(x, mask)
+
+    def forward(self, x: torch.Tensor, view_mask: torch.Tensor, clip_mask: torch.Tensor) -> torch.Tensor:
+        batch, views, clips, dim = x.shape
+        x_flat = x.view(batch * views, clips, dim)
+        clip_mask_flat = clip_mask.view(batch * views, clips)
+        fused_clips = self._fuse_clips(x_flat, clip_mask_flat)
+        fused_clips = fused_clips.view(batch, views, dim)
+        fused_views = self.view_fuser(fused_clips, view_mask)
+        h = self.backbone(fused_views)
+        return self.head(h)
+
+
+class HierarchicalFusionHeteroscedastic(nn.Module):
+    """Hierarchical fusion with heteroscedastic head."""
+
+    def __init__(
+        self,
+        input_dim: int,
+        hidden: int = 256,
+        depth: int = 3,
+        dropout: float = 0.2,
+        clip_fusion: str = "attention",
+        view_fusion: str = "attention",
+        num_heads: int = 4,
+        attn_dropout: float = 0.1,
+    ):
+        super().__init__()
+        self.clip_fusion = clip_fusion
+        self.view_fusion = view_fusion
+        if clip_fusion == "softmax":
+            self.clip_fuser: Optional[nn.Module] = SoftmaxFuser(input_dim)
+        elif clip_fusion == "attention":
+            self.clip_fuser = AttentionFuser(input_dim, num_heads=num_heads, attn_dropout=attn_dropout)
+        else:
+            self.clip_fuser = None
+
+        if view_fusion == "attention":
+            self.view_fuser = AttentionFuser(input_dim, num_heads=num_heads, attn_dropout=attn_dropout)
+        else:
+            self.view_fuser = SoftmaxFuser(input_dim)
+
+        self.backbone = ResidualMLPBackbone(input_dim, hidden=hidden, depth=depth, dropout=dropout)
+        self.mu = nn.Linear(hidden, 1)
+        self.log_var = nn.Linear(hidden, 1)
+
+    def _fuse_clips(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        if self.clip_fusion == "mean":
+            denom = mask.sum(dim=1, keepdim=True).clamp_min(1e-6)
+            return torch.sum(x * mask.unsqueeze(-1), dim=1) / denom
+        if self.clip_fusion == "max":
+            masked = x.masked_fill(mask.unsqueeze(-1) <= 0, -1e9)
+            return torch.max(masked, dim=1)[0]
+        if self.clip_fuser is None:
+            raise ValueError("clip_fuser not initialized for clip_fusion mode.")
+        return self.clip_fuser(x, mask)
+
+    def forward(self, x: torch.Tensor, view_mask: torch.Tensor, clip_mask: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        batch, views, clips, dim = x.shape
+        x_flat = x.view(batch * views, clips, dim)
+        clip_mask_flat = clip_mask.view(batch * views, clips)
+        fused_clips = self._fuse_clips(x_flat, clip_mask_flat)
+        fused_clips = fused_clips.view(batch, views, dim)
+        fused_views = self.view_fuser(fused_clips, view_mask)
+        h = self.backbone(fused_views)
+        return self.mu(h), self.log_var(h)
+
+
 def _pairwise_loss(
     scores_a: torch.Tensor,
     scores_b: torch.Tensor,
@@ -626,6 +994,9 @@ def _unpack_regression_batch(batch: Sequence[torch.Tensor]):
     if len(batch) == 3:
         x, mask, y = batch
         return x, mask, y
+    if len(batch) == 4:
+        x, view_mask, clip_mask, y = batch
+        return x, (view_mask, clip_mask), y
     raise ValueError("Unexpected batch format for regression.")
 
 
@@ -636,7 +1007,26 @@ def _unpack_pairwise_batch(batch: Sequence[torch.Tensor]):
     if len(batch) == 5:
         x_a, mask_a, x_b, mask_b, target = batch
         return x_a, mask_a, x_b, mask_b, target
+    if len(batch) == 7:
+        x_a, view_mask_a, clip_mask_a, x_b, view_mask_b, clip_mask_b, target = batch
+        return x_a, (view_mask_a, clip_mask_a), x_b, (view_mask_b, clip_mask_b), target
     raise ValueError("Unexpected batch format for pairwise ranking.")
+
+
+def _move_mask_to_device(mask: Optional[object], device: torch.device) -> Optional[object]:
+    if mask is None:
+        return None
+    if isinstance(mask, tuple):
+        return tuple(m.to(device) for m in mask)
+    return mask.to(device)
+
+
+def _forward_with_mask(model: nn.Module, x: torch.Tensor, mask: Optional[object]) -> torch.Tensor:
+    if mask is None:
+        return model(x)
+    if isinstance(mask, tuple):
+        return model(x, *mask)
+    return model(x, mask)
 
 
 def _linear_slope(x: np.ndarray, y: np.ndarray) -> float:
@@ -743,11 +1133,8 @@ def _predict_scores(model: nn.Module, loader: DataLoader, device: torch.device) 
         for batch in loader:
             x, mask, _ = _unpack_regression_batch(batch)
             x = x.to(device)
-            if mask is not None:
-                mask = mask.to(device)
-                out = model(x, mask)
-            else:
-                out = model(x)
+            mask = _move_mask_to_device(mask, device)
+            out = _forward_with_mask(model, x, mask)
             if isinstance(out, tuple):
                 out = out[0]
             out = out.squeeze(1)
@@ -858,11 +1245,8 @@ def _evaluate(
             x, mask, y = _unpack_regression_batch(batch)
             x = x.to(device)
             y = y.to(device)
-            if mask is not None:
-                mask = mask.to(device)
-                out = model(x, mask)
-            else:
-                out = model(x)
+            mask = _move_mask_to_device(mask, device)
+            out = _forward_with_mask(model, x, mask)
             if isinstance(out, tuple):
                 out = out[0]
             out = out.squeeze(1)
@@ -998,13 +1382,11 @@ def _train_model(
                 x_a = x_a.to(device)
                 x_b = x_b.to(device)
                 target = target.to(device).view(-1)
-                if mask_a is not None:
-                    mask_a = mask_a.to(device)
-                if mask_b is not None:
-                    mask_b = mask_b.to(device)
+                mask_a = _move_mask_to_device(mask_a, device)
+                mask_b = _move_mask_to_device(mask_b, device)
                 opt.zero_grad()
-                out_a = model(x_a, mask_a) if mask_a is not None else model(x_a)
-                out_b = model(x_b, mask_b) if mask_b is not None else model(x_b)
+                out_a = _forward_with_mask(model, x_a, mask_a)
+                out_b = _forward_with_mask(model, x_b, mask_b)
                 if isinstance(out_a, tuple):
                     out_a = out_a[0]
                 if isinstance(out_b, tuple):
@@ -1021,10 +1403,9 @@ def _train_model(
                 x, mask, y = _unpack_regression_batch(batch)
                 x = x.to(device)
                 y = y.to(device)
-                if mask is not None:
-                    mask = mask.to(device)
+                mask = _move_mask_to_device(mask, device)
                 opt.zero_grad()
-                out = model(x, mask) if mask is not None else model(x)
+                out = _forward_with_mask(model, x, mask)
                 if isinstance(out, tuple) and len(out) == 2:
                     mu, log_var = out
                     # Gaussian NLL in normalized y space:
@@ -1050,12 +1431,10 @@ def _train_model(
                     x_a = x_a.to(device)
                     x_b = x_b.to(device)
                     target = target.to(device).view(-1)
-                    if mask_a is not None:
-                        mask_a = mask_a.to(device)
-                    if mask_b is not None:
-                        mask_b = mask_b.to(device)
-                    out_a = model(x_a, mask_a) if mask_a is not None else model(x_a)
-                    out_b = model(x_b, mask_b) if mask_b is not None else model(x_b)
+                    mask_a = _move_mask_to_device(mask_a, device)
+                    mask_b = _move_mask_to_device(mask_b, device)
+                    out_a = _forward_with_mask(model, x_a, mask_a)
+                    out_b = _forward_with_mask(model, x_b, mask_b)
                     if isinstance(out_a, tuple):
                         out_a = out_a[0]
                     if isinstance(out_b, tuple):
@@ -1077,9 +1456,8 @@ def _train_model(
                     x, mask, y = _unpack_regression_batch(batch)
                     x = x.to(device)
                     y = y.to(device)
-                    if mask is not None:
-                        mask = mask.to(device)
-                    out = model(x, mask) if mask is not None else model(x)
+                    mask = _move_mask_to_device(mask, device)
+                    out = _forward_with_mask(model, x, mask)
                     if isinstance(out, tuple) and len(out) == 2:
                         mu, log_var = out
                         loss = 0.5 * (log_var + (y - mu) ** 2 / torch.exp(log_var))
@@ -1154,12 +1532,10 @@ def _train_model(
                 x_a = x_a.to(device)
                 x_b = x_b.to(device)
                 target = target.to(device).view(-1)
-                if mask_a is not None:
-                    mask_a = mask_a.to(device)
-                if mask_b is not None:
-                    mask_b = mask_b.to(device)
-                out_a = eval_model(x_a, mask_a) if mask_a is not None else eval_model(x_a)
-                out_b = eval_model(x_b, mask_b) if mask_b is not None else eval_model(x_b)
+                mask_a = _move_mask_to_device(mask_a, device)
+                mask_b = _move_mask_to_device(mask_b, device)
+                out_a = _forward_with_mask(eval_model, x_a, mask_a)
+                out_b = _forward_with_mask(eval_model, x_b, mask_b)
                 if isinstance(out_a, tuple):
                     out_a = out_a[0]
                 if isinstance(out_b, tuple):
@@ -1540,6 +1916,13 @@ def main() -> None:
         help="Visit-level fusion module over views.",
     )
     parser.add_argument(
+        "--clip-fusion",
+        type=str,
+        choices=["none", "mean", "max", "softmax", "attention"],
+        default="mean",
+        help="Clip-level aggregation for sliding-window embeddings.",
+    )
+    parser.add_argument(
         "--attn-heads",
         type=int,
         default=4,
@@ -1745,16 +2128,72 @@ def main() -> None:
     if patient_col in ("patient_id_base", "patient_num_base"):
         logger.info("Using %s for group split to keep augmented patients together.", patient_col)
 
+
     group_cols: List[str]
     time_col = None
     val_patient_ids: Optional[np.ndarray] = None
     val_visit_keys: Optional[np.ndarray] = None
     val_visit_times: Optional[np.ndarray] = None
+
+    sample_col = _find_column(df, ["patient_id", "patient_num"], required=False)
+    if sample_col is None:
+        sample_col = patient_col
+    df["_sample_id"] = df[sample_col].astype(str)
+
+    clip_index_col = _find_column(df, ["clip_index", "clip_idx"], required=False)
+    dicom_col = _resolve_dicom_column(df)
+    time_col_global = _resolve_time_column(df, args.time_col)
+    visit_col_global = _resolve_visit_column(df, args.visit_col) if args.task == "visit" else None
+
+    clip_fusion = args.clip_fusion
+    view_df = df
+    if clip_index_col is None and clip_fusion != "none":
+        logger.warning(
+            "clip-fusion=%s requested but no clip_index column found; falling back to 'none'.",
+            clip_fusion,
+        )
+        clip_fusion = "none"
+    if clip_index_col is not None and clip_fusion != "none":
+        if dicom_col is None:
+            logger.warning(
+                "clip-fusion requested but no DICOM identifier column found; falling back to 'none'."
+            )
+            clip_fusion = "none"
+        else:
+            agg_cols = ["_sample_id"]
+            if "view" in df.columns:
+                agg_cols.append("view")
+            agg_cols.append(dicom_col)
+            extra_cols = [patient_col]
+            if sample_col not in extra_cols and sample_col not in agg_cols:
+                extra_cols.append(sample_col)
+            for col in (visit_col_global, time_col_global):
+                if col and col not in extra_cols and col not in agg_cols:
+                    extra_cols.append(col)
+            view_df = _aggregate_clip_embeddings(df, agg_cols, clip_index_col, extra_cols)
+            if clip_fusion in ("mean", "max"):
+                def _reduce_clips(emb_list: List[np.ndarray]) -> np.ndarray:
+                    emb_stack = np.stack(emb_list).astype(np.float32)
+                    if clip_fusion == "mean":
+                        return emb_stack.mean(axis=0)
+                    return emb_stack.max(axis=0)
+                view_df["embedding_vec"] = view_df["embedding_list"].apply(_reduce_clips)
+
+    sequence_inputs = False
+    use_hierarchical = False
+    view_sequence = False
+    x_train_baseline: Optional[np.ndarray] = None
+    x_val_baseline: Optional[np.ndarray] = None
+
     if args.task == "visit":
-        visit_col = _resolve_visit_column(df, args.visit_col)
+        visit_col = visit_col_global
         if visit_col is None:
             raise ValueError("Visit-level task requires a visit column. Provide --visit-col.")
-        visit_df = _build_visit_level_df(df, patient_col, visit_col, args.min_views)
+        use_hierarchical = clip_fusion in ("softmax", "attention") and clip_index_col is not None
+        if use_hierarchical:
+            visit_df = _build_visit_level_clip_df(view_df, patient_col, visit_col, args.min_views)
+        else:
+            visit_df = _build_visit_level_df(view_df, patient_col, visit_col, args.min_views)
         if visit_df.empty:
             raise ValueError("No valid visits with embeddings and GLS targets.")
         group_cols = [patient_col]
@@ -1782,6 +2221,10 @@ def main() -> None:
 
         groups = visit_df[patient_col].astype(str).fillna("unknown")
         x_list = visit_df["embedding_list"].to_list()
+        if use_hierarchical:
+            x_list = [[_stack_embedding_list(v) for v in view_list] for view_list in x_list]
+        else:
+            x_list = [_stack_embedding_list(v) for v in x_list]
         y = visit_df["target"].astype(np.float32).values
 
         splitter = GroupShuffleSplit(n_splits=1, test_size=args.val_fraction, random_state=args.seed)
@@ -1802,17 +2245,28 @@ def main() -> None:
         )
 
         if args.standardize:
-            # Standardize view embeddings using training statistics.
-            all_train_views = np.concatenate(x_train_list, axis=0)
+            if use_hierarchical:
+                all_train_views = _flatten_nested_embeddings(x_train_list)
+                if all_train_views is None:
+                    raise ValueError("No clip embeddings available for standardization.")
+            else:
+                all_train_views = np.concatenate(x_train_list, axis=0)
             x_mean = all_train_views.mean(axis=0)
             x_std = all_train_views.std(axis=0)
             x_std = np.maximum(x_std, 1e-6)
 
-            def _standardize_views(view_list: List[np.ndarray]) -> List[np.ndarray]:
-                return [((v - x_mean) / x_std).astype(np.float32) for v in view_list]
-
-            x_train_list = _standardize_views(x_train_list)
-            x_val_list = _standardize_views(x_val_list)
+            if use_hierarchical:
+                def _standardize_nested(view_lists: List[List[np.ndarray]]) -> List[List[np.ndarray]]:
+                    out: List[List[np.ndarray]] = []
+                    for view_list in view_lists:
+                        out_views = [((clips - x_mean) / x_std).astype(np.float32) for clips in view_list]
+                        out.append(out_views)
+                    return out
+                x_train_list = _standardize_nested(x_train_list)
+                x_val_list = _standardize_nested(x_val_list)
+            else:
+                x_train_list = [((v - x_mean) / x_std).astype(np.float32) for v in x_train_list]
+                x_val_list = [((v - x_mean) / x_std).astype(np.float32) for v in x_val_list]
 
             if args.objective == "regression":
                 y_mean = float(y_train.mean())
@@ -1826,17 +2280,43 @@ def main() -> None:
                 y_mean = 0.0
                 y_std = 1.0
         else:
-            x_train_list = [v.astype(np.float32) for v in x_train_list]
-            x_val_list = [v.astype(np.float32) for v in x_val_list]
+            if use_hierarchical:
+                x_train_list = [[v.astype(np.float32) for v in view_list] for view_list in x_train_list]
+                x_val_list = [[v.astype(np.float32) for v in view_list] for view_list in x_val_list]
+            else:
+                x_train_list = [v.astype(np.float32) for v in x_train_list]
+                x_val_list = [v.astype(np.float32) for v in x_val_list]
             y_train = y_train.astype(np.float32)
             y_val = y_val.astype(np.float32)
             y_mean = 0.0
             y_std = 1.0
 
-        train_ds = VisitDataset(x_train_list, y_train)
-        val_ds = VisitDataset(x_val_list, y_val)
-        train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=_collate_visit_batch)
-        val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=_collate_visit_batch)
+        if use_hierarchical:
+            sequence_inputs = True
+            train_ds = HierarchicalVisitDataset(x_train_list, y_train)
+            val_ds = HierarchicalVisitDataset(x_val_list, y_val)
+            train_loader = DataLoader(
+                train_ds,
+                batch_size=args.batch_size,
+                shuffle=True,
+                collate_fn=_collate_hierarchical_visit_batch,
+            )
+            val_loader = DataLoader(
+                val_ds,
+                batch_size=args.batch_size,
+                shuffle=False,
+                collate_fn=_collate_hierarchical_visit_batch,
+            )
+        else:
+            train_ds = VisitDataset(x_train_list, y_train)
+            val_ds = VisitDataset(x_val_list, y_val)
+            train_loader = DataLoader(
+                train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=_collate_visit_batch
+            )
+            val_loader = DataLoader(
+                val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=_collate_visit_batch
+            )
+
         pairwise_train_loader = None
         pairwise_val_loader = None
         train_eval_loader = None
@@ -1877,186 +2357,333 @@ def main() -> None:
             )
             if len(train_pairs) == 0 or len(val_pairs) == 0:
                 raise ValueError("Not enough visit pairs for ranking objective.")
-            pairwise_train_loader = DataLoader(
-                PairwiseVisitDataset(x_train_list, train_pairs, train_labels),
-                batch_size=args.batch_size,
-                shuffle=True,
-                collate_fn=_collate_pairwise_visit_batch,
-            )
-            pairwise_val_loader = DataLoader(
-                PairwiseVisitDataset(x_val_list, val_pairs, val_labels),
-                batch_size=args.batch_size,
-                shuffle=False,
-                collate_fn=_collate_pairwise_visit_batch,
-            )
-            train_eval_loader = DataLoader(
-                VisitDataset(x_train_list, y_train_raw),
-                batch_size=args.batch_size,
-                shuffle=False,
-                collate_fn=_collate_visit_batch,
-            )
-            val_eval_loader = DataLoader(
-                VisitDataset(x_val_list, y_val_raw),
-                batch_size=args.batch_size,
-                shuffle=False,
-                collate_fn=_collate_visit_batch,
-            )
+            if use_hierarchical:
+                pairwise_train_loader = DataLoader(
+                    PairwiseHierarchicalDataset(x_train_list, train_pairs, train_labels),
+                    batch_size=args.batch_size,
+                    shuffle=True,
+                    collate_fn=_collate_pairwise_hierarchical_batch,
+                )
+                pairwise_val_loader = DataLoader(
+                    PairwiseHierarchicalDataset(x_val_list, val_pairs, val_labels),
+                    batch_size=args.batch_size,
+                    shuffle=False,
+                    collate_fn=_collate_pairwise_hierarchical_batch,
+                )
+                train_eval_loader = DataLoader(
+                    HierarchicalVisitDataset(x_train_list, y_train_raw),
+                    batch_size=args.batch_size,
+                    shuffle=False,
+                    collate_fn=_collate_hierarchical_visit_batch,
+                )
+                val_eval_loader = DataLoader(
+                    HierarchicalVisitDataset(x_val_list, y_val_raw),
+                    batch_size=args.batch_size,
+                    shuffle=False,
+                    collate_fn=_collate_hierarchical_visit_batch,
+                )
+            else:
+                pairwise_train_loader = DataLoader(
+                    PairwiseVisitDataset(x_train_list, train_pairs, train_labels),
+                    batch_size=args.batch_size,
+                    shuffle=True,
+                    collate_fn=_collate_pairwise_visit_batch,
+                )
+                pairwise_val_loader = DataLoader(
+                    PairwiseVisitDataset(x_val_list, val_pairs, val_labels),
+                    batch_size=args.batch_size,
+                    shuffle=False,
+                    collate_fn=_collate_pairwise_visit_batch,
+                )
+                train_eval_loader = DataLoader(
+                    VisitDataset(x_train_list, y_train_raw),
+                    batch_size=args.batch_size,
+                    shuffle=False,
+                    collate_fn=_collate_visit_batch,
+                )
+                val_eval_loader = DataLoader(
+                    VisitDataset(x_val_list, y_val_raw),
+                    batch_size=args.batch_size,
+                    shuffle=False,
+                    collate_fn=_collate_visit_batch,
+                )
             logger.info("Ranking pairs: train=%d val=%d", len(train_pairs), len(val_pairs))
+        if use_hierarchical and args.model in ("mlp", "mlp_unc"):
+            logger.info("Using hierarchical clip->view fusion for visit-level training.")
         val_patient_ids = visit_df.iloc[val_idx][patient_col].astype(str).to_numpy()
         val_visit_keys = visit_df.iloc[val_idx][visit_col].to_numpy()
         visit_times = _coerce_time_values(visit_df[visit_col])
         val_visit_times = visit_times.iloc[val_idx].to_numpy() if visit_times is not None else None
-        x_train_baseline = np.stack([v.mean(axis=0) for v in x_train_list]).astype(np.float32)
-        x_val_baseline = np.stack([v.mean(axis=0) for v in x_val_list]).astype(np.float32)
+        if not sequence_inputs:
+            x_train_baseline = np.stack([v.mean(axis=0) for v in x_train_list]).astype(np.float32)
+            x_val_baseline = np.stack([v.mean(axis=0) for v in x_val_list]).astype(np.float32)
     else:
-        group_cols = _resolve_group_cols(df, patient_col, args.group_by_view)
+        work_df = view_df
+        group_cols = _resolve_group_cols(work_df, patient_col, args.group_by_view)
         needs_time = args.target_mode == "delta" or args.objective == "ranking"
         if needs_time:
-            time_col = _resolve_time_column(df, args.time_col)
+            time_col = time_col_global
             if time_col is None:
                 raise ValueError("No visit time column found; pass --time-col.")
-            time_vals = _coerce_time_values(df[time_col])
+            time_vals = _coerce_time_values(work_df[time_col])
             if time_vals is None or time_vals.isna().all():
                 raise ValueError(f"Could not parse visit time column '{time_col}'.")
-            df = df.copy()
-            df["_visit_time"] = time_vals
-            before = len(df)
-            df = df[df["_visit_time"].notna()].copy()
-            dropped = before - len(df)
+            work_df = work_df.copy()
+            work_df["_visit_time"] = time_vals
+            before = len(work_df)
+            work_df = work_df[work_df["_visit_time"].notna()].copy()
+            dropped = before - len(work_df)
             if dropped:
                 logger.warning("Dropped %d rows with missing visit time.", dropped)
 
-        df, target_label = _apply_target_transform(df, args.target_mode, group_cols, time_col)
-        df["target"] = pd.to_numeric(df["target"], errors="coerce")
-        df = df[df["target"].notna()].copy()
+        work_df, target_label = _apply_target_transform(work_df, args.target_mode, group_cols, time_col)
+        work_df["target"] = pd.to_numeric(work_df["target"], errors="coerce")
+        work_df = work_df[work_df["target"].notna()].copy()
         if args.target_min is not None:
-            df = df[df["target"] >= args.target_min].copy()
+            work_df = work_df[work_df["target"] >= args.target_min].copy()
         if args.target_max is not None:
-            df = df[df["target"] <= args.target_max].copy()
+            work_df = work_df[work_df["target"] <= args.target_max].copy()
         if args.target_min is not None or args.target_max is not None:
             logger.info(
                 "Filtered %s range to [%s, %s]; remaining rows: %d",
                 target_label,
                 "min" if args.target_min is None else f"{args.target_min:g}",
                 "max" if args.target_max is None else f"{args.target_max:g}",
-                len(df),
+                len(work_df),
             )
-        if df.empty:
+        if work_df.empty:
             raise ValueError("No valid rows with embeddings and target values.")
 
-        groups = df[patient_col].astype(str).fillna("unknown")
-        x = np.stack(df["embedding_vec"].to_list()).astype(np.float32)
-        y = df["target"].astype(np.float32).values
+        groups = work_df[patient_col].astype(str).fillna("unknown")
+        use_sequence = clip_fusion in ("softmax", "attention") and clip_index_col is not None
+        view_sequence = use_sequence
+        if use_sequence:
+            sequence_inputs = True
+            x_list = [_stack_embedding_list(v) for v in work_df["embedding_list"].to_list()]
+            y = work_df["target"].astype(np.float32).values
 
-        splitter = GroupShuffleSplit(n_splits=1, test_size=args.val_fraction, random_state=args.seed)
-        train_idx, val_idx = next(splitter.split(x, y, groups=groups))
-        x_train, y_train = x[train_idx], y[train_idx]
-        x_val, y_val = x[val_idx], y[val_idx]
-        y_train_raw = y_train.copy()
-        y_val_raw = y_val.copy()
-        logger.info(
-            "%s train: mean=%.4f std=%.4f | val: mean=%.4f std=%.4f",
-            target_label,
-            float(np.mean(y_train_raw)),
-            float(np.std(y_train_raw)),
-            float(np.mean(y_val_raw)),
-            float(np.std(y_val_raw)),
-        )
+            splitter = GroupShuffleSplit(n_splits=1, test_size=args.val_fraction, random_state=args.seed)
+            splitter_x = np.zeros((len(y), 1), dtype=np.float32)
+            train_idx, val_idx = next(splitter.split(splitter_x, y, groups=groups))
+            x_train_list = [x_list[i] for i in train_idx]
+            x_val_list = [x_list[i] for i in val_idx]
+            y_train, y_val = y[train_idx], y[val_idx]
+            y_train_raw = y_train.copy()
+            y_val_raw = y_val.copy()
+            logger.info(
+                "%s train: mean=%.4f std=%.4f | val: mean=%.4f std=%.4f",
+                target_label,
+                float(np.mean(y_train_raw)),
+                float(np.std(y_train_raw)),
+                float(np.mean(y_val_raw)),
+                float(np.std(y_val_raw)),
+            )
 
-        if args.standardize:
-            # Standardize embeddings and targets using training statistics.
-            x_mean = x_train.mean(axis=0)
-            x_std = x_train.std(axis=0)
-            x_std = np.maximum(x_std, 1e-6)
-            x_train = ((x_train - x_mean) / x_std).astype(np.float32)
-            x_val = ((x_val - x_mean) / x_std).astype(np.float32)
+            if args.standardize:
+                all_train_views = np.concatenate(x_train_list, axis=0)
+                x_mean = all_train_views.mean(axis=0)
+                x_std = all_train_views.std(axis=0)
+                x_std = np.maximum(x_std, 1e-6)
+                x_train_list = [((v - x_mean) / x_std).astype(np.float32) for v in x_train_list]
+                x_val_list = [((v - x_mean) / x_std).astype(np.float32) for v in x_val_list]
 
-            if args.objective == "regression":
-                y_mean = float(y_train.mean())
-                y_std = float(y_train.std())
-                y_std = max(y_std, 1e-6)
-                y_train = ((y_train - y_mean) / y_std).astype(np.float32)
-                y_val = ((y_val - y_mean) / y_std).astype(np.float32)
+                if args.objective == "regression":
+                    y_mean = float(y_train.mean())
+                    y_std = float(y_train.std())
+                    y_std = max(y_std, 1e-6)
+                    y_train = ((y_train - y_mean) / y_std).astype(np.float32)
+                    y_val = ((y_val - y_mean) / y_std).astype(np.float32)
+                else:
+                    y_train = y_train.astype(np.float32)
+                    y_val = y_val.astype(np.float32)
+                    y_mean = 0.0
+                    y_std = 1.0
             else:
+                x_train_list = [v.astype(np.float32) for v in x_train_list]
+                x_val_list = [v.astype(np.float32) for v in x_val_list]
                 y_train = y_train.astype(np.float32)
                 y_val = y_val.astype(np.float32)
                 y_mean = 0.0
                 y_std = 1.0
+
+            train_ds = VisitDataset(x_train_list, y_train)
+            val_ds = VisitDataset(x_val_list, y_val)
+            train_loader = DataLoader(
+                train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=_collate_visit_batch
+            )
+            val_loader = DataLoader(
+                val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=_collate_visit_batch
+            )
+
+            pairwise_train_loader = None
+            pairwise_val_loader = None
+            train_eval_loader = None
+            val_eval_loader = None
+            if args.objective == "ranking":
+                if "_visit_time" not in work_df.columns:
+                    raise ValueError("Ranking objective requires visit time; check --time-col.")
+                df_train = work_df.iloc[train_idx].copy().reset_index(drop=True)
+                df_val = work_df.iloc[val_idx].copy().reset_index(drop=True)
+                rng = np.random.RandomState(args.seed)
+                train_pairs, train_labels = _build_pairwise_pairs(
+                    df_train,
+                    group_cols=group_cols,
+                    order_col="_visit_time",
+                    label_source=args.pairwise_label,
+                    direction=args.ranking_direction,
+                    max_pairs_per_group=args.max_pairs_per_group,
+                    rng=rng,
+                )
+                val_pairs, val_labels = _build_pairwise_pairs(
+                    df_val,
+                    group_cols=group_cols,
+                    order_col="_visit_time",
+                    label_source=args.pairwise_label,
+                    direction=args.ranking_direction,
+                    max_pairs_per_group=args.max_pairs_per_group,
+                    rng=rng,
+                )
+                if len(train_pairs) == 0 or len(val_pairs) == 0:
+                    raise ValueError("Not enough visit pairs for ranking objective.")
+                pairwise_train_loader = DataLoader(
+                    PairwiseVisitDataset(x_train_list, train_pairs, train_labels),
+                    batch_size=args.batch_size,
+                    shuffle=True,
+                    collate_fn=_collate_pairwise_visit_batch,
+                )
+                pairwise_val_loader = DataLoader(
+                    PairwiseVisitDataset(x_val_list, val_pairs, val_labels),
+                    batch_size=args.batch_size,
+                    shuffle=False,
+                    collate_fn=_collate_pairwise_visit_batch,
+                )
+                train_eval_loader = DataLoader(
+                    VisitDataset(x_train_list, y_train_raw),
+                    batch_size=args.batch_size,
+                    shuffle=False,
+                    collate_fn=_collate_visit_batch,
+                )
+                val_eval_loader = DataLoader(
+                    VisitDataset(x_val_list, y_val_raw),
+                    batch_size=args.batch_size,
+                    shuffle=False,
+                    collate_fn=_collate_visit_batch,
+                )
+                logger.info("Ranking pairs: train=%d val=%d", len(train_pairs), len(val_pairs))
         else:
-            x_train = x_train.astype(np.float32)
-            x_val = x_val.astype(np.float32)
-            y_train = y_train.astype(np.float32)
-            y_val = y_val.astype(np.float32)
-            y_mean = 0.0
-            y_std = 1.0
+            x = np.stack(work_df["embedding_vec"].to_list()).astype(np.float32)
+            y = work_df["target"].astype(np.float32).values
 
-        train_ds = EmbeddingDataset(x_train, y_train)
-        val_ds = EmbeddingDataset(x_val, y_val)
-        train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
-        val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
+            splitter = GroupShuffleSplit(n_splits=1, test_size=args.val_fraction, random_state=args.seed)
+            train_idx, val_idx = next(splitter.split(x, y, groups=groups))
+            x_train, y_train = x[train_idx], y[train_idx]
+            x_val, y_val = x[val_idx], y[val_idx]
+            y_train_raw = y_train.copy()
+            y_val_raw = y_val.copy()
+            logger.info(
+                "%s train: mean=%.4f std=%.4f | val: mean=%.4f std=%.4f",
+                target_label,
+                float(np.mean(y_train_raw)),
+                float(np.std(y_train_raw)),
+                float(np.mean(y_val_raw)),
+                float(np.std(y_val_raw)),
+            )
 
-        pairwise_train_loader = None
-        pairwise_val_loader = None
-        train_eval_loader = None
-        val_eval_loader = None
-        if args.objective == "ranking":
-            if "_visit_time" not in df.columns:
-                raise ValueError("Ranking objective requires visit time; check --time-col.")
-            df_train = df.iloc[train_idx].copy().reset_index(drop=True)
-            df_val = df.iloc[val_idx].copy().reset_index(drop=True)
-            rng = np.random.RandomState(args.seed)
-            train_pairs, train_labels = _build_pairwise_pairs(
-                df_train,
-                group_cols=group_cols,
-                order_col="_visit_time",
-                label_source=args.pairwise_label,
-                direction=args.ranking_direction,
-                max_pairs_per_group=args.max_pairs_per_group,
-                rng=rng,
-            )
-            val_pairs, val_labels = _build_pairwise_pairs(
-                df_val,
-                group_cols=group_cols,
-                order_col="_visit_time",
-                label_source=args.pairwise_label,
-                direction=args.ranking_direction,
-                max_pairs_per_group=args.max_pairs_per_group,
-                rng=rng,
-            )
-            if len(train_pairs) == 0 or len(val_pairs) == 0:
-                raise ValueError("Not enough visit pairs for ranking objective.")
-            pairwise_train_loader = DataLoader(
-                PairwiseRankingDataset(x_train, train_pairs, train_labels),
-                batch_size=args.batch_size,
-                shuffle=True,
-            )
-            pairwise_val_loader = DataLoader(
-                PairwiseRankingDataset(x_val, val_pairs, val_labels),
-                batch_size=args.batch_size,
-                shuffle=False,
-            )
-            train_eval_loader = DataLoader(
-                EmbeddingDataset(x_train, y_train_raw),
-                batch_size=args.batch_size,
-                shuffle=False,
-            )
-            val_eval_loader = DataLoader(
-                EmbeddingDataset(x_val, y_val_raw),
-                batch_size=args.batch_size,
-                shuffle=False,
-            )
-            logger.info("Ranking pairs: train=%d val=%d", len(train_pairs), len(val_pairs))
-        val_patient_ids = df.iloc[val_idx][patient_col].astype(str).to_numpy()
-        visit_col_for_traj = _resolve_visit_column(df, args.visit_col)
+            if args.standardize:
+                x_mean = x_train.mean(axis=0)
+                x_std = x_train.std(axis=0)
+                x_std = np.maximum(x_std, 1e-6)
+                x_train = ((x_train - x_mean) / x_std).astype(np.float32)
+                x_val = ((x_val - x_mean) / x_std).astype(np.float32)
+
+                if args.objective == "regression":
+                    y_mean = float(y_train.mean())
+                    y_std = float(y_train.std())
+                    y_std = max(y_std, 1e-6)
+                    y_train = ((y_train - y_mean) / y_std).astype(np.float32)
+                    y_val = ((y_val - y_mean) / y_std).astype(np.float32)
+                else:
+                    y_train = y_train.astype(np.float32)
+                    y_val = y_val.astype(np.float32)
+                    y_mean = 0.0
+                    y_std = 1.0
+            else:
+                x_train = x_train.astype(np.float32)
+                x_val = x_val.astype(np.float32)
+                y_train = y_train.astype(np.float32)
+                y_val = y_val.astype(np.float32)
+                y_mean = 0.0
+                y_std = 1.0
+
+            train_ds = EmbeddingDataset(x_train, y_train)
+            val_ds = EmbeddingDataset(x_val, y_val)
+            train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
+            val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False)
+
+            pairwise_train_loader = None
+            pairwise_val_loader = None
+            train_eval_loader = None
+            val_eval_loader = None
+            if args.objective == "ranking":
+                if "_visit_time" not in work_df.columns:
+                    raise ValueError("Ranking objective requires visit time; check --time-col.")
+                df_train = work_df.iloc[train_idx].copy().reset_index(drop=True)
+                df_val = work_df.iloc[val_idx].copy().reset_index(drop=True)
+                rng = np.random.RandomState(args.seed)
+                train_pairs, train_labels = _build_pairwise_pairs(
+                    df_train,
+                    group_cols=group_cols,
+                    order_col="_visit_time",
+                    label_source=args.pairwise_label,
+                    direction=args.ranking_direction,
+                    max_pairs_per_group=args.max_pairs_per_group,
+                    rng=rng,
+                )
+                val_pairs, val_labels = _build_pairwise_pairs(
+                    df_val,
+                    group_cols=group_cols,
+                    order_col="_visit_time",
+                    label_source=args.pairwise_label,
+                    direction=args.ranking_direction,
+                    max_pairs_per_group=args.max_pairs_per_group,
+                    rng=rng,
+                )
+                if len(train_pairs) == 0 or len(val_pairs) == 0:
+                    raise ValueError("Not enough visit pairs for ranking objective.")
+                pairwise_train_loader = DataLoader(
+                    PairwiseRankingDataset(x_train, train_pairs, train_labels),
+                    batch_size=args.batch_size,
+                    shuffle=True,
+                )
+                pairwise_val_loader = DataLoader(
+                    PairwiseRankingDataset(x_val, val_pairs, val_labels),
+                    batch_size=args.batch_size,
+                    shuffle=False,
+                )
+                train_eval_loader = DataLoader(
+                    EmbeddingDataset(x_train, y_train_raw),
+                    batch_size=args.batch_size,
+                    shuffle=False,
+                )
+                val_eval_loader = DataLoader(
+                    EmbeddingDataset(x_val, y_val_raw),
+                    batch_size=args.batch_size,
+                    shuffle=False,
+                )
+                logger.info("Ranking pairs: train=%d val=%d", len(train_pairs), len(val_pairs))
+
+        val_patient_ids = work_df.iloc[val_idx][patient_col].astype(str).to_numpy()
+        visit_col_for_traj = _resolve_visit_column(work_df, args.visit_col)
         if visit_col_for_traj is None:
-            visit_col_for_traj = _resolve_time_column(df, args.time_col)
+            visit_col_for_traj = _resolve_time_column(work_df, args.time_col)
         if visit_col_for_traj is not None:
-            visit_series = df[visit_col_for_traj]
+            visit_series = work_df[visit_col_for_traj]
             val_visit_keys = visit_series.iloc[val_idx].to_numpy()
             visit_times = _coerce_time_values(visit_series)
             val_visit_times = visit_times.iloc[val_idx].to_numpy() if visit_times is not None else None
-        x_train_baseline = x_train
-        x_val_baseline = x_val
+        if not sequence_inputs and not use_sequence:
+            x_train_baseline = x_train
+            x_val_baseline = x_val
 
     device = torch.device("cuda" if args.device == "auto" and torch.cuda.is_available() else "cpu")
     if args.device not in ("auto", "cpu", "cuda"):
@@ -2068,7 +2695,18 @@ def main() -> None:
     if args.model in ("mlp", "all"):
         logger.info("Training MLP regressor...")
         if args.task == "visit":
-            if args.visit_fusion == "attention":
+            if use_hierarchical:
+                model = HierarchicalFusionRegressor(
+                    input_dim,
+                    hidden=args.mlp_hidden,
+                    depth=args.mlp_depth,
+                    dropout=args.mlp_dropout,
+                    clip_fusion=clip_fusion,
+                    view_fusion=args.visit_fusion,
+                    num_heads=args.attn_heads,
+                    attn_dropout=args.attn_dropout,
+                )
+            elif args.visit_fusion == "attention":
                 model = AttentionFusionRegressor(
                     input_dim,
                     hidden=args.mlp_hidden,
@@ -2085,13 +2723,30 @@ def main() -> None:
                     dropout=args.mlp_dropout,
                 )
         else:
-            model_cls = MLPRegressor
-            model = model_cls(
-                input_dim,
-                hidden=args.mlp_hidden,
-                depth=args.mlp_depth,
-                dropout=args.mlp_dropout,
-            )
+            if view_sequence:
+                if clip_fusion == "attention":
+                    model = AttentionFusionRegressor(
+                        input_dim,
+                        hidden=args.mlp_hidden,
+                        depth=args.mlp_depth,
+                        dropout=args.mlp_dropout,
+                        num_heads=args.attn_heads,
+                        attn_dropout=args.attn_dropout,
+                    )
+                else:
+                    model = SoftmaxFusionRegressor(
+                        input_dim,
+                        hidden=args.mlp_hidden,
+                        depth=args.mlp_depth,
+                        dropout=args.mlp_dropout,
+                    )
+            else:
+                model = MLPRegressor(
+                    input_dim,
+                    hidden=args.mlp_hidden,
+                    depth=args.mlp_depth,
+                    dropout=args.mlp_dropout,
+                )
         out_path = args.output_dir / "mlp_best.pt"
         mlp_log_dir = base_log_dir / "mlp" if base_log_dir is not None and args.model == "all" else base_log_dir
         run_args = dict(base_args)
@@ -2134,7 +2789,18 @@ def main() -> None:
     if args.model in ("mlp_unc", "all"):
         logger.info("Training MLP heteroscedastic regressor...")
         if args.task == "visit":
-            if args.visit_fusion == "attention":
+            if use_hierarchical:
+                model = HierarchicalFusionHeteroscedastic(
+                    input_dim,
+                    hidden=args.mlp_hidden,
+                    depth=args.mlp_depth,
+                    dropout=args.mlp_dropout,
+                    clip_fusion=clip_fusion,
+                    view_fusion=args.visit_fusion,
+                    num_heads=args.attn_heads,
+                    attn_dropout=args.attn_dropout,
+                )
+            elif args.visit_fusion == "attention":
                 model = AttentionFusionHeteroscedastic(
                     input_dim,
                     hidden=args.mlp_hidden,
@@ -2151,13 +2817,30 @@ def main() -> None:
                     dropout=args.mlp_dropout,
                 )
         else:
-            model_cls = MLPHeteroscedastic
-            model = model_cls(
-                input_dim,
-                hidden=args.mlp_hidden,
-                depth=args.mlp_depth,
-                dropout=args.mlp_dropout,
-            )
+            if view_sequence:
+                if clip_fusion == "attention":
+                    model = AttentionFusionHeteroscedastic(
+                        input_dim,
+                        hidden=args.mlp_hidden,
+                        depth=args.mlp_depth,
+                        dropout=args.mlp_dropout,
+                        num_heads=args.attn_heads,
+                        attn_dropout=args.attn_dropout,
+                    )
+                else:
+                    model = SoftmaxFusionHeteroscedastic(
+                        input_dim,
+                        hidden=args.mlp_hidden,
+                        depth=args.mlp_depth,
+                        dropout=args.mlp_dropout,
+                    )
+            else:
+                model = MLPHeteroscedastic(
+                    input_dim,
+                    hidden=args.mlp_hidden,
+                    depth=args.mlp_depth,
+                    dropout=args.mlp_dropout,
+                )
         out_path = args.output_dir / "mlp_unc_best.pt"
         mlp_unc_log_dir = (
             base_log_dir / "mlp_unc" if base_log_dir is not None and args.model == "all" else base_log_dir
@@ -2202,22 +2885,28 @@ def main() -> None:
     run_baselines = args.run_baselines or args.model == "all"
     run_tree_baselines = args.run_tree_baselines or args.model == "all"
     if run_baselines:
-        logger.info("Running linear baselines...")
-        results["baselines"] = _run_linear_baselines(
-            x_train_baseline,
-            y_train_raw,
-            x_val_baseline,
-            y_val_raw,
-        )
+        if x_train_baseline is None or x_val_baseline is None:
+            logger.warning("Skipping linear baselines because inputs are sequence-based.")
+        else:
+            logger.info("Running linear baselines...")
+            results["baselines"] = _run_linear_baselines(
+                x_train_baseline,
+                y_train_raw,
+                x_val_baseline,
+                y_val_raw,
+            )
     if run_tree_baselines:
-        logger.info("Running tree baselines...")
-        results["tree_baselines"] = _run_tree_baselines(
-            x_train_baseline,
-            y_train_raw,
-            x_val_baseline,
-            y_val_raw,
-            seed=args.seed,
-        )
+        if x_train_baseline is None or x_val_baseline is None:
+            logger.warning("Skipping tree baselines because inputs are sequence-based.")
+        else:
+            logger.info("Running tree baselines...")
+            results["tree_baselines"] = _run_tree_baselines(
+                x_train_baseline,
+                y_train_raw,
+                x_val_baseline,
+                y_val_raw,
+                seed=args.seed,
+            )
 
     metrics_payload = json.dumps(results, indent=2)
     if plot_dirs:
