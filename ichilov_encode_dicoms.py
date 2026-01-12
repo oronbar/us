@@ -550,7 +550,7 @@ def main() -> None:
     parser.add_argument(
         "--aug-per-patient",
         type=int,
-        default=2,
+        default=0,
         help="Number of augmented patient copies to generate per patient (0 disables).",
     )
     parser.add_argument(

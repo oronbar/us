@@ -29,8 +29,11 @@ import argparse
 import logging
 import re
 from dataclasses import dataclass
+from concurrent.futures import ProcessPoolExecutor
+from itertools import repeat
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from os import cpu_count
 
 import numpy as np
 import pandas as pd
@@ -39,6 +42,7 @@ from tqdm import tqdm
 
 try:
     import pydicom
+    from pydicom.dataset import FileMetaDataset
     from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 except Exception as exc:  # pragma: no cover - runtime check
     raise RuntimeError(
@@ -513,11 +517,10 @@ def _process_dicom(
     ds_out.PixelRepresentation = 1 if stack.dtype.kind == "i" else 0
     ds_out.PixelData = stack.tobytes()
     ds_out.SOPInstanceUID = generate_uid()
-    if hasattr(ds_out, "file_meta"):
-        ds_out.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
-    ds_out.is_little_endian = True
-    ds_out.is_implicit_VR = False
-    ds_out.save_as(str(out_path), write_like_original=False)
+    if not hasattr(ds_out, "file_meta") or ds_out.file_meta is None:
+        ds_out.file_meta = FileMetaDataset()
+    ds_out.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+    ds_out.save_as(str(out_path), enforce_file_format=True)
     return out_path
 
 
@@ -610,6 +613,29 @@ def _collect_dicoms(df: pd.DataFrame, echo_root: Path) -> List[DicomEntry]:
     return list(dicoms.values())
 
 
+def _process_entry(
+    entry: DicomEntry,
+    echo_root: Path,
+    output_root: Path,
+    overwrite: bool,
+    sampling_mode: str,
+    target_frames: int,
+    window_sec: float,
+) -> Optional[Path]:
+    return _process_dicom(
+        dicom_path=entry.path,
+        echo_root=echo_root,
+        output_root=output_root,
+        overwrite=overwrite,
+        sampling_mode=sampling_mode,
+        target_frames=target_frames,
+        window_sec=window_sec,
+        end_diastole=entry.end_diastole,
+        end_systole=entry.end_systole,
+        view=entry.view,
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Crop Ichilov DICOMs to 224x224 with optional 16-frame sampling.")
     parser.add_argument(
@@ -650,25 +676,53 @@ def main() -> None:
              "'sliding_window' keeps all frames for clip-level MIL.",
     )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing outputs")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=0,
+        help="Number of parallel workers (ProcessPool). 0 lets the script pick a sensible default; "
+             "set to 1 to disable parallelism.",
+    )
     args = parser.parse_args()
 
     df = pd.read_excel(args.input_xlsx, engine="openpyxl")
     dicoms = _collect_dicoms(df, args.echo_root)
     logger.info(f"Found {len(dicoms)} DICOMs to process")
 
-    for entry in tqdm(dicoms, desc="Cropping DICOMs"):
-        _process_dicom(
-            dicom_path=entry.path,
-            echo_root=args.echo_root,
-            output_root=args.output_root,
-            overwrite=args.overwrite,
-            sampling_mode=args.sampling_mode,
-            target_frames=args.clip_length,
-            window_sec=args.window_sec,
-            end_diastole=entry.end_diastole,
-            end_systole=entry.end_systole,
-            view=entry.view,
-        )
+    worker_count = args.workers
+    if worker_count <= 0:
+        cpu = cpu_count() or 1
+        worker_count = max(1, min(cpu, cpu - 1))
+
+    if worker_count == 1:
+        for entry in tqdm(dicoms, desc="Cropping DICOMs"):
+            _process_entry(
+                entry,
+                echo_root=args.echo_root,
+                output_root=args.output_root,
+                overwrite=args.overwrite,
+                sampling_mode=args.sampling_mode,
+                target_frames=args.clip_length,
+                window_sec=args.window_sec,
+            )
+    else:
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            list(
+                tqdm(
+                    executor.map(
+                        _process_entry,
+                        dicoms,
+                        repeat(args.echo_root),
+                        repeat(args.output_root),
+                        repeat(args.overwrite),
+                        repeat(args.sampling_mode),
+                        repeat(args.clip_length),
+                        repeat(args.window_sec),
+                    ),
+                    total=len(dicoms),
+                    desc=f"Cropping DICOMs (workers={worker_count})",
+                )
+            )
 
 
 if __name__ == "__main__":

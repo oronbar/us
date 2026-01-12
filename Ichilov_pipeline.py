@@ -42,6 +42,24 @@ def _unique_file(path: Path) -> Path:
     raise RuntimeError(f"Could not find unique file for {path}")
 
 
+def _latest_dir(root: Path) -> Optional[Path]:
+    if not root.exists():
+        return None
+    candidates = [p for p in root.iterdir() if p.is_dir()]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
+
+
+def _latest_file(root: Path, pattern: str) -> Optional[Path]:
+    if not root.exists():
+        return None
+    candidates = [p for p in root.rglob(pattern) if p.is_file()]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
+
+
 def _run_step(label: str, args: List[str]) -> None:
     logger.info("Running %s: %s", label, " ".join(str(a) for a in args))
     subprocess.run(args, check=True)
@@ -167,16 +185,24 @@ def main() -> None:
     args = parser.parse_args()
 
     run_name = args.run_name.strip() or datetime.now().strftime("ichilov_%Y%m%d_%H%M%S")
-    cropped_root = _unique_dir(args.cropped_root_base / run_name)
-    pretrain_output_dir = _unique_dir(args.pretrain_output_base / run_name)
+    pretrain_run_name = f"echovisionfm_mae_{run_name}"
+    python_exe = Path(sys.executable)
+
+    cropped_root = args.cropped_root_base / run_name
+    pretrain_output_dir = args.pretrain_output_base / run_name
     embeddings_path = _unique_file(args.embeddings_output_base / f"Ichilov_GLS_embeddings_{run_name}.parquet")
     gls_output_dir = _unique_dir(args.gls_output_base / run_name)
 
-    pretrain_run_name = f"echovisionfm_mae_{run_name}"
-    pretrain_best = pretrain_output_dir / f"{pretrain_run_name}_best_mae.pt"
-
-    python_exe = Path(sys.executable)
-
+    args.skip_crop = True
+    if args.skip_crop:
+        latest_cropped = _latest_dir(args.cropped_root_base)
+        if latest_cropped is not None:
+            cropped_root = latest_cropped
+            logger.info("Using latest cropped folder: %s", cropped_root)
+        else:
+            logger.warning("No cropped runs found under %s", args.cropped_root_base)
+    else:
+        cropped_root = _unique_dir(cropped_root)
     if args.skip_crop and not cropped_root.exists():
         logger.warning("Cropped root does not exist: %s", cropped_root)
 
@@ -202,8 +228,11 @@ def main() -> None:
         )
     else:
         logger.info("Skipping crop step.")
-
+    pretrain_best: Optional[Path] = None
+    args.skip_pretrain = True
     if not args.skip_pretrain:
+        pretrain_output_dir = _unique_dir(pretrain_output_dir)
+        pretrain_best = pretrain_output_dir / f"{pretrain_run_name}_best_mae.pt"
         if not args.pretrain_weights.exists():
             raise FileNotFoundError(f"Pretrain weights not found: {args.pretrain_weights}")
         pretrain_output_dir.mkdir(parents=True, exist_ok=True)
@@ -231,6 +260,14 @@ def main() -> None:
         )
     else:
         logger.info("Skipping pretrain step.")
+        latest_pretrain = _latest_file(args.pretrain_output_base, "*_best_mae.pt")
+        if latest_pretrain is not None:
+            args.pretrain_weights = latest_pretrain
+            pretrain_output_dir = latest_pretrain.parent
+            pretrain_best = latest_pretrain
+            logger.info("Using latest pretrain weights: %s", args.pretrain_weights)
+        else:
+            logger.warning("Pretrain weights not found under %s; using %s", args.pretrain_output_base, args.pretrain_weights)
 
     encode_weights = args.encode_weights
     if encode_weights is None:
