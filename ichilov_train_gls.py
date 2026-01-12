@@ -1919,7 +1919,7 @@ def main() -> None:
         "--clip-fusion",
         type=str,
         choices=["none", "mean", "max", "softmax", "attention"],
-        default="mean",
+        default="attention",
         help="Clip-level aggregation for sliding-window embeddings.",
     )
     parser.add_argument(

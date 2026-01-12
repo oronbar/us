@@ -144,10 +144,10 @@ def main() -> None:
     parser.add_argument("--clip-length", type=int, default=16, help="Frames per clip.")
     parser.add_argument("--clip-stride", type=int, default=4, help="Stride for sliding-window clips.")
     parser.add_argument("--window-sec", type=float, default=1.0, help="Window length in seconds (window mode).")
-    parser.add_argument("--skip-crop", action="store_true", help="Skip cropping step.")
-    parser.add_argument("--skip-pretrain", action="store_true", help="Skip MAE pretraining step.")
-    parser.add_argument("--skip-encode", action="store_true", help="Skip encoding step.")
-    parser.add_argument("--skip-train", action="store_true", help="Skip GLS training step.")
+    parser.add_argument("--skip-crop", action="store_true", help="Skip cropping step.", default=True)
+    parser.add_argument("--skip-pretrain", action="store_true", help="Skip MAE pretraining step.", default=True)
+    parser.add_argument("--skip-encode", action="store_true", help="Skip encoding step.", default=True)
+    parser.add_argument("--skip-train", action="store_true", help="Skip GLS training step.", default=False)
     parser.add_argument(
         "--gls-task",
         type=str,
@@ -193,7 +193,6 @@ def main() -> None:
     embeddings_path = _unique_file(args.embeddings_output_base / f"Ichilov_GLS_embeddings_{run_name}.parquet")
     gls_output_dir = _unique_dir(args.gls_output_base / run_name)
 
-    args.skip_crop = True
     if args.skip_crop:
         latest_cropped = _latest_dir(args.cropped_root_base)
         if latest_cropped is not None:
@@ -229,7 +228,7 @@ def main() -> None:
     else:
         logger.info("Skipping crop step.")
     pretrain_best: Optional[Path] = None
-    args.skip_pretrain = True
+
     if not args.skip_pretrain:
         pretrain_output_dir = _unique_dir(pretrain_output_dir)
         pretrain_best = pretrain_output_dir / f"{pretrain_run_name}_best_mae.pt"
@@ -301,6 +300,16 @@ def main() -> None:
         )
     else:
         logger.info("Skipping encoding step.")
+        latest_embeddings = _latest_file(args.embeddings_output_base, "Ichilov_GLS_embeddings_*.parquet")
+        if latest_embeddings is not None:
+            embeddings_path = latest_embeddings
+            logger.info("Using latest embeddings parquet: %s", embeddings_path)
+        else:
+            logger.warning(
+                "No embeddings parquet found under %s; expected at %s",
+                args.embeddings_output_base,
+                embeddings_path,
+            )
 
     if not args.skip_train:
         if args.skip_encode and not embeddings_path.exists():
