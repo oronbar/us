@@ -1,7 +1,7 @@
 # Pipeline-level behavior (applies to all steps unless overridden in step args)
 pipeline:
   # Optional fixed run name. Leave empty to auto-generate with timestamp.
-  run_name: ''
+  run_name: 'A2C_A4C_visit_ranking'
   # Prefix for auto-generated run folder names.
   run_name_prefix: 'ichilov_pipeline'
   # Optional explicit python executable (leave empty to use current interpreter).
@@ -10,7 +10,7 @@ pipeline:
   save_config_copy: true
   # Optional apical view filter applied to pretrain/encode/train if not set per-step.
   # Examples: 'A2C', 'A2C,A4C', '2C 3C'
-  views: ''
+  views: 'A2C,A4C'
 
 # Common paths used by the pipeline
 paths:
