@@ -27,6 +27,7 @@ import ast
 import json
 import logging
 import random
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -106,6 +107,30 @@ def _find_column(df: pd.DataFrame, candidates: Sequence[str], required: bool = F
     if required:
         raise ValueError(f"Missing required column. Tried: {candidates}")
     return None
+
+
+def _parse_views(view_str: Optional[str]) -> Optional[set]:
+    if view_str is None:
+        return None
+    raw = str(view_str).strip()
+    if not raw:
+        return None
+    parts = [p.strip().upper() for p in re.split(r"[;,\\s]+", raw) if p.strip()]
+    if not parts:
+        return None
+    mapped = []
+    for p in parts:
+        token = p.replace("APICAL", "").replace("CHAMBER", "").replace("CH", "").replace("-", "")
+        token = token.replace("A", "")
+        if token in {"2C", "2"}:
+            mapped.append("A2C")
+        elif token in {"3C", "3"}:
+            mapped.append("A3C")
+        elif token in {"4C", "4"}:
+            mapped.append("A4C")
+        else:
+            mapped.append(p)
+    return set(mapped)
 
 
 def _parse_embedding(val: object) -> Optional[np.ndarray]:
@@ -1897,6 +1922,12 @@ def main() -> None:
         help="Predict per-view GLS (view) or per-visit global GLS with view fusion (visit).",
     )
     parser.add_argument(
+        "--views",
+        type=str,
+        default="",
+        help="Comma/space-separated apical views to include (e.g., 'A2C,A4C').",
+    )
+    parser.add_argument(
         "--visit-col",
         type=str,
         default="",
@@ -2022,10 +2053,22 @@ def main() -> None:
         help="Run linear baselines (ridge/elasticnet/huber).",
     )
     parser.add_argument(
+        "--no-run-baselines",
+        dest="run_baselines",
+        action="store_false",
+        help="Disable linear baselines (ridge/elasticnet/huber).",
+    )
+    parser.add_argument(
         "--run-tree-baselines",
         action="store_true",
         default=True,
         help="Run optional tree baselines (xgboost/lightgbm/catboost).",
+    )
+    parser.add_argument(
+        "--no-run-tree-baselines",
+        dest="run_tree_baselines",
+        action="store_false",
+        help="Disable optional tree baselines (xgboost/lightgbm/catboost).",
     )
     parser.add_argument(
         "--gls-min",
@@ -2044,6 +2087,12 @@ def main() -> None:
         dest="standardize",
         action="store_true",
         default=True,
+        help="Standardize embeddings/targets (default).",
+    )
+    parser.add_argument(
+        "--no-standardize",
+        dest="standardize",
+        action="store_false",
         help="Disable standardization of embeddings/targets (use raw values).",
     )
     args = parser.parse_args()
@@ -2052,6 +2101,17 @@ def main() -> None:
 
     df = _load_embeddings(args.input_embeddings)
     df.columns = [str(c).strip() for c in df.columns]
+
+    selected_views = _parse_views(args.views)
+    if selected_views:
+        view_col = _find_column(df, ["view"], required=False)
+        if view_col is None:
+            logger.warning("View filter requested but no 'view' column found in embeddings.")
+        else:
+            df = df[df[view_col].astype(str).str.upper().isin(selected_views)].copy()
+            logger.info("Filtered to views %s; remaining rows: %d", ", ".join(sorted(selected_views)), len(df))
+            if df.empty:
+                raise ValueError(f"No rows left after view filter: {sorted(selected_views)}")
 
     if args.target_col:
         if args.target_col not in df.columns:

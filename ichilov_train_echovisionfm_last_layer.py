@@ -16,14 +16,18 @@ import json
 import logging
 import math
 import random
+import re
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Iterable, List, Optional, Sequence, Tuple, Set
 
 import numpy as np
+import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
+
+from ichilov_crop_dicoms import _collect_dicoms
 
 try:
     import pydicom
@@ -275,13 +279,63 @@ def _set_trainable_layers(model: VideoMAEForPreTraining, train_encoder_blocks: i
         model.mask_token.requires_grad = True
 
 
+def _parse_views(view_str: Optional[str]) -> Optional[Set[str]]:
+    if view_str is None:
+        return None
+    raw = str(view_str).strip()
+    if not raw:
+        return None
+    parts = [p.strip().upper() for p in re.split(r"[;,\\s]+", raw) if p.strip()]
+    if not parts:
+        return None
+    mapped = []
+    for p in parts:
+        token = p.replace("APICAL", "").replace("CHAMBER", "").replace("CH", "").replace("-", "")
+        token = token.replace("A", "")
+        if token in {"2C", "2"}:
+            mapped.append("A2C")
+        elif token in {"3C", "3"}:
+            mapped.append("A3C")
+        elif token in {"4C", "4"}:
+            mapped.append("A4C")
+        else:
+            mapped.append(p)
+    return set(mapped)
+
+
+def _collect_view_filtered_paths(
+    input_xlsx: Path,
+    echo_root: Path,
+    cropped_root: Path,
+    views: Set[str],
+) -> List[Path]:
+    df = pd.read_excel(input_xlsx, engine="openpyxl")
+    dicoms = _collect_dicoms(df, echo_root)
+    selected: List[Path] = []
+    for entry in dicoms:
+        if entry.view is None or entry.view.upper() not in views:
+            continue
+        try:
+            rel = entry.path.relative_to(echo_root)
+            cropped_path = cropped_root / rel
+        except Exception:
+            cropped_path = cropped_root / entry.path.name
+        if cropped_path.is_file():
+            selected.append(cropped_path)
+    return selected
+
+
 def _list_dicom_paths(
     cropped_root: Path,
     data_ratio: float,
     max_samples: int,
     seed: int,
+    allowed_paths: Optional[Sequence[Path]] = None,
 ) -> List[Path]:
-    paths = sorted(cropped_root.rglob("*.dcm"))
+    if allowed_paths is None:
+        paths = sorted(cropped_root.rglob("*.dcm"))
+    else:
+        paths = sorted({p for p in allowed_paths if p.is_file()})
     if not paths:
         raise RuntimeError(f"No DICOMs found under {cropped_root}")
     rng = random.Random(seed)
@@ -404,6 +458,24 @@ def main() -> None:
         type=Path,
         default=USER_HOME / "OneDrive - Technion" / "DS" / "Ichilov_cropped",
         help="Root of cropped DICOM tree.",
+    )
+    parser.add_argument(
+        "--input-xlsx",
+        type=Path,
+        default=USER_HOME / "OneDrive - Technion" / "DS" / "Report_Ichilov_GLS_and_Strain_oron.xlsx",
+        help="Optional Excel registry to filter by view.",
+    )
+    parser.add_argument(
+        "--echo-root",
+        type=Path,
+        default=Path(r"D:\DS\Ichilov"),
+        help="Root directory of original DICOMs (for view filtering).",
+    )
+    parser.add_argument(
+        "--views",
+        type=str,
+        default="",
+        help="Comma/space-separated apical views to include (e.g., 'A2C,A4C').",
     )
     parser.add_argument(
         "--weights",
@@ -549,8 +621,26 @@ def main() -> None:
 
     run_name = args.run_name or datetime.now().strftime("echovisionfm_mae_%Y%m%d_%H%M%S")
 
+    views = _parse_views(args.views)
+    allowed_paths = None
+    if views:
+        if not args.input_xlsx.exists():
+            raise FileNotFoundError(f"View filtering requires input_xlsx: {args.input_xlsx}")
+        if not args.echo_root.exists():
+            raise FileNotFoundError(f"View filtering requires echo_root: {args.echo_root}")
+        allowed_paths = _collect_view_filtered_paths(args.input_xlsx, args.echo_root, args.cropped_root, views)
+        if not allowed_paths:
+            raise RuntimeError(f"No cropped DICOMs found for views {sorted(views)}")
+        logger.info("View filter enabled (%s): %d DICOMs", ", ".join(sorted(views)), len(allowed_paths))
+
     logger.info("Listing cropped DICOMs...")
-    paths = _list_dicom_paths(args.cropped_root, args.data_ratio, args.max_samples, args.seed)
+    paths = _list_dicom_paths(
+        args.cropped_root,
+        args.data_ratio,
+        args.max_samples,
+        args.seed,
+        allowed_paths=allowed_paths,
+    )
     train_paths, val_paths = _split_paths(paths, args.cropped_root, args.val_ratio, args.seed)
     logger.info(f"Train DICOMs: {len(train_paths)}, Val DICOMs: {len(val_paths)}")
 

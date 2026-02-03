@@ -55,6 +55,30 @@ logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("ichilov_encode_dicoms")
 
 VIEW_KEYS = ("A2C", "A3C", "A4C")
+
+
+def _parse_views(view_str: Optional[str]) -> Optional[set]:
+    if view_str is None:
+        return None
+    raw = str(view_str).strip()
+    if not raw:
+        return None
+    parts = [p.strip().upper() for p in re.split(r"[;,\\s]+", raw) if p.strip()]
+    if not parts:
+        return None
+    mapped = []
+    for p in parts:
+        token = p.replace("APICAL", "").replace("CHAMBER", "").replace("CH", "").replace("-", "")
+        token = token.replace("A", "")
+        if token in {"2C", "2"}:
+            mapped.append("A2C")
+        elif token in {"3C", "3"}:
+            mapped.append("A3C")
+        elif token in {"4C", "4"}:
+            mapped.append("A4C")
+        else:
+            mapped.append(p)
+    return set(mapped)
 PROJECT_ROOT = Path(__file__).resolve().parent
 ECHO_VISION_ROOT = (PROJECT_ROOT / "Echo-Vison-FM").resolve()
 if ECHO_VISION_ROOT.exists():
@@ -548,6 +572,18 @@ def main() -> None:
         help="Use EchoVisionFM STF fusion head (outputs 1536-dim instead of 768-dim).",
     )
     parser.add_argument(
+        "--no-use-stf",
+        dest="use_stf",
+        action="store_false",
+        help="Disable EchoVisionFM STF fusion head (use 768-dim pooled embeddings).",
+    )
+    parser.add_argument(
+        "--views",
+        type=str,
+        default="",
+        help="Comma/space-separated apical views to include (e.g., 'A2C,A4C').",
+    )
+    parser.add_argument(
         "--aug-per-patient",
         type=int,
         default=0,
@@ -605,6 +641,10 @@ def main() -> None:
     patient_augments: Dict[str, List[Dict[str, float]]] = {}
     rows: List[dict] = []
 
+    selected_views = _parse_views(args.views)
+    if selected_views:
+        logger.info("View filter enabled: %s", ", ".join(sorted(selected_views)))
+
     for row_idx, row in tqdm(df.iterrows(), total=len(df), desc="Encoding"):
         patient_num = str(row[col_patient]).strip() if col_patient and not pd.isna(row[col_patient]) else None
         patient_id = str(row[col_id]).strip() if col_id and not pd.isna(row[col_id]) else None
@@ -642,6 +682,8 @@ def main() -> None:
             )
 
         for view in VIEW_KEYS:
+            if selected_views and view not in selected_views:
+                continue
             col = col_src.get(view)
             if not col:
                 logger.debug(f"Skipping view {view} - no source column")

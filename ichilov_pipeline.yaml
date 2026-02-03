@@ -1,0 +1,240 @@
+# Pipeline-level behavior (applies to all steps unless overridden in step args)
+pipeline:
+  # Optional fixed run name. Leave empty to auto-generate with timestamp.
+  run_name: ''
+  # Prefix for auto-generated run folder names.
+  run_name_prefix: 'ichilov_pipeline'
+  # Optional explicit python executable (leave empty to use current interpreter).
+  python_exe: ''
+  # Save a copy of this YAML into the run folder.
+  save_config_copy: true
+  # Optional apical view filter applied to pretrain/encode/train if not set per-step.
+  # Examples: 'A2C', 'A2C,A4C', '2C 3C'
+  views: ''
+
+# Common paths used by the pipeline
+paths:
+  # Root folder for all timestamped runs and outputs.
+  experiments_root: 'C:\Users\oron\OneDrive - Technion\Experiments'
+  # Base folder where cropped DICOM runs are stored (cropping outputs).
+  cropped_root_base: 'D:\DS\Ichilov_cropped'
+
+# Individual pipeline steps and their script arguments
+steps:
+  crop:
+    # Whether to run this step.
+    run: false
+    # If run is false, use outputs from this folder (if empty -> latest under cropped_root_base).
+    use_if_skipped: 'D:\DS\Ichilov_cropped\ichilov_20260125_140201'
+    # Optional base folder override for crop outputs (if empty -> paths.cropped_root_base).
+    output_root_base: ''
+    args:
+      # Excel registry with DICOM paths and metadata.
+      input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
+      # Root folder of original DICOMs.
+      echo_root: 'D:\DS\Ichilov'
+      # Output root for cropped DICOMs (if empty -> auto under cropped_root_base/run_name).
+      output_root: ''
+      # Frames per clip (ignored in sliding_window mode which keeps all frames).
+      clip_length: 16
+      # Window length (seconds) for window/adjusting_window sampling.
+      window_sec: 0.6
+      # Sampling mode: window | adjusting_window | phase | sliding_window.
+      sampling_mode: 'window'
+      # Overwrite existing cropped DICOMs if present.
+      overwrite: false
+      # Number of process workers (0 -> auto).
+      workers: 0
+
+  pretrain:
+    # Whether to run this step.
+    run: true
+    # If run is false, use a specific weights file (if empty -> latest in experiments_root).
+    use_if_skipped: ''
+    args:
+      # Root of cropped DICOMs (if empty -> crop output or skipped output).
+      cropped_root: ''
+      # Initial weights for MAE pretraining (if empty -> repo/default weights).
+      weights: ''
+      # Output directory for checkpoints/metrics (if empty -> run_dir/pretrain).
+      output_dir: ''
+      # Optional Excel registry to enable view filtering in pretrain.
+      input_xlsx: ''
+      # Root of original DICOMs (required when views filtering is enabled).
+      echo_root: ''
+      # Optional apical view filter for pretrain (overrides pipeline.views).
+      views: ''
+      # Frames per clip (must match weights).
+      frames: 16
+      # Sampling mode: uniform | sliding_window.
+      sampling_mode: 'uniform'
+      # Stride between sliding-window clips.
+      clip_stride: 4
+      # Force last window to end at final frame (sliding_window only).
+      include_last_window: true
+      # Fraction of tokens to mask for MAE reconstruction.
+      mask_ratio: 0.9
+      # Number of last encoder blocks to train.
+      train_encoder_blocks: 2
+      # Freeze decoder (true = freeze, false = train decoder).
+      freeze_decoder: false
+      # Training batch size.
+      batch_size: 8
+      # Data loader workers.
+      num_workers: 4
+      # Number of epochs.
+      epochs: 10
+      # Learning rate.
+      lr: 0.0001
+      # Weight decay.
+      weight_decay: 0.05
+      # Validation split ratio (by patient folder).
+      val_ratio: 0.2
+      # Fraction of cropped DICOMs to use.
+      data_ratio: 1.0
+      # Optional max samples (0 = no limit).
+      max_samples: 0
+      # Random seed.
+      seed: 42
+      # Device (empty -> auto).
+      device: ''
+      # Optional pretrain run name (empty -> auto).
+      run_name: ''
+
+  encode:
+    # Whether to run this step.
+    run: true
+    # If run is false, use a specific parquet (if empty -> latest in experiments_root).
+    use_if_skipped: ''
+    args:
+      # Excel registry with DICOM paths and metadata.
+      input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
+      # Root folder of original DICOMs.
+      echo_root: 'D:\DS\Ichilov'
+      # Root of cropped DICOMs (if empty -> crop output or skipped output).
+      cropped_root: ''
+      # Encoder weights for embedding (if empty -> pretrain best or pretrain weights).
+      weights: ''
+      # Output parquet path (if empty -> run_dir/embeddings/Ichilov_GLS_embeddings_<run>.parquet).
+      output_parquet: ''
+      # Overwrite output parquet if it already exists.
+      overwrite: false
+      # Sampling mode: uniform | sliding_window.
+      sampling_mode: 'uniform'
+      # Frames per clip for encoding.
+      clip_length: 16
+      # Stride between sliding-window clips.
+      clip_stride: 4
+      # Force last window to end at final frame (sliding_window only).
+      include_last_window: true
+      # Use STF fusion head (1536-dim instead of 768-dim).
+      use_stf: true
+      # Optional apical view filter for encoding (overrides pipeline.views).
+      views: ''
+      # Number of augmented patient copies to generate per patient.
+      aug_per_patient: 0
+      # Random seed for augmentation sampling.
+      aug_seed: 42
+      # Max absolute brightness delta (e.g., 0.1 -> [0.9, 1.1]).
+      aug_brightness: 0.1
+      # Max absolute contrast delta (e.g., 0.1 -> [0.9, 1.1]).
+      aug_contrast: 0.1
+      # Max absolute rotation in degrees.
+      aug_rotate_deg: 5.0
+      # Max absolute stretch factor delta along x or y axis.
+      aug_stretch: 0.05
+
+  train:
+    # Whether to run this step.
+    run: true
+    args:
+      # Input parquet/csv embeddings (if empty -> encode output or skipped output).
+      input_embeddings: ''
+      # Optional report Excel to supply GLS targets.
+      report_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
+      # Output directory for pred_plots_* folders (if empty -> run_dir/gls).
+      output_dir: ''
+      # Optional TensorBoard log directory (empty -> default under run output).
+      log_dir: ''
+      # Model type: mlp | mlp_unc | all.
+      model: 'mlp'
+      # Number of epochs.
+      epochs: 70
+      # Batch size.
+      batch_size: 64
+      # Learning rate.
+      lr: 0.002
+      # Weight decay.
+      weight_decay: 0.0
+      # LR reduce factor on plateau.
+      lr_factor: 0.5
+      # Epoch patience before LR drop.
+      lr_patience: 5
+      # Lower bound for learning rate.
+      lr_min: 0.000001
+      # Validation fraction.
+      val_fraction: 0.2
+      # Random seed.
+      seed: 42
+      # Device: auto | cuda | cpu.
+      device: 'auto'
+      # Regression loss: mse | mae | huber.
+      loss: 'huber'
+      # Optional embedding dimension filter (e.g., 768 or 1536).
+      embedding_dim: null
+      # Optional target column name (defaults to 'gls' if present).
+      target_col: ''
+      # Task: view | visit.
+      task: 'visit'
+      # Optional apical view filter for training (overrides pipeline.views).
+      views: ''
+      # Optional visit identifier column (auto-detected if empty).
+      visit_col: ''
+      # Minimum number of views required per visit (visit task only).
+      min_views: 2
+      # Visit-level fusion module (softmax | attention).
+      visit_fusion: 'attention'
+      # Clip-level fusion for sliding-window embeddings.
+      clip_fusion: 'attention'
+      # Attention heads for visit-level fusion.
+      attn_heads: 4
+      # Attention dropout for visit-level fusion.
+      attn_dropout: 0.1
+      # Target mode: absolute | delta | patient_centered.
+      target_mode: 'patient_centered'
+      # Optional visit time column (auto-detect if empty).
+      time_col: ''
+      # Group baselines/centering within view when available.
+      group_by_view: true
+      # Optional minimum filter on transformed target.
+      target_min: null
+      # Optional maximum filter on transformed target.
+      target_max: null
+      # Training objective: regression | ranking.
+      objective: 'regression'
+      # For ranking: label pairs by time or target.
+      pairwise_label: 'target'
+      # For ranking: later >= earlier or later <= earlier.
+      ranking_direction: 'nondecreasing'
+      # Pairwise ranking loss: hinge | logistic.
+      ranking_loss: 'hinge'
+      # Margin for hinge ranking loss.
+      ranking_margin: 0.1
+      # Limit number of pairs per patient/group (0 = all).
+      max_pairs_per_group: 0
+      # Hidden size for MLP models.
+      mlp_hidden: 256
+      # Number of residual blocks in the MLP.
+      mlp_depth: 3
+      # Dropout rate for MLP models.
+      mlp_dropout: 0.2
+      # Run linear baselines (ridge/elasticnet/huber).
+      run_baselines: true
+      # Run optional tree baselines (xgboost/lightgbm/catboost).
+      run_tree_baselines: true
+      # Optional min raw GLS filter (inclusive).
+      gls_min: -23
+      # Optional max raw GLS filter (inclusive).
+      gls_max: -15
+      # Standardize embeddings/targets (true = standardize).
+      standardize: true
