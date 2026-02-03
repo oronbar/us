@@ -1,7 +1,7 @@
 # Pipeline-level behavior (applies to all steps unless overridden in step args)
 pipeline:
   # Optional fixed run name. Leave empty to auto-generate with timestamp.
-  run_name: 'A2C_A4C_visit_ranking'
+  run_name: 'A2C_A4C_visit_regression_train'
   # Prefix for auto-generated run folder names.
   run_name_prefix: 'ichilov_pipeline'
   # Optional explicit python executable (leave empty to use current interpreter).
@@ -48,7 +48,7 @@ steps:
 
   pretrain:
     # Whether to run this step.
-    run: true
+    run: false
     # If run is false, use a specific weights file (if empty -> latest in experiments_root).
     use_if_skipped: ''
     args:
@@ -103,7 +103,7 @@ steps:
 
   encode:
     # Whether to run this step.
-    run: true
+    run: false
     # If run is false, use a specific parquet (if empty -> latest in experiments_root).
     use_if_skipped: ''
     args:
@@ -129,6 +129,8 @@ steps:
       include_last_window: true
       # Use STF fusion head (1536-dim instead of 768-dim).
       use_stf: true
+      # Safer DICOM decoding (disables native GDCM/pylibjpeg decoders).
+      safe_decode: true
       # Optional apical view filter for encoding (overrides pipeline.views).
       views: ''
       # Number of augmented patient copies to generate per patient.

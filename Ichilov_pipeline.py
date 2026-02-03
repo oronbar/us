@@ -371,6 +371,7 @@ def main() -> None:
         encode_bool_flags = {
             "include_last_window": ("--include-last-window", "--no-include-last-window"),
             "use_stf": ("--use-stf", "--no-use-stf"),
+            "safe_decode": ("--safe-decode", "--no-safe-decode"),
         }
         encode_cmd = _build_cmd(
             project_root / "ichilov_encode_dicoms.py",

@@ -496,6 +496,19 @@ def _encode_tensor(
     return emb.squeeze(0).cpu().numpy()
 
 
+def _configure_pydicom_handlers(safe_decode: bool) -> None:
+    if not safe_decode:
+        return
+    try:
+        from pydicom import config
+        if hasattr(config, "use_gdcm"):
+            config.use_gdcm = False
+        if hasattr(config, "use_pylibjpeg"):
+            config.use_pylibjpeg = False
+    except Exception:
+        return
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Encode cropped DICOMs into MAE embeddings.")
     parser.add_argument(
@@ -578,6 +591,19 @@ def main() -> None:
         help="Disable EchoVisionFM STF fusion head (use 768-dim pooled embeddings).",
     )
     parser.add_argument(
+        "--safe-decode",
+        dest="safe_decode",
+        action="store_true",
+        default=True,
+        help="Disable native GDCM/pylibjpeg decoders for safer DICOM reads.",
+    )
+    parser.add_argument(
+        "--no-safe-decode",
+        dest="safe_decode",
+        action="store_false",
+        help="Allow native GDCM/pylibjpeg decoders (may be faster, less stable).",
+    )
+    parser.add_argument(
         "--views",
         type=str,
         default="",
@@ -620,6 +646,8 @@ def main() -> None:
         help="Max absolute stretch factor delta along x or y axis.",
     )
     args = parser.parse_args()
+
+    _configure_pydicom_handlers(args.safe_decode)
 
     df = pd.read_excel(args.input_xlsx, engine="openpyxl")
     df.columns = [str(c).strip() for c in df.columns]
