@@ -6,6 +6,7 @@ Workflow:
   - Collect 2C/3C/4C source DICOM paths
   - For each DICOM:
       * pick a 1-second window based on FrameTime (window mode)
+      * OR pick an ED-anchored window that pulls ES toward the samples (adjusting_window mode)
       * OR sample 16 frames between ED/ES using phase interpolation (phase mode)
       * compute a mask per sampled frame (RGB > 5), keep only largest blob
       * average blob masks and use it for the crop box (height == blob height)
@@ -329,6 +330,101 @@ def _sample_indices_window(
     return idx
 
 
+def _frame_count_in_window(frame_time_ms: float, n_frames: int, window_sec: float, target: int) -> int:
+    if n_frames <= 0:
+        return 0
+    if frame_time_ms <= 0:
+        return min(n_frames, target)
+    frames_in_window = int(round((window_sec * 1000.0) / frame_time_ms))
+    frames_in_window = max(1, frames_in_window)
+    return min(frames_in_window, n_frames)
+
+
+def _best_window_start(n_frames: int, frames_in_window: int, end_diastole: Optional[int], end_systole: Optional[int]) -> int:
+    if n_frames <= 0 or frames_in_window <= 0:
+        return 0
+    frames_in_window = min(frames_in_window, n_frames)
+    if end_diastole is None:
+        return max(0, (n_frames - frames_in_window) // 2)
+
+    ed = max(0, min(int(end_diastole), n_frames - 1))
+    start_lo = max(0, ed - frames_in_window + 1)
+    start_hi = min(ed, n_frames - frames_in_window)
+    if start_lo > start_hi:
+        start_lo, start_hi = start_hi, start_lo
+    start_candidates = range(start_lo, start_hi + 1)
+
+    if end_systole is None:
+        desired = ed - (frames_in_window - 1) / 2.0
+        start = int(round(desired))
+        return min(max(start, start_lo), start_hi)
+
+    es = max(0, min(int(end_systole), n_frames - 1))
+    feasible = [s for s in start_candidates if s <= es <= s + frames_in_window - 1]
+    if feasible:
+        mid_target = 0.5 * (ed + es)
+        return min(feasible, key=lambda s: (abs((s + (frames_in_window - 1) / 2.0) - mid_target), s))
+
+    def es_distance(s: int) -> Tuple[float, float, int]:
+        left, right = s, s + frames_in_window - 1
+        if es < left:
+            dist = left - es
+        elif es > right:
+            dist = es - right
+        else:
+            dist = 0.0
+        center = s + (frames_in_window - 1) / 2.0
+        return dist, abs(center - es), s
+
+    return min(start_candidates, key=es_distance)
+
+
+def _sample_indices_adjusting_window(
+    n_frames: int,
+    frame_time_ms: float,
+    target: int,
+    window_sec: float,
+    end_diastole: Optional[int],
+    end_systole: Optional[int],
+) -> np.ndarray:
+    frames_in_window = _frame_count_in_window(frame_time_ms, n_frames, window_sec, target)
+    start = _best_window_start(n_frames, frames_in_window, end_diastole, end_systole)
+    if frames_in_window <= 1 or n_frames <= 0:
+        idx = np.full((target,), max(0, min(start, max(0, n_frames - 1))), dtype=int)
+    else:
+        end = start + frames_in_window - 1
+        idx = np.linspace(start, end, target)
+        idx = np.clip(np.round(idx).astype(int), 0, n_frames - 1)
+
+    def _adjust_es(idx_arr: np.ndarray) -> np.ndarray:
+        if end_systole is None or n_frames <= 0:
+            return idx_arr
+        es = max(0, min(int(end_systole), n_frames - 1))
+        dist = np.abs(idx_arr - es)
+        nearest = int(np.argmin(dist))
+        if dist[nearest] <= 1:
+            idx_arr[nearest] = es
+        else:
+            step = 1 if es > idx_arr[nearest] else -1
+            idx_arr[nearest] = np.clip(idx_arr[nearest] + step, 0, n_frames - 1)
+        return idx_arr
+
+    def _ensure_ed(idx_arr: np.ndarray) -> np.ndarray:
+        if end_diastole is None or n_frames <= 0:
+            return idx_arr
+        ed = max(0, min(int(end_diastole), n_frames - 1))
+        if ed in idx_arr:
+            return idx_arr
+        order = list(range(len(idx_arr)))
+        order.sort(key=lambda i: (abs(idx_arr[i] - ed), idx_arr[i] == end_systole, i))
+        idx_arr[order[0]] = ed
+        return idx_arr
+
+    idx = _adjust_es(idx)
+    idx = _ensure_ed(idx)
+    return idx
+
+
 def _sample_indices_phase(start_idx: int, end_idx: int, target: int = 16) -> np.ndarray:
     if target <= 0:
         return np.array([], dtype=np.float32)
@@ -395,6 +491,16 @@ def _sampled_frames(
         return _sample_frames_from_indices(frames, indices)
     if sampling_mode == "window":
         indices = _sample_indices_window(n_frames, frame_time_ms, target=target_frames, window_sec=window_sec)
+        return _sample_frames_from_indices(frames, indices)
+    if sampling_mode == "adjusting_window":
+        indices = _sample_indices_adjusting_window(
+            n_frames=n_frames,
+            frame_time_ms=frame_time_ms,
+            target=target_frames,
+            window_sec=window_sec,
+            end_diastole=end_diastole,
+            end_systole=end_systole,
+        )
         return _sample_frames_from_indices(frames, indices)
     if sampling_mode == "sliding_window":
         return [frames[i] for i in range(n_frames)]
@@ -665,15 +771,15 @@ def main() -> None:
     parser.add_argument(
         "--window-sec",
         type=float,
-        default=1.0,
-        help="Temporal window length in seconds for window sampling.",
+        default=0.6,
+        help="Temporal window length in seconds for window/adjusting_window sampling.",
     )
     parser.add_argument(
         "--sampling-mode",
-        choices=("window", "phase", "sliding_window"),
+        choices=("window", "adjusting_window", "phase", "sliding_window"),
         default="window",
-        help="Sampling mode: 'window' uses a 1s window; 'phase' interpolates ED->ES frames; "
-             "'sliding_window' keeps all frames for clip-level MIL.",
+        help="Sampling mode: 'window' uses a fixed window; 'adjusting_window' keeps ED, nudges ES into samples; "
+             "'phase' interpolates ED->ES frames; 'sliding_window' keeps all frames for clip-level MIL.",
     )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing outputs")
     parser.add_argument(

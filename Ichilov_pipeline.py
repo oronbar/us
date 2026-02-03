@@ -137,16 +137,21 @@ def main() -> None:
     parser.add_argument(
         "--sampling-mode",
         type=str,
-        choices=["window", "phase", "sliding_window"],
-        default="sliding_window",
+        choices=["window", "adjusting_window", "phase", "sliding_window"],
+        default="window",
         help="Sampling mode for cropping (sliding_window keeps full clips).",
     )
     parser.add_argument("--clip-length", type=int, default=16, help="Frames per clip.")
     parser.add_argument("--clip-stride", type=int, default=4, help="Stride for sliding-window clips.")
-    parser.add_argument("--window-sec", type=float, default=1.0, help="Window length in seconds (window mode).")
-    parser.add_argument("--skip-crop", action="store_true", help="Skip cropping step.", default=True)
-    parser.add_argument("--skip-pretrain", action="store_true", help="Skip MAE pretraining step.", default=True)
-    parser.add_argument("--skip-encode", action="store_true", help="Skip encoding step.", default=True)
+    parser.add_argument(
+        "--window-sec",
+        type=float,
+        default=1,
+        help="Window length in seconds (window/adjusting_window modes).",
+    )
+    parser.add_argument("--skip-crop", action="store_true", help="Skip cropping step.", default=False)
+    parser.add_argument("--skip-pretrain", action="store_true", help="Skip MAE pretraining step.", default=False)
+    parser.add_argument("--skip-encode", action="store_true", help="Skip encoding step.", default=False)
     parser.add_argument("--skip-train", action="store_true", help="Skip GLS training step.", default=False)
     parser.add_argument(
         "--gls-task",
