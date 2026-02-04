@@ -1,7 +1,7 @@
 # Pipeline-level behavior (applies to all steps unless overridden in step args)
 pipeline:
   # Optional fixed run name. Leave empty to auto-generate with timestamp.
-  run_name: 'A2C_A4C_visit_regression_train'
+  run_name: 'A4C_view_regression_train'
   # Prefix for auto-generated run folder names.
   run_name_prefix: 'ichilov_pipeline'
   # Optional explicit python executable (leave empty to use current interpreter).
@@ -10,7 +10,7 @@ pipeline:
   save_config_copy: true
   # Optional apical view filter applied to pretrain/encode/train if not set per-step.
   # Examples: 'A2C', 'A2C,A4C', '2C 3C'
-  views: 'A2C,A4C'
+  views: 'A4C'
 
 # Common paths used by the pipeline
 paths:
@@ -48,7 +48,7 @@ steps:
 
   pretrain:
     # Whether to run this step.
-    run: false
+    run: true
     # If run is false, use a specific weights file (if empty -> latest in experiments_root).
     use_if_skipped: ''
     args:
@@ -103,7 +103,7 @@ steps:
 
   encode:
     # Whether to run this step.
-    run: false
+    run: true
     # If run is false, use a specific parquet (if empty -> latest in experiments_root).
     use_if_skipped: ''
     args:
@@ -187,7 +187,7 @@ steps:
       # Optional target column name (defaults to 'gls' if present).
       target_col: ''
       # Task: view | visit.
-      task: 'visit'
+      task: 'view'
       # Optional apical view filter for training (overrides pipeline.views).
       views: ''
       # Optional visit identifier column (auto-detected if empty).
