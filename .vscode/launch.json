@@ -114,6 +114,16 @@
                 "--out", "${workspaceFolder}\\labels.csv",
                 "--default-outcome", ""
             ]
+        },
+        {
+            "name": "plot global strain",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "plot_global_strain_curves.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--input", "D:\\us\\AutoStrainCap_330568-7_20260208_143723.txt"
+            ]
         }
     ]
 }

@@ -196,6 +196,39 @@ def _get_git_commit(root: Path) -> Optional[str]:
         return None
 
 
+def _git_has_changes(root: Path) -> bool:
+    result = subprocess.run(
+        ["git", "-C", str(root), "status", "--porcelain"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return bool(result.stdout.strip())
+
+
+def _commit_and_push(root: Path, message: str) -> str:
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-m", message], check=True)
+    subprocess.run(["git", "-C", str(root), "push", "origin", "master"], check=True)
+    commit_hash = _get_git_commit(root)
+    if not commit_hash:
+        raise RuntimeError("Git commit hash unavailable after commit.")
+    return commit_hash
+
+
+def _ensure_git_commit(root: Path, run_name: str) -> Optional[str]:
+    if not (root / ".git").exists():
+        logger.warning("No .git directory found at %s; skipping git commit capture.", root)
+        return None
+    try:
+        if _git_has_changes(root):
+            message = f"Ichilov pipeline run {run_name}"
+            return _commit_and_push(root, message)
+        return _get_git_commit(root)
+    except Exception as exc:
+        raise RuntimeError(f"Git commit/push failed: {exc}") from exc
+
+
 def main() -> None:
     if len(sys.argv) > 1:
         logger.warning("Command-line arguments are ignored. Configure via YAML instead.")
@@ -222,6 +255,9 @@ def main() -> None:
 
     python_exe = _expand_path(pipeline_cfg.get("python_exe")) or Path(sys.executable)
     project_root = Path(__file__).resolve().parent
+    git_commit = _ensure_git_commit(project_root, run_name)
+    if git_commit:
+        (run_dir / "git_commit.txt").write_text(f"{git_commit}\n", encoding="utf-8")
 
     default_weights = (
         Path.home()
@@ -244,7 +280,7 @@ def main() -> None:
     resolved["pipeline"]["run_dir"] = str(run_dir)
     resolved["pipeline"]["config_path"] = str(config_path)
     resolved["pipeline"]["python_exe"] = str(python_exe)
-    resolved["pipeline"]["git_commit"] = _get_git_commit(project_root)
+    resolved["pipeline"]["git_commit"] = git_commit
     resolved["pipeline"]["timestamp"] = datetime.now().isoformat(timespec="seconds")
 
     # --- Crop ---

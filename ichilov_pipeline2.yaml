@@ -1,0 +1,296 @@
+# Pipeline-level behavior (applies to all steps unless overridden in step args)
+pipeline:
+  # Optional fixed run name. Leave empty to auto-generate with timestamp.
+  run_name: 'NewPipelineRun'
+  # Prefix for auto-generated run folder names.
+  run_name_prefix: 'ichilov_pipeline2'
+  # Optional explicit python executable (leave empty to use current interpreter).
+  python_exe: ''
+  # Save a copy of this YAML into the run folder.
+  save_config_copy: true
+  # Optional apical view filter applied to steps that accept views.
+  # Examples: 'A2C', 'A2C,A4C', '2C 3C'
+  views: ''
+
+# Common paths used by the pipeline
+paths:
+  # Root folder for all timestamped runs and outputs.
+  experiments_root: 'C:\Users\oron\OneDrive - Technion\Experiments'
+  # Base folder where cropped DICOM runs are stored (cropping outputs).
+  cropped_root_base: 'D:\DS\Ichilov_cropped'
+
+# Individual pipeline steps and their script arguments
+steps:
+  crop:
+    # Whether to run this step.
+    run: true
+    # If run is false, use outputs from this folder (if empty -> latest under cropped_root_base).
+    use_if_skipped: ''
+    # Optional base folder override for crop outputs (if empty -> paths.cropped_root_base).
+    output_root_base: ''
+    # Optional override for the script path.
+    script: ''
+    # Optional mapping for boolean flags in the script.
+    bool_flags: {}
+    args:
+      # Excel registry with DICOM paths and metadata.
+      input_xlsx: ''
+      # Root folder of original DICOMs.
+      echo_root: ''
+      # Output root for cropped DICOMs (if empty -> auto under cropped_root_base/run_name).
+      output_root: ''
+      # Frames per clip (ignored in sliding_window mode which keeps all frames).
+      clip_length: 16
+      # Window length (seconds) for window/adjusting_window sampling.
+      window_sec: 0.6
+      # Sampling mode: window | adjusting_window | phase | sliding_window.
+      sampling_mode: 'window'
+      # Overwrite existing cropped DICOMs if present.
+      overwrite: false
+      # Number of process workers (0 -> auto).
+      workers: 0
+
+  frame_pretrain:
+    # Stage A: frame-level MAE pretraining (2D). Treat each frame as an image.
+    run: true
+    # If run is false, use a specific weights file (if empty -> latest in experiments_root).
+    use_if_skipped: ''
+    # Optional best checkpoint matching pattern within output_dir.
+    best_weights_pattern: ''
+    # Optional best checkpoint name if pattern is not supplied.
+    best_weights_name: ''
+    # Optional override for the script path.
+    script: ''
+    # Optional mapping for boolean flags in the script.
+    bool_flags: {}
+    args:
+      # Root of cropped DICOMs (if empty -> crop output or skipped output).
+      cropped_root: ''
+      # Initial weights for MAE pretraining (if empty -> repo/default weights).
+      weights: ''
+      # Output directory for checkpoints/metrics (if empty -> run_dir/frame_pretrain).
+      output_dir: ''
+      # Optional Excel registry to enable view filtering in pretrain.
+      input_xlsx: ''
+      # Root of original DICOMs (required when views filtering is enabled).
+      echo_root: ''
+      # Optional apical view filter for pretrain (overrides pipeline.views).
+      views: ''
+      # Frame sampling stride (in frames) when drawing training samples.
+      frame_stride: 1
+      # Fraction of tokens to mask for MAE reconstruction.
+      mask_ratio: 0.75
+      # Number of last encoder blocks to train.
+      train_encoder_blocks: 2
+      # Freeze decoder (true = freeze, false = train decoder).
+      freeze_decoder: true
+      # Training batch size.
+      batch_size: 64
+      # Data loader workers.
+      num_workers: 4
+      # Number of epochs.
+      epochs: 50
+      # Learning rate.
+      lr: 0.0001
+      # Weight decay.
+      weight_decay: 0.05
+      # Validation split ratio (by patient folder).
+      val_ratio: 0.2
+      # Fraction of cropped DICOMs to use.
+      data_ratio: 1.0
+      # Optional max samples (0 = no limit).
+      max_samples: 0
+      # Random seed.
+      seed: 42
+      # Device (empty -> auto).
+      device: ''
+      # Optional pretrain run name (empty -> auto).
+      run_name: ''
+      # View-aware head during pretraining (multi-task).
+      view_head: false
+      # Loss weight for view classification (if enabled).
+      view_loss_weight: 0.1
+      # Augmentations (lightweight; avoid destroying anatomy).
+      aug_brightness: 0.1
+      aug_contrast: 0.1
+      aug_rotate_deg: 5.0
+      aug_blur: 0.0
+      aug_speckle: 0.0
+      aug_random_erase: 0.0
+
+  frame_encode:
+    # Stage A output: per-frame embeddings parquet.
+    run: true
+    # If run is false, use a specific parquet (if empty -> latest in experiments_root).
+    use_if_skipped: ''
+    # Optional override for the script path.
+    script: ''
+    # Optional mapping for boolean flags in the script.
+    bool_flags: {}
+    args:
+      # Excel registry with DICOM paths and metadata.
+      input_xlsx: ''
+      # Root folder of original DICOMs.
+      echo_root: ''
+      # Root of cropped DICOMs (if empty -> crop output or skipped output).
+      cropped_root: ''
+      # Encoder weights for embedding (if empty -> frame-pretrain best or pretrain weights).
+      weights: ''
+      # Output parquet path (if empty -> run_dir/frame_embeddings/Ichilov_frame_embeddings_<run>.parquet).
+      output_parquet: ''
+      # Optional apical view filter for encoding (overrides pipeline.views).
+      views: ''
+      # Sampling mode: uniform | sliding_window.
+      sampling_mode: 'uniform'
+      # Frames per sample (frame-level mode typically uses 1).
+      clip_length: 1
+      # Stride between sliding-window clips.
+      clip_stride: 1
+      # Force last window to end at final frame (sliding_window only).
+      include_last_window: true
+
+  temporal_train:
+    # Stage B: learn temporal model on frame embeddings (cine-level GLS).
+    run: true
+    # If run is false, use a specific weights file (if empty -> latest in experiments_root).
+    use_if_skipped: ''
+    # Optional best checkpoint matching pattern within output_dir.
+    best_weights_pattern: ''
+    # Optional best checkpoint name if pattern is not supplied.
+    best_weights_name: ''
+    # Optional override for the script path.
+    script: ''
+    # Optional mapping for boolean flags in the script.
+    bool_flags: {}
+    args:
+      # Input parquet of per-frame embeddings.
+      input_embeddings: ''
+      # Optional report Excel to supply GLS targets.
+      report_xlsx: ''
+      # Output directory for temporal checkpoints (if empty -> run_dir/temporal).
+      output_dir: ''
+      # Optional TensorBoard log directory (empty -> default under run output).
+      log_dir: ''
+      # Optional apical view filter (overrides pipeline.views).
+      views: ''
+      # Model family: transformer | tcn | gru.
+      model: 'transformer'
+      # Sequence length (frames per cine sample).
+      seq_len: 32
+      # Use delta-t features for irregular frame times.
+      use_delta_t: true
+      # Use phase feature if ED/ES indices are known.
+      use_phase: false
+      # Time embedding: relative | absolute | time2vec.
+      time_embedding: 'relative'
+      # Regression loss: mse | mae | huber.
+      loss: 'huber'
+      # Optional self-supervised auxiliaries.
+      aux_order_verification: false
+      aux_masked_timestep: false
+      aux_contrastive: false
+      # Training hyperparameters.
+      epochs: 50
+      batch_size: 32
+      lr: 0.0005
+      weight_decay: 0.01
+      seed: 42
+      device: 'auto'
+      run_name: ''
+
+  cine_encode:
+    # Stage B output: per-cine embeddings parquet.
+    run: true
+    # If run is false, use a specific parquet (if empty -> latest in experiments_root).
+    use_if_skipped: ''
+    # Optional override for the script path.
+    script: ''
+    # Optional mapping for boolean flags in the script.
+    bool_flags: {}
+    args:
+      # Input parquet of per-frame embeddings.
+      input_embeddings: ''
+      # Temporal model weights (if empty -> temporal_train best weights).
+      weights: ''
+      # Output parquet path (if empty -> run_dir/cine_embeddings/Ichilov_cine_embeddings_<run>.parquet).
+      output_parquet: ''
+      # Optional report Excel to attach labels/metadata.
+      report_xlsx: ''
+      # Optional apical view filter (overrides pipeline.views).
+      views: ''
+      # Sequence length (frames per cine sample).
+      seq_len: 32
+      # Output embedding dim (if script supports it).
+      embedding_dim: 256
+
+  visit_fusion:
+    # Stage C prep: aggregate cines into visit embeddings (order-invariant).
+    run: true
+    # If run is false, use a specific parquet (if empty -> latest in experiments_root).
+    use_if_skipped: ''
+    # Optional override for the script path.
+    script: ''
+    # Optional mapping for boolean flags in the script.
+    bool_flags: {}
+    args:
+      # Input parquet of per-cine embeddings.
+      input_embeddings: ''
+      # Output parquet path (if empty -> run_dir/visit_embeddings/Ichilov_visit_embeddings_<run>.parquet).
+      output_parquet: ''
+      # Optional report Excel to attach labels/metadata.
+      report_xlsx: ''
+      # Optional apical view filter (overrides pipeline.views).
+      views: ''
+      # Fusion module: attention | set_transformer | mean.
+      fusion: 'attention'
+      # Minimum number of views required per visit.
+      min_views: 2
+      # Whether to add view embeddings.
+      use_view_embedding: true
+      # Whether to add cine-quality embeddings.
+      use_quality_embedding: false
+
+  longitudinal_train:
+    # Stage C: patient longitudinal model over visit embeddings.
+    run: true
+    # If run is false, use a specific weights file (if empty -> latest in experiments_root).
+    use_if_skipped: ''
+    # Optional best checkpoint matching pattern within output_dir.
+    best_weights_pattern: ''
+    # Optional best checkpoint name if pattern is not supplied.
+    best_weights_name: ''
+    # Optional override for the script path.
+    script: ''
+    # Optional mapping for boolean flags in the script.
+    bool_flags: {}
+    args:
+      # Input parquet of per-visit embeddings.
+      input_embeddings: ''
+      # Optional report Excel to supply GLS targets.
+      report_xlsx: ''
+      # Output directory for longitudinal checkpoints (if empty -> run_dir/longitudinal).
+      output_dir: ''
+      # Optional TensorBoard log directory (empty -> default under run output).
+      log_dir: ''
+      # Optional apical view filter (overrides pipeline.views).
+      views: ''
+      # Model family: gru | transformer.
+      model: 'gru'
+      # Use delta-t features for irregular visit timing.
+      use_delta_t: true
+      # Time embedding: relative | absolute | time2vec.
+      time_embedding: 'relative'
+      # Task: next_gls | delta_gls | deterioration.
+      task: 'delta_gls'
+      # Horizon in months (for deterioration classification).
+      horizon_months: 6
+      # Regression loss: mse | mae | huber.
+      loss: 'huber'
+      # Training hyperparameters.
+      epochs: 50
+      batch_size: 32
+      lr: 0.0005
+      weight_decay: 0.01
+      seed: 42
+      device: 'auto'
+      run_name: ''
