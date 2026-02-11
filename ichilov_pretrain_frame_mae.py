@@ -1,5 +1,5 @@
 """
-Frame-level MAE pretraining using VideoMAE (frames are repeated to match num_frames).
+Frame-level MAE pretraining using USF-MAE (ViT-MAE, 2D frames).
 """
 from __future__ import annotations
 
@@ -37,12 +37,7 @@ except Exception as exc:  # pragma: no cover - runtime check
         "scikit-learn is required. Install with: .venv\\Scripts\\python -m pip install scikit-learn"
     ) from exc
 
-try:
-    from transformers import VideoMAEConfig, VideoMAEForPreTraining
-except Exception as exc:  # pragma: no cover - runtime check
-    raise RuntimeError(
-        "transformers is required. Install with: .venv\\Scripts\\python -m pip install transformers"
-    ) from exc
+from usf_mae_model import MaskedAutoencoderViT, mae_vit_base_patch16_dec512d8b
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("ichilov_pretrain_frame_mae")
@@ -82,11 +77,8 @@ def _normalize_state_dict(checkpoint: object) -> dict:
     return state_dict
 
 
-def _load_pretraining_model(weights_path: Optional[Path], frames: int) -> VideoMAEForPreTraining:
-    config = VideoMAEConfig()
-    config.image_size = 224
-    config.num_frames = int(frames)
-    model = VideoMAEForPreTraining(config)
+def _load_pretraining_model(weights_path: Optional[Path]) -> MaskedAutoencoderViT:
+    model = mae_vit_base_patch16_dec512d8b()
     if weights_path is None:
         return model
     checkpoint = torch.load(weights_path, map_location="cpu")
@@ -95,17 +87,16 @@ def _load_pretraining_model(weights_path: Optional[Path], frames: int) -> VideoM
         model.load_state_dict(state_dict)
     except RuntimeError as exc:
         raise RuntimeError(
-            "Failed to load weights. Ensure the checkpoint matches VideoMAEForPreTraining "
-            "and uses 16 frames."
+            "Failed to load USF-MAE weights. Ensure the checkpoint matches mae_vit_base_patch16_dec512d8b."
         ) from exc
     return model
 
 
-def _set_trainable_layers(model: VideoMAEForPreTraining, train_encoder_blocks: int, train_decoder: bool) -> None:
+def _set_trainable_layers(model: MaskedAutoencoderViT, train_encoder_blocks: int, train_decoder: bool) -> None:
     for param in model.parameters():
         param.requires_grad = False
 
-    encoder_layers = model.videomae.encoder.layer
+    encoder_layers = model.blocks
     max_blocks = len(encoder_layers)
     if train_encoder_blocks > max_blocks:
         logger.warning("Requested %d encoder blocks, clamping to %d.", train_encoder_blocks, max_blocks)
@@ -116,28 +107,15 @@ def _set_trainable_layers(model: VideoMAEForPreTraining, train_encoder_blocks: i
                 param.requires_grad = True
 
     if train_decoder:
-        for param in model.encoder_to_decoder.parameters():
+        for param in model.decoder_embed.parameters():
             param.requires_grad = True
-        for param in model.decoder.parameters():
+        for param in model.decoder_blocks.parameters():
+            param.requires_grad = True
+        for param in model.decoder_norm.parameters():
+            param.requires_grad = True
+        for param in model.decoder_pred.parameters():
             param.requires_grad = True
         model.mask_token.requires_grad = True
-
-
-def _seq_length(config: VideoMAEConfig, frames: int) -> int:
-    if frames % config.tubelet_size != 0:
-        raise ValueError("frames must be divisible by tubelet_size.")
-    num_patches_per_frame = (config.image_size // config.patch_size) ** 2
-    return (frames // config.tubelet_size) * num_patches_per_frame
-
-
-def _build_mask(batch_size: int, seq_length: int, mask_ratio: float, device: torch.device) -> torch.Tensor:
-    num_mask = int(round(seq_length * mask_ratio))
-    num_mask = max(1, min(seq_length - 1, num_mask))
-    rand = torch.rand((batch_size, seq_length), device=device)
-    ids = rand.argsort(dim=1)
-    mask = torch.zeros((batch_size, seq_length), dtype=torch.bool, device=device)
-    mask.scatter_(1, ids[:, :num_mask], True)
-    return mask
 
 
 def _read_frame_count(dicom_path: Path) -> Optional[int]:
@@ -167,7 +145,6 @@ class FrameDataset(Dataset):
     def __init__(
         self,
         entries: Sequence[FrameEntry],
-        frames: int = 16,
         image_size: int = 224,
         aug_brightness: float = 0.0,
         aug_contrast: float = 0.0,
@@ -177,7 +154,6 @@ class FrameDataset(Dataset):
         aug_random_erase: float = 0.0,
     ) -> None:
         self.entries = list(entries)
-        self.frames = int(frames)
         self.image_size = int(image_size)
         self.aug_brightness = float(aug_brightness)
         self.aug_contrast = float(aug_contrast)
@@ -241,7 +217,7 @@ class FrameDataset(Dataset):
         tensor = resize_tensor(tensor, size=self.image_size)
         tensor = self._apply_basic_aug(tensor)
         tensor = self._apply_tv_aug(tensor)
-        tensor = tensor.repeat(self.frames, 1, 1, 1)
+        tensor = tensor.squeeze(0)
         return tensor, entry.view
 
 
@@ -260,12 +236,11 @@ def _collate(batch: list):
 
 
 def _train_one_epoch(
-    model: VideoMAEForPreTraining,
+    model: MaskedAutoencoderViT,
     view_head: Optional[torch.nn.Module],
     loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
-    seq_length: int,
     mask_ratio: float,
     view_loss_weight: float,
 ) -> Tuple[float, float]:
@@ -282,16 +257,12 @@ def _train_one_epoch(
         pixel_values, view_idx = batch
         pixel_values = pixel_values.to(device, non_blocking=True)
         view_idx = view_idx.to(device, non_blocking=True)
-        batch_size = pixel_values.shape[0]
-        bool_masked_pos = _build_mask(batch_size, seq_length, mask_ratio, device)
-
-        outputs = model(pixel_values=pixel_values, bool_masked_pos=bool_masked_pos)
-        loss = outputs.loss
+        loss, _, _ = model(pixel_values, mask_ratio=mask_ratio)
         view_loss = torch.tensor(0.0, device=device)
 
         if view_head is not None:
             with torch.no_grad():
-                enc = model.videomae(pixel_values=pixel_values).last_hidden_state
+                enc, _, _ = model.forward_encoder(pixel_values, mask_ratio=0.0)
             cls_tok = enc[:, 0, :]
             logits = view_head(cls_tok)
             mask = view_idx >= 0
@@ -311,11 +282,10 @@ def _train_one_epoch(
 
 
 def _evaluate(
-    model: VideoMAEForPreTraining,
+    model: MaskedAutoencoderViT,
     view_head: Optional[torch.nn.Module],
     loader: DataLoader,
     device: torch.device,
-    seq_length: int,
     mask_ratio: float,
     view_loss_weight: float,
 ) -> Tuple[float, float]:
@@ -332,15 +302,11 @@ def _evaluate(
             pixel_values, view_idx = batch
             pixel_values = pixel_values.to(device, non_blocking=True)
             view_idx = view_idx.to(device, non_blocking=True)
-            batch_size = pixel_values.shape[0]
-            bool_masked_pos = _build_mask(batch_size, seq_length, mask_ratio, device)
-
-            outputs = model(pixel_values=pixel_values, bool_masked_pos=bool_masked_pos)
-            loss = outputs.loss
+            loss, _, _ = model(pixel_values, mask_ratio=mask_ratio)
             view_loss = torch.tensor(0.0, device=device)
 
             if view_head is not None:
-                enc = model.videomae(pixel_values=pixel_values).last_hidden_state
+                enc, _, _ = model.forward_encoder(pixel_values, mask_ratio=0.0)
                 cls_tok = enc[:, 0, :]
                 logits = view_head(cls_tok)
                 mask = view_idx >= 0
@@ -417,15 +383,19 @@ def _build_entries(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Frame-level MAE pretraining (VideoMAE backbone).")
+    parser = argparse.ArgumentParser(description="Frame-level MAE pretraining (USF-MAE ViT backbone).")
     parser.add_argument("--cropped-root", type=Path, required=True, help="Root of cropped DICOMs.")
-    parser.add_argument("--weights", type=Path, default=None, help="Optional initial weights checkpoint.")
+    parser.add_argument(
+        "--weights",
+        type=Path,
+        default=Path(r"D:\us\USF-MAE\USF-MAE_full_pretrain_43dataset_100epochs.pt"),
+        help="Optional initial weights checkpoint (USF-MAE).",
+    )
     parser.add_argument("--output-dir", type=Path, required=True, help="Output directory for checkpoints.")
     parser.add_argument("--input-xlsx", type=Path, default=None, help="Optional Excel registry for view filtering.")
     parser.add_argument("--echo-root", type=Path, default=None, help="Root of original DICOMs.")
     parser.add_argument("--views", type=str, default="", help="Comma/space-separated views to include.")
     parser.add_argument("--frame-stride", type=int, default=1, help="Stride between frames sampled from each cine.")
-    parser.add_argument("--frames", type=int, default=16, help="Frames per VideoMAE input (frame repeated).")
     parser.add_argument("--mask-ratio", type=float, default=0.75, help="Fraction of tokens to mask.")
     parser.add_argument("--train-encoder-blocks", type=int, default=2, help="Number of last encoder blocks to train.")
     parser.add_argument("--freeze-decoder", action="store_true", help="Freeze decoder (train encoder only).")
@@ -484,7 +454,6 @@ def main() -> None:
 
     train_ds = FrameDataset(
         train_entries,
-        frames=args.frames,
         aug_brightness=args.aug_brightness,
         aug_contrast=args.aug_contrast,
         aug_rotate_deg=args.aug_rotate_deg,
@@ -494,7 +463,6 @@ def main() -> None:
     )
     val_ds = FrameDataset(
         val_entries,
-        frames=args.frames,
         aug_brightness=0.0,
         aug_contrast=0.0,
         aug_rotate_deg=0.0,
@@ -524,8 +492,8 @@ def main() -> None:
         else None
     )
 
-    logger.info("Loading VideoMAE on %s", device)
-    model = _load_pretraining_model(args.weights, frames=args.frames)
+    logger.info("Loading USF-MAE on %s", device)
+    model = _load_pretraining_model(args.weights)
     model.to(device)
 
     _set_trainable_layers(
@@ -536,7 +504,7 @@ def main() -> None:
 
     view_head = None
     if args.view_head:
-        view_head = torch.nn.Linear(model.config.hidden_size, len(VIEW_KEYS)).to(device)
+        view_head = torch.nn.Linear(model.embed_dim, len(VIEW_KEYS)).to(device)
 
     trainable = [p for p in model.parameters() if p.requires_grad]
     if view_head is not None:
@@ -546,7 +514,6 @@ def main() -> None:
 
     optimizer = torch.optim.AdamW(trainable, lr=args.lr, weight_decay=args.weight_decay)
 
-    seq_length = _seq_length(model.config, args.frames)
     history: List[dict] = []
     best_loss = float("inf")
     run_name = args.run_name or f"frame_mae_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -560,7 +527,6 @@ def main() -> None:
             train_loader,
             optimizer,
             device,
-            seq_length,
             args.mask_ratio,
             args.view_loss_weight,
         )
@@ -571,7 +537,6 @@ def main() -> None:
                 view_head,
                 val_loader,
                 device,
-                seq_length,
                 args.mask_ratio,
                 args.view_loss_weight,
             )
@@ -599,7 +564,6 @@ def main() -> None:
                     "model_state": model.state_dict(),
                     "view_head_state": view_head.state_dict() if view_head is not None else None,
                     "config": {
-                        "frames": args.frames,
                         "mask_ratio": args.mask_ratio,
                         "view_head": args.view_head,
                     },

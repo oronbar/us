@@ -318,8 +318,11 @@ def main() -> None:
         / "pytorch_model.bin"
     )
     repo_weights = project_root / "Echo-Vison-FM" / "weights" / "pytorch_model.bin"
-    if repo_weights.exists():
-        default_weights = repo_weights
+    usf_weights = project_root / "USF-MAE" / "USF-MAE_full_pretrain_43dataset_100epochs.pt"
+    if usf_weights.exists():
+        default_weights = usf_weights
+    # elif repo_weights.exists():
+    #     default_weights = repo_weights
 
     if pipeline_cfg.get("save_config_copy", True):
         config_copy = run_dir / "config.yaml"

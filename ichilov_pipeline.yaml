@@ -41,6 +41,8 @@ steps:
       window_sec: 0.6
       # Sampling mode: window | adjusting_window | phase | sliding_window.
       sampling_mode: 'window'
+      # Spatial-only crop: keep all frames (full video length).
+      spatial_only: false
       # Overwrite existing cropped DICOMs if present.
       overwrite: false
       # Number of process workers (0 -> auto).

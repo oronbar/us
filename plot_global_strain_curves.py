@@ -264,6 +264,16 @@ def _global_curve(df: pd.DataFrame, cols: List[object]) -> Optional[np.ndarray]:
         return np.nanmean(stack, axis=0)
 
 
+def _global_curve_from_arrays(arrays: List[np.ndarray]) -> Optional[np.ndarray]:
+    if not arrays:
+        return None
+    min_len = min(len(a) for a in arrays)
+    if min_len < 2:
+        return None
+    stack = np.vstack([a[:min_len] for a in arrays])
+    with np.errstate(invalid="ignore"):
+        return np.nanmean(stack, axis=0)
+
 def _plot_curves(curves: Dict[str, np.ndarray], title: str, out_path: Path) -> None:
     fig, ax = plt.subplots(figsize=(8, 4.5))
     colors = {"A2C": "#1f77b4", "A3C": "#2ca02c", "A4C": "#d62728"}
@@ -412,23 +422,6 @@ def _parse_curves_txt(lines: List[str]) -> Tuple[Dict[str, Dict[int, List[float]
     return sections, names
 
 
-def _global_curve_from_segments(segment_map: Dict[int, List[float]], seg_ids: List[int]) -> Optional[np.ndarray]:
-    arrays = []
-    for sid in seg_ids:
-        vals = segment_map.get(sid)
-        if not vals:
-            continue
-        arrays.append(np.asarray(vals, dtype=float))
-    if not arrays:
-        return None
-    min_len = min(len(a) for a in arrays)
-    if min_len < 2:
-        return None
-    stack = np.vstack([a[:min_len] for a in arrays])
-    with np.errstate(invalid="ignore"):
-        return np.nanmean(stack, axis=0)
-
-
 def main() -> None:
     ap = argparse.ArgumentParser(description="Plot global strain curves (mid/endo) from VVI XML report.")
     ap.add_argument("--input", type=Path, required=True, help="Path to SpreadsheetML XML report")
@@ -447,7 +440,8 @@ def main() -> None:
     if not input_path.exists():
         raise FileNotFoundError(f"Input not found: {input_path}")
 
-    out_dir = args.output_dir or input_path.parent / "global_strain_plots"
+    out_root = args.output_dir or (input_path.parent / "global_strain_plots")
+    out_dir = out_root / input_path.stem
     out_dir.mkdir(parents=True, exist_ok=True)
 
     block_map = _build_block_map(args.segment_order) if args.segment_order else {}
@@ -457,6 +451,10 @@ def main() -> None:
         mid_df = _load_layer_df(input_path, args.sheet_mid)
         curves_by_view: Dict[str, Dict[str, np.ndarray]] = {"A2C": {}, "A3C": {}, "A4C": {}}
         segment_curves: Dict[str, Dict[int, np.ndarray]] = {"endo": {}, "mid": {}}
+        valid_by_view: Dict[str, Dict[str, List[np.ndarray]]] = {
+            "endo": {"A2C": [], "A3C": [], "A4C": []},
+            "mid": {"A2C": [], "A3C": [], "A4C": []},
+        }
         seg_names: Dict[str, Dict[int, str]] = {"endo": {}, "mid": {}}
         for layer_name, df in [("endo", endo_df), ("mid", mid_df)]:
             if df.empty:
@@ -477,9 +475,11 @@ def main() -> None:
                     medical = _medical_name_from_text(seg_name)
                     if medical:
                         seg_names[layer_name][seg_id] = medical
+                    view = view_map.get(col)
+                    if view in ("A2C", "A3C", "A4C"):
+                        valid_by_view[layer_name][view].append(arr)
             for view in ("A2C", "A3C", "A4C"):
-                cols = [c for c, v in view_map.items() if v == view]
-                curve = _global_curve(df, cols)
+                curve = _global_curve_from_arrays(valid_by_view[layer_name][view])
                 if curve is not None:
                     curves_by_view[view][layer_name] = curve
         for view, layer_curves in curves_by_view.items():
@@ -525,7 +525,8 @@ def main() -> None:
             if _is_valid_curve(arr):
                 segment_curves[layer_name][seg_id] = arr
         for view in ("A2C", "A3C", "A4C"):
-            curve = _global_curve_from_segments(seg_map, view_to_segments[view])
+            arrays = [segment_curves[layer_name][sid] for sid in view_to_segments[view] if sid in segment_curves[layer_name]]
+            curve = _global_curve_from_arrays(arrays)
             if curve is not None:
                 curves_by_view[view][layer_name] = curve
     for view, layer_curves in curves_by_view.items():

@@ -1,5 +1,5 @@
 """
-Encode cropped DICOMs into per-frame embeddings using VideoMAE encoder.
+Encode cropped DICOMs into per-frame embeddings using USF-MAE (ViT-MAE) encoder.
 """
 from __future__ import annotations
 
@@ -24,16 +24,12 @@ from ichilov_pipeline2_utils import (
     resize_tensor,
     to_cropped_path,
 )
-
-try:
-    from transformers import VideoMAEConfig, VideoMAEForPreTraining
-except Exception as exc:  # pragma: no cover
-    raise RuntimeError(
-        "transformers is required. Install with: .venv\\Scripts\\python -m pip install transformers"
-    ) from exc
+from usf_mae_model import MaskedAutoencoderViT, mae_vit_base_patch16_dec512d8b
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("ichilov_encode_frames")
+
+DEFAULT_USF_WEIGHTS = Path(r"D:\us\USF-MAE\USF-MAE_full_pretrain_43dataset_100epochs.pt")
 
 
 def _normalize_state_dict(checkpoint: object) -> dict:
@@ -52,25 +48,21 @@ def _normalize_state_dict(checkpoint: object) -> dict:
     return state_dict
 
 
-def _load_encoder(weights_path: Path, frames: int) -> torch.nn.Module:
-    config = VideoMAEConfig()
-    config.image_size = 224
-    config.num_frames = int(frames)
-    model = VideoMAEForPreTraining(config)
+def _load_encoder(weights_path: Path) -> MaskedAutoencoderViT:
+    model = mae_vit_base_patch16_dec512d8b()
     checkpoint = torch.load(weights_path, map_location="cpu")
     state_dict = _normalize_state_dict(checkpoint)
-    model.load_state_dict(state_dict)
-    encoder = model.videomae
-    encoder.eval()
-    return encoder
+    model.load_state_dict(state_dict, strict=False)
+    model.eval()
+    return model
 
 
-def _encode_tensor(model: torch.nn.Module, tensor: torch.Tensor, device: torch.device) -> np.ndarray:
+def _encode_tensor(model: MaskedAutoencoderViT, tensor: torch.Tensor, device: torch.device) -> np.ndarray:
     pixel_values = tensor.unsqueeze(0).to(device)
     with torch.no_grad():
-        out = model(pixel_values=pixel_values).last_hidden_state
-        emb = torch.max(out, dim=1)[0]
-    return emb.squeeze(0).cpu().numpy()
+        latent, _, _ = model.forward_encoder(pixel_values, mask_ratio=0.0)
+        cls_tok = latent[:, 0, :]
+    return cls_tok.squeeze(0).cpu().numpy()
 
 
 def _infer_view_from_path(path: Path) -> Optional[str]:
@@ -86,7 +78,12 @@ def main() -> None:
     parser.add_argument("--input-xlsx", type=Path, default=None, help="Optional Excel registry.")
     parser.add_argument("--echo-root", type=Path, default=None, help="Root of original DICOMs.")
     parser.add_argument("--cropped-root", type=Path, required=True, help="Root of cropped DICOMs.")
-    parser.add_argument("--weights", type=Path, required=True, help="Path to frame-MAE weights.")
+    parser.add_argument(
+        "--weights",
+        type=Path,
+        default=DEFAULT_USF_WEIGHTS,
+        help="Path to USF-MAE weights.",
+    )
     parser.add_argument("--output-parquet", type=Path, required=True, help="Output parquet path.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite output parquet.")
     parser.add_argument("--sampling-mode", type=str, choices=["uniform", "sliding_window"], default="uniform")
@@ -95,7 +92,6 @@ def main() -> None:
     parser.add_argument("--include-last-window", dest="include_last_window", action="store_true", default=True)
     parser.add_argument("--no-include-last-window", dest="include_last_window", action="store_false")
     parser.add_argument("--views", type=str, default="", help="Comma/space-separated views to include.")
-    parser.add_argument("--frames", type=int, default=16, help="Frames per VideoMAE input (frame repeated).")
     parser.add_argument("--safe-decode", action="store_true", help="Disable GDCM/pylibjpeg decoders.")
     args = parser.parse_args()
 
@@ -103,7 +99,7 @@ def main() -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info("Loading encoder on %s", device)
-    encoder = _load_encoder(args.weights, frames=args.frames)
+    encoder = _load_encoder(args.weights)
     encoder.to(device)
 
     selected_views = parse_views(args.views)
@@ -143,7 +139,6 @@ def main() -> None:
         for item in frame_items:
             tensor = item["tensor"]
             tensor = resize_tensor(tensor, size=224)
-            tensor = tensor.repeat(args.frames, 1, 1, 1)
             emb = _encode_tensor(encoder, tensor, device)
             rows.append(
                 {

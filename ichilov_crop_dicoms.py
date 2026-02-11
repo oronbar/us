@@ -516,6 +516,7 @@ def _process_dicom(
     window_sec: float = 1.0,
     overwrite: bool = False,
     sampling_mode: str = "window",
+    spatial_only: bool = False,
     end_diastole: Optional[int] = None,
     end_systole: Optional[int] = None,
     view: Optional[str] = None,
@@ -572,7 +573,11 @@ def _process_dicom(
     x_center = _mask_longest_y_center(avg_bin)
 
     out_frames: List[np.ndarray] = []
-    for frame in sampled_frames:
+    if spatial_only:
+        source_iter = (frames[i] for i in range(n_frames))
+    else:
+        source_iter = iter(sampled_frames)
+    for frame in source_iter:
         if channels > 1:
             raw_mask = np.any(frame[..., :3] > 5, axis=-1)
         else:
@@ -727,6 +732,7 @@ def _process_entry(
     sampling_mode: str,
     target_frames: int,
     window_sec: float,
+    spatial_only: bool,
 ) -> Optional[Path]:
     return _process_dicom(
         dicom_path=entry.path,
@@ -736,6 +742,7 @@ def _process_entry(
         sampling_mode=sampling_mode,
         target_frames=target_frames,
         window_sec=window_sec,
+        spatial_only=spatial_only,
         end_diastole=entry.end_diastole,
         end_systole=entry.end_systole,
         view=entry.view,
@@ -766,7 +773,7 @@ def main() -> None:
         "--clip-length",
         type=int,
         default=16,
-        help="Frames per clip for window/phase sampling (sliding_window keeps full length).",
+        help="Frames per clip for window/phase sampling (sliding_window or spatial-only keeps full length).",
     )
     parser.add_argument(
         "--window-sec",
@@ -780,6 +787,11 @@ def main() -> None:
         default="window",
         help="Sampling mode: 'window' uses a fixed window; 'adjusting_window' keeps ED, nudges ES into samples; "
              "'phase' interpolates ED->ES frames; 'sliding_window' keeps all frames for clip-level MIL.",
+    )
+    parser.add_argument(
+        "--spatial-only",
+        action="store_true",
+        help="Crop spatially but keep all frames (full video length) in the output.",
     )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing outputs")
     parser.add_argument(
@@ -810,6 +822,7 @@ def main() -> None:
                 sampling_mode=args.sampling_mode,
                 target_frames=args.clip_length,
                 window_sec=args.window_sec,
+                spatial_only=args.spatial_only,
             )
     else:
         with ProcessPoolExecutor(max_workers=worker_count) as executor:
@@ -824,6 +837,7 @@ def main() -> None:
                         repeat(args.sampling_mode),
                         repeat(args.clip_length),
                         repeat(args.window_sec),
+                        repeat(args.spatial_only),
                     ),
                     total=len(dicoms),
                     desc=f"Cropping DICOMs (workers={worker_count})",
