@@ -255,6 +255,7 @@ def _train_one_epoch(
         if batch is None:
             continue
         pixel_values, view_idx = batch
+        batch_size = int(pixel_values.shape[0])
         pixel_values = pixel_values.to(device, non_blocking=True)
         view_idx = view_idx.to(device, non_blocking=True)
         loss, _, _ = model(pixel_values, mask_ratio=mask_ratio)
@@ -300,6 +301,7 @@ def _evaluate(
             if batch is None:
                 continue
             pixel_values, view_idx = batch
+            batch_size = int(pixel_values.shape[0])
             pixel_values = pixel_values.to(device, non_blocking=True)
             view_idx = view_idx.to(device, non_blocking=True)
             loss, _, _ = model(pixel_values, mask_ratio=mask_ratio)
