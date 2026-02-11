@@ -162,11 +162,10 @@ class FrameDataset(Dataset):
         self.aug_speckle = float(aug_speckle)
         self.aug_random_erase = float(aug_random_erase)
 
-        self._tv = None
+        self._tv_available = False
         try:
-            import torchvision.transforms.functional as TF
-            from torchvision.transforms import GaussianBlur, RandomErasing
-            self._tv = (TF, GaussianBlur, RandomErasing)
+            import torchvision  # noqa: F401
+            self._tv_available = True
         except Exception:
             if any(x > 0 for x in [self.aug_rotate_deg, self.aug_blur, self.aug_random_erase]):
                 logger.warning("torchvision not available; rotation/blur/erase augmentations disabled.")
@@ -190,9 +189,10 @@ class FrameDataset(Dataset):
         return out.clamp(0.0, 1.0)
 
     def _apply_tv_aug(self, tensor: torch.Tensor) -> torch.Tensor:
-        if self._tv is None:
+        if not self._tv_available:
             return tensor
-        TF, GaussianBlur, RandomErasing = self._tv
+        import torchvision.transforms.functional as TF
+        from torchvision.transforms import GaussianBlur, RandomErasing
         out = tensor
         if self.aug_rotate_deg > 0:
             angle = random.uniform(-self.aug_rotate_deg, self.aug_rotate_deg)
@@ -404,7 +404,7 @@ def main() -> None:
     parser.add_argument("--train-encoder-blocks", type=int, default=2, help="Number of last encoder blocks to train.")
     parser.add_argument("--freeze-decoder", action="store_true", help="Freeze decoder (train encoder only).")
     parser.add_argument("--batch-size", type=int, default=64, help="Batch size.")
-    parser.add_argument("--num-workers", type=int, default=1, help="Data loader workers.")
+    parser.add_argument("--num-workers", type=int, default=4, help="Data loader workers.")
     parser.add_argument("--epochs", type=int, default=50, help="Training epochs.")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate.")
     parser.add_argument("--weight-decay", type=float, default=0.05, help="Weight decay.")
