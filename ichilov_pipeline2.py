@@ -256,7 +256,7 @@ def _git_has_changes(root: Path) -> bool:
 def _commit_and_push(root: Path, message: str) -> str:
     subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
     subprocess.run(["git", "-C", str(root), "commit", "-m", message], check=True)
-    subprocess.run(["git", "-C", str(root), "push", "origin", "master"], check=True)
+    subprocess.run(["git", "-C", str(root), "push", "origin", "main"], check=True)
     commit_hash = _get_git_commit(root)
     if not commit_hash:
         raise RuntimeError("Git commit hash unavailable after commit.")
