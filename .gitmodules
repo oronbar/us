@@ -2,3 +2,7 @@
 	path = Echo-Vison-FM
 	url = https://github.com/ZiyangZhang0511/Echo-Vison-FM.git
 	branch = main
+[submodule "USF-MAE"]
+	path = USF-MAE
+	url = git@github.com:Yusufii9/USF-MAE.git
+	branch = main
