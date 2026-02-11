@@ -12,6 +12,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
@@ -49,6 +52,12 @@ class FrameEntry:
     frame_index: int
     view: Optional[str]
     patient_key: str
+
+
+@dataclass
+class ReconFrameRef:
+    dicom_path: Path
+    frame_index: int
 
 
 def _set_seed(seed: int) -> None:
@@ -139,6 +148,89 @@ def _infer_view_from_path(path: Path) -> Optional[str]:
         if v in name:
             return v
     return None
+
+
+def _collect_recon_refs(cropped_root: Path, n: int, seed: int) -> List[ReconFrameRef]:
+    rng = random.Random(seed)
+    dicoms = list(cropped_root.rglob("*.dcm"))
+    if not dicoms:
+        return []
+
+    refs: List[ReconFrameRef] = []
+    tries = 0
+    max_tries = max(1000, n * 200)
+    while len(refs) < n and tries < max_tries:
+        tries += 1
+        path = rng.choice(dicoms)
+        n_frames = _read_frame_count(path) or 0
+        if n_frames <= 0:
+            continue
+        frame_idx = rng.randrange(0, n_frames)
+        refs.append(ReconFrameRef(dicom_path=path, frame_index=frame_idx))
+    return refs
+
+
+def _plot_epoch_reconstructions(
+    model: MaskedAutoencoderViT,
+    refs: Sequence[ReconFrameRef],
+    output_path: Path,
+    device: torch.device,
+    mask_ratio: float,
+    recon_seed: int,
+) -> None:
+    # Keep reconstruction masks deterministic per epoch while preserving training RNG state.
+    cpu_state = torch.get_rng_state()
+    cuda_state = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
+    torch.manual_seed(recon_seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(recon_seed)
+
+    model.eval()
+    pairs: List[Tuple[np.ndarray, np.ndarray, str]] = []
+    with torch.no_grad():
+        for ref in refs:
+            frames = load_cropped_frames(ref.dicom_path)
+            if frames is None or ref.frame_index >= frames.shape[0]:
+                continue
+            frame = frames[ref.frame_index : ref.frame_index + 1]
+            tensor = to_tensor(frame)
+            tensor = resize_tensor(tensor, size=224).to(device)
+            _, pred, _ = model(tensor, mask_ratio=mask_ratio)
+            recon = model.unpatchify(pred).clamp(0.0, 1.0)
+            orig_img = tensor.squeeze(0).permute(1, 2, 0).cpu().numpy()
+            recon_img = recon.squeeze(0).permute(1, 2, 0).cpu().numpy()
+            title = f"{ref.dicom_path.name} | f={ref.frame_index}"
+            pairs.append((np.clip(orig_img, 0.0, 1.0), np.clip(recon_img, 0.0, 1.0), title))
+
+    if not pairs:
+        logger.warning("Skipping epoch reconstruction plot; no valid frame refs could be loaded.")
+    else:
+        rows = int(np.ceil(len(pairs) / 3))
+        cols = 6
+        fig, axes = plt.subplots(rows, cols, figsize=(cols * 2.2, rows * 2.6))
+        axes = np.array(axes).reshape(rows, cols)
+        for i in range(rows * 3):
+            r = i // 3
+            c0 = (i % 3) * 2
+            ax_orig = axes[r, c0]
+            ax_recon = axes[r, c0 + 1]
+            if i < len(pairs):
+                orig, recon_img, title = pairs[i]
+                ax_orig.imshow(orig)
+                ax_orig.set_title("Original", fontsize=9)
+                ax_orig.set_xlabel(title, fontsize=7)
+                ax_recon.imshow(recon_img)
+                ax_recon.set_title("Reconstruction", fontsize=9)
+            ax_orig.axis("off")
+            ax_recon.axis("off")
+        fig.tight_layout()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(output_path, dpi=180)
+        plt.close(fig)
+
+    torch.set_rng_state(cpu_state)
+    if cuda_state is not None:
+        torch.cuda.set_rng_state_all(cuda_state)
 
 
 class FrameDataset(Dataset):
@@ -424,6 +516,9 @@ def main() -> None:
     parser.add_argument("--aug-blur", type=float, default=0.0, help="Gaussian blur sigma.")
     parser.add_argument("--aug-speckle", type=float, default=0.0, help="Speckle noise std.")
     parser.add_argument("--aug-random-erase", type=float, default=0.0, help="Random erase max area fraction.")
+    parser.add_argument("--recon-samples", type=int, default=9, help="Number of fixed frames to reconstruct each epoch.")
+    parser.add_argument("--recon-seed", type=int, default=123, help="Seed used to select fixed reconstruction frames.")
+    parser.add_argument("--recon-mask-ratio", type=float, default=None, help="Mask ratio for reconstruction plots (defaults to --mask-ratio).")
     parser.add_argument("--safe-decode", action="store_true", help="Disable GDCM/pylibjpeg decoders.")
     args = parser.parse_args()
 
@@ -525,6 +620,20 @@ def main() -> None:
     run_name = args.run_name or f"frame_mae_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     args.output_dir.mkdir(parents=True, exist_ok=True)
     best_path = args.output_dir / f"{run_name}_best.pt"
+    recon_ratio = float(args.recon_mask_ratio) if args.recon_mask_ratio is not None else float(args.mask_ratio)
+    recon_refs = _collect_recon_refs(args.cropped_root, max(0, int(args.recon_samples)), args.recon_seed)
+    recon_dir = args.output_dir / f"{run_name}_reconstructions"
+    recon_dir.mkdir(parents=True, exist_ok=True)
+    if recon_refs:
+        recon_manifest = [
+            {"dicom_path": str(ref.dicom_path), "frame_index": int(ref.frame_index)}
+            for ref in recon_refs
+        ]
+        (recon_dir / "selected_frames.json").write_text(
+            json.dumps(recon_manifest, indent=2), encoding="utf-8"
+        )
+    elif args.recon_samples > 0:
+        logger.warning("No reconstruction refs were sampled; per-epoch reconstruction plots are disabled.")
 
     for epoch in range(1, args.epochs + 1):
         train_loss, train_view = _train_one_epoch(
@@ -563,6 +672,16 @@ def main() -> None:
             train_loss,
             val_loss if val_loader is not None else train_loss,
         )
+        if recon_refs:
+            recon_path = recon_dir / f"epoch_{epoch:03d}.png"
+            _plot_epoch_reconstructions(
+                model=model,
+                refs=recon_refs,
+                output_path=recon_path,
+                device=device,
+                mask_ratio=recon_ratio,
+                recon_seed=args.recon_seed,
+            )
         if metric < best_loss:
             best_loss = metric
             torch.save(
