@@ -23,7 +23,7 @@ paths:
 steps:
   crop:
     # Whether to run this step.
-    run: true
+    run: false
     # If run is false, use outputs from this folder (if empty -> latest under cropped_root_base).
     use_if_skipped: ''
     # Optional base folder override for crop outputs (if empty -> paths.cropped_root_base).
