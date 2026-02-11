@@ -782,9 +782,9 @@ def main() -> None:
         help="Temporal window length in seconds for window/adjusting_window sampling.",
     )
     parser.add_argument(
-        "--sliding_window",
+        "--sampling-mode",
         choices=("window", "adjusting_window", "phase", "sliding_window"),
-        default="window",
+        default="sliding_window",
         help="Sampling mode: 'window' uses a fixed window; 'adjusting_window' keeps ED, nudges ES into samples; "
              "'phase' interpolates ED->ES frames; 'sliding_window' keeps all frames for clip-level MIL.",
     )
