@@ -388,7 +388,11 @@ def main() -> None:
     parser.add_argument(
         "--weights",
         type=Path,
-        default=Path(r"D:\us\USF-MAE\USF-MAE_full_pretrain_43dataset_100epochs.pt"),
+        default=Path.home()
+        / "OneDrive - Technion"
+        / "models"
+        / "Encoder_weights"
+        / "USF-MAE_full_pretrain_43dataset_100epochs.pt",
         help="Optional initial weights checkpoint (USF-MAE).",
     )
     parser.add_argument("--output-dir", type=Path, required=True, help="Output directory for checkpoints.")

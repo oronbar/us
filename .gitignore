@@ -1,3 +1,4 @@
 .venv/*
 __pycache__/*
 models/*
+USF-MAE/USF-MAE_full_pretrain_43dataset_100epochs.pt

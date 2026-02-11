@@ -29,7 +29,14 @@ from usf_mae_model import MaskedAutoencoderViT, mae_vit_base_patch16_dec512d8b
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("ichilov_encode_frames")
 
-DEFAULT_USF_WEIGHTS = Path(r"D:\us\USF-MAE\USF-MAE_full_pretrain_43dataset_100epochs.pt")
+USER_HOME = Path.home()
+DEFAULT_USF_WEIGHTS = (
+    USER_HOME
+    / "OneDrive - Technion"
+    / "models"
+    / "Encoder_weights"
+    / "USF-MAE_full_pretrain_43dataset_100epochs.pt"
+)
 
 
 def _normalize_state_dict(checkpoint: object) -> dict:

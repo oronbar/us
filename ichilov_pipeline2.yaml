@@ -69,7 +69,7 @@ steps:
       # Root of cropped DICOMs (if empty -> crop output or skipped output).
       cropped_root: ''
       # Initial weights for MAE pretraining (if empty -> repo/default weights).
-      weights: 'D:\us\USF-MAE\USF-MAE_full_pretrain_43dataset_100epochs.pt'
+      weights: 'C:\Users\Oron\OneDrive - Technion\models\Encoder_weights\USF-MAE_full_pretrain_43dataset_100epochs.pt'
       # Output directory for checkpoints/metrics (if empty -> run_dir/frame_pretrain).
       output_dir: ''
       # Optional Excel registry to enable view filtering in pretrain.
@@ -137,7 +137,7 @@ steps:
       # Root of cropped DICOMs (if empty -> crop output or skipped output).
       cropped_root: ''
       # Encoder weights for embedding (if empty -> frame-pretrain best or pretrain weights).
-      weights: 'D:\us\USF-MAE\USF-MAE_full_pretrain_43dataset_100epochs.pt'
+      weights: 'C:\Users\Oron\OneDrive - Technion\models\Encoder_weights\USF-MAE_full_pretrain_43dataset_100epochs.pt'
       # Output parquet path (if empty -> run_dir/frame_embeddings/Ichilov_frame_embeddings_<run>.parquet).
       output_parquet: ''
       # Optional apical view filter for encoding (overrides pipeline.views).
