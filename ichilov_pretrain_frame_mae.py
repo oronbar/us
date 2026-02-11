@@ -404,7 +404,7 @@ def main() -> None:
     parser.add_argument("--train-encoder-blocks", type=int, default=2, help="Number of last encoder blocks to train.")
     parser.add_argument("--freeze-decoder", action="store_true", help="Freeze decoder (train encoder only).")
     parser.add_argument("--batch-size", type=int, default=64, help="Batch size.")
-    parser.add_argument("--num-workers", type=int, default=4, help="Data loader workers.")
+    parser.add_argument("--num-workers", type=int, default=1, help="Data loader workers.")
     parser.add_argument("--epochs", type=int, default=50, help="Training epochs.")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate.")
     parser.add_argument("--weight-decay", type=float, default=0.05, help="Weight decay.")
