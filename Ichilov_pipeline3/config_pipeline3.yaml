@@ -1,0 +1,82 @@
+# Pipeline3 training config (YAML style aligned with ichilov_pipeline2).
+pipeline:
+  run_name: 'pipeline3_first_train'
+  run_name_prefix: 'ichilov_pipeline3'
+  save_config_copy: true
+  views: 'A2C,A3C,A4C'
+
+paths:
+  # Raw dataset root (configurable, default points to D:\ as requested).
+  echo_root: 'D:\'
+  # Excel registry with source DICOMs and GLS labels.
+  input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
+  # Optional cropped DICOM root. If empty, source DICOMs are used directly.
+  cropped_root: 'D:\DS\Ichilov_cropped'
+  # Training output folder (checkpoints/logs/history/predictions).
+  output_dir: 'C:\Users\oron\OneDrive - Technion\Experiments\ichilov_pipeline3\longitudinal'
+  # Optional TensorBoard directory.
+  log_dir: 'C:\Users\oron\OneDrive - Technion\Experiments\ichilov_pipeline3\tensorboard'
+  # Optional explicit prediction export path.
+  output_parquet: 'C:\Users\oron\OneDrive - Technion\Experiments\ichilov_pipeline3\predictions\pipeline3_predictions.parquet'
+
+steps:
+  longitudinal_train:
+    run: true
+    args:
+      # Optional run name override.
+      run_name: 'pipeline3_first_train'
+      # Optional view filter (A2C/A3C/A4C).
+      views: 'A2C,A3C,A4C'
+
+      # Data sampling (reuses pipeline2 frame sampling utilities).
+      sampling_mode: 'uniform'      # uniform | sliding_window
+      t_frames: 16                  # T_frames
+      clip_stride: 1
+      include_last_window: true
+      max_visits: 5
+      min_visits: 2
+
+      # Split + dataloader.
+      val_ratio: 0.2
+      test_ratio: 0.1
+      num_workers: 4
+      seed: 42
+
+      # Optimization.
+      epochs: 20
+      batch_size: 1
+      lr: 0.0001
+      weight_decay: 0.01
+      scheduler: 'plateau'         # none | cosine | plateau
+      scheduler_patience: 5
+      scheduler_factor: 0.5
+      scheduler_min_lr: 0.000001
+      save_every: 5
+      device: 'auto'
+
+      # DINOv2 frame encoder.
+      backbone_name: 'vit_small_patch16_dinov2.lvd142m'
+      backbone_pretrained: true
+      backbone_freeze: true
+      unfreeze_last_blocks: 1
+
+      # Per-view temporal encoder.
+      temporal_layers: 2
+      temporal_heads: 6
+      temporal_dropout: 0.1
+
+      # Longitudinal visit model.
+      longitudinal_model: 'gru'    # gru | transformer
+      longitudinal_hidden: 256
+      longitudinal_layers: 1
+      longitudinal_heads: 4
+      longitudinal_dropout: 0.1
+      use_time_encoding: true
+
+      # Multitask objective:
+      # L = lambda_delta * delta + lambda_rank * ranking + lambda_smooth * smoothness
+      lambda_delta: 1.0
+      lambda_rank: 1.0
+      lambda_smooth: 0.1
+      huber_beta: 1.0
+      risk_delta_threshold: 2.0
