@@ -105,6 +105,22 @@ def _numeric_hint(val: str) -> float:
         return float("inf")
 
 
+def _parse_embedding_vector(value: object) -> Optional[np.ndarray]:
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return None
+    if isinstance(value, np.ndarray):
+        return value.astype(np.float32)
+    if isinstance(value, list):
+        return np.asarray(value, dtype=np.float32)
+    if isinstance(value, str):
+        try:
+            parsed = eval(value, {"__builtins__": {}})
+            return np.asarray(parsed, dtype=np.float32)
+        except Exception:
+            return None
+    return None
+
+
 class VisitDataset(Dataset):
     """
     Dataset item is one patient with up to max_visits visits.
@@ -373,6 +389,253 @@ def visit_collate_fn(batch: List[Dict[str, object]]) -> Dict[str, object]:
     }
     for key in (
         "view_mask",
+        "visit_mask",
+        "visit_times",
+        "gls",
+        "gls_mask",
+        "delta_gls_target",
+        "delta_gls_mask",
+        "risk_label",
+        "risk_mask",
+    ):
+        out[key] = torch.stack([item[key] for item in batch], dim=0)
+    return out
+
+
+class FrameEmbeddingVisitDataset(Dataset):
+    """
+    Visit dataset that consumes precomputed frame embeddings parquet/csv.
+    """
+
+    def __init__(
+        self,
+        input_embeddings: Path,
+        views: str = "",
+        t_frames: int = 16,
+        max_visits: int = 5,
+        min_visits: int = 2,
+        risk_delta_threshold: float = 2.0,
+        report_xlsx: Optional[Path] = None,
+        patient_filter: Optional[Sequence[str]] = None,
+    ) -> None:
+        super().__init__()
+        self.input_embeddings = Path(input_embeddings)
+        self.selected_views = parse_views(views) or set(VIEW_KEYS)
+        self.t_frames = int(t_frames)
+        self.max_visits = int(max_visits)
+        self.min_visits = int(min_visits)
+        self.risk_delta_threshold = float(risk_delta_threshold)
+        self.patient_filter = set(str(x) for x in patient_filter) if patient_filter else None
+
+        if self.input_embeddings.suffix.lower() == ".parquet":
+            df = pd.read_parquet(self.input_embeddings)
+        else:
+            df = pd.read_csv(self.input_embeddings)
+        if report_xlsx is not None and report_xlsx.exists() and "gls" not in df.columns:
+            try:
+                df = add_gls_from_report(df, report_xlsx)
+            except Exception as exc:
+                logger.warning("Failed to attach GLS from report: %s", exc)
+        self.patient_records = self._build_patient_records(df)
+        if not self.patient_records:
+            raise RuntimeError("No valid patient records found in frame embeddings.")
+
+    @staticmethod
+    def _visit_id_from_row(row: pd.Series) -> str:
+        for col in ("visit_id", "visit", "study_id", "accession", "study_datetime"):
+            if col in row and not pd.isna(row[col]):
+                return str(row[col])
+        return str(row.get("source_dicom", "unknown_visit"))
+
+    def _build_patient_records(self, df: pd.DataFrame) -> List[PatientRecord]:
+        if "embedding" not in df.columns:
+            raise ValueError("Input embeddings dataframe missing 'embedding' column.")
+        if "view" not in df.columns:
+            raise ValueError("Input embeddings dataframe missing 'view' column.")
+
+        patient_col = None
+        for cand in ("patient_id", "patient_num", "patient"):
+            if cand in df.columns:
+                patient_col = cand
+                break
+        if patient_col is None:
+            raise ValueError("No patient column found in embeddings (expected patient_id/patient_num).")
+
+        work = df.copy()
+        work = work[work["view"].isin(self.selected_views)]
+        if self.patient_filter is not None:
+            work = work[work[patient_col].astype(str).isin(self.patient_filter)]
+        if "study_datetime" in work.columns:
+            work["study_datetime"] = pd.to_datetime(work["study_datetime"], errors="coerce")
+        else:
+            work["study_datetime"] = pd.NaT
+        if "frame_index" not in work.columns:
+            work["frame_index"] = work.groupby(["source_dicom"]).cumcount()
+
+        patient_map: Dict[str, List[VisitRecord]] = {}
+        for pid, pgrp in work.groupby(patient_col):
+            visit_rows: Dict[str, Dict[str, object]] = {}
+            for _, row in pgrp.iterrows():
+                visit_id = self._visit_id_from_row(row)
+                visit = visit_rows.setdefault(
+                    visit_id,
+                    {
+                        "study_datetime": row.get("study_datetime"),
+                        "gls_values": [],
+                        "view_frames": {v: [] for v in VIEW_KEYS},
+                    },
+                )
+                v = str(row.get("view"))
+                emb = _parse_embedding_vector(row.get("embedding"))
+                if emb is None:
+                    continue
+                frame_idx = int(row.get("frame_index", 0))
+                visit["view_frames"][v].append((frame_idx, emb))
+                gls = row.get("gls")
+                if gls is not None and not pd.isna(gls):
+                    visit["gls_values"].append(float(gls))
+
+            visits: List[VisitRecord] = []
+            for visit_id, vdict in visit_rows.items():
+                view_dicoms: Dict[str, List[Path]] = {}
+                # Reuse VisitRecord container; embeddings are stored in synthetic path slots not used later.
+                # TODO: replace this with a dedicated embedding visit dataclass if schema grows.
+                keep_any = False
+                for vw in VIEW_KEYS:
+                    frames = sorted(vdict["view_frames"][vw], key=lambda x: x[0])
+                    if not frames:
+                        continue
+                    keep_any = True
+                    # Encode vector payload in an in-memory map keyed by synthetic path.
+                    synth = Path(f"mem://{visit_id}/{vw}")
+                    view_dicoms[vw] = [synth]
+                    vdict.setdefault("embedding_map", {})[str(synth)] = frames
+                if not keep_any:
+                    continue
+                gls_vals = vdict["gls_values"]
+                visits.append(
+                    VisitRecord(
+                        visit_id=visit_id,
+                        visit_time_months=0.0,
+                        study_datetime=vdict["study_datetime"],
+                        gls=float(np.mean(gls_vals)) if gls_vals else None,
+                        view_dicoms=view_dicoms,
+                    )
+                )
+                visits[-1].__dict__["embedding_map"] = vdict.get("embedding_map", {})
+
+            visits.sort(
+                key=lambda v: (
+                    0 if isinstance(v.study_datetime, pd.Timestamp) and not pd.isna(v.study_datetime) else 1,
+                    v.study_datetime if isinstance(v.study_datetime, pd.Timestamp) and not pd.isna(v.study_datetime) else pd.Timestamp.max,
+                    _numeric_hint(v.visit_id),
+                    v.visit_id,
+                )
+            )
+            months = _to_months([v.study_datetime for v in visits])
+            for i, m in enumerate(months):
+                visits[i].visit_time_months = m
+            if len(visits) >= self.min_visits:
+                patient_map[str(pid)] = visits
+
+        records = [PatientRecord(patient_id=pid, visits=visits) for pid, visits in patient_map.items()]
+        records.sort(key=lambda p: p.patient_id)
+        return records
+
+    def __len__(self) -> int:
+        return len(self.patient_records)
+
+    def __getitem__(self, idx: int) -> Dict[str, object]:
+        patient = self.patient_records[idx]
+        n_visits = min(len(patient.visits), self.max_visits)
+
+        # Infer embedding dim from first available frame embedding.
+        emb_dim = 384
+        for v in patient.visits:
+            emap = v.__dict__.get("embedding_map", {})
+            for seq in emap.values():
+                if seq:
+                    emb_dim = int(seq[0][1].shape[0])
+                    break
+            if emb_dim:
+                break
+
+        embeddings_by_view = {
+            view: torch.zeros(self.max_visits, self.t_frames, emb_dim, dtype=torch.float32)
+            for view in VIEW_KEYS
+        }
+        frame_masks_by_view = {
+            view: torch.zeros(self.max_visits, self.t_frames, dtype=torch.bool) for view in VIEW_KEYS
+        }
+        visit_mask = torch.zeros(self.max_visits, dtype=torch.bool)
+        visit_times = torch.zeros(self.max_visits, dtype=torch.float32)
+        gls = torch.zeros(self.max_visits, dtype=torch.float32)
+        gls_mask = torch.zeros(self.max_visits, dtype=torch.bool)
+
+        for visit_idx in range(n_visits):
+            visit = patient.visits[visit_idx]
+            visit_mask[visit_idx] = True
+            visit_times[visit_idx] = float(visit.visit_time_months)
+            if visit.gls is not None and np.isfinite(visit.gls):
+                gls[visit_idx] = float(visit.gls)
+                gls_mask[visit_idx] = True
+
+            emap = visit.__dict__.get("embedding_map", {})
+            for view in VIEW_KEYS:
+                synth_list = visit.view_dicoms.get(view, [])
+                if not synth_list:
+                    continue
+                seq = emap.get(str(synth_list[0]), [])
+                if not seq:
+                    continue
+                seq = seq[: self.t_frames]
+                for t, (_, emb) in enumerate(seq):
+                    embeddings_by_view[view][visit_idx, t] = torch.tensor(emb, dtype=torch.float32)
+                    frame_masks_by_view[view][visit_idx, t] = True
+
+        valid_gls_idx = torch.where(gls_mask[:n_visits])[0]
+        delta_gls_target = torch.tensor(0.0, dtype=torch.float32)
+        delta_gls_mask = torch.tensor(False, dtype=torch.bool)
+        risk_label = torch.tensor(0.0, dtype=torch.float32)
+        risk_mask = torch.tensor(False, dtype=torch.bool)
+        if valid_gls_idx.numel() >= 2:
+            first = int(valid_gls_idx[0].item())
+            last = int(valid_gls_idx[-1].item())
+            delta_gls_target = gls[last] - gls[first]
+            delta_gls_mask = torch.tensor(True, dtype=torch.bool)
+            risk_label = torch.tensor(
+                float(delta_gls_target.item() >= self.risk_delta_threshold),
+                dtype=torch.float32,
+            )
+            risk_mask = torch.tensor(True, dtype=torch.bool)
+
+        return {
+            "patient_id": patient.patient_id,
+            "embeddings_by_view": embeddings_by_view,
+            "frame_masks_by_view": frame_masks_by_view,
+            "visit_mask": visit_mask,
+            "visit_times": visit_times,
+            "gls": gls,
+            "gls_mask": gls_mask,
+            "delta_gls_target": delta_gls_target,
+            "delta_gls_mask": delta_gls_mask,
+            "risk_label": risk_label,
+            "risk_mask": risk_mask,
+        }
+
+
+def embedding_visit_collate_fn(batch: List[Dict[str, object]]) -> Dict[str, object]:
+    out: Dict[str, object] = {}
+    out["patient_id"] = [item["patient_id"] for item in batch]
+    out["embeddings_by_view"] = {
+        view: torch.stack([item["embeddings_by_view"][view] for item in batch], dim=0)
+        for view in VIEW_KEYS
+    }
+    out["frame_masks_by_view"] = {
+        view: torch.stack([item["frame_masks_by_view"][view] for item in batch], dim=0)
+        for view in VIEW_KEYS
+    }
+    for key in (
         "visit_mask",
         "visit_times",
         "gls",

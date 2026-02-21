@@ -30,7 +30,9 @@ if __package__ is None or __package__ == "":  # pragma: no cover - script execut
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from Ichilov_pipeline3.datasets.visit_dataset import (
+    FrameEmbeddingVisitDataset,
     VisitDataset,
+    embedding_visit_collate_fn,
     split_patient_indices,
     visit_collate_fn,
 )
@@ -59,12 +61,14 @@ DEFAULT_CONFIG_NAME = "config_pipeline3.yaml"
 @dataclass
 class ResolvedConfig:
     run_name: str
-    input_xlsx: Path
-    echo_root: Path
+    input_xlsx: Optional[Path]
+    input_embeddings: Optional[Path]
+    echo_root: Optional[Path]
     cropped_root: Optional[Path]
     output_dir: Path
     log_dir: Optional[Path]
     output_parquet: Optional[Path]
+    report_xlsx: Optional[Path]
     views: str
     sampling_mode: str
     t_frames: int
@@ -214,26 +218,30 @@ def _merge_resolved_config(
     run_name = str(run_name_raw).strip() or f"pipeline3_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
     input_xlsx = _expand_path(pick("input_xlsx", None))
+    input_embeddings = _expand_path(pick("input_embeddings", None))
     echo_root = _expand_path(pick("echo_root", Path(r"D:\\")))
     cropped_root = _expand_path(pick("cropped_root", None))
     output_dir = _expand_path(pick("output_dir", None))
     log_dir = _expand_path(pick("log_dir", None))
     output_parquet = _expand_path(pick("output_parquet", None))
-    if input_xlsx is None:
-        raise ValueError("input_xlsx is required (CLI or YAML steps.longitudinal_train.args.input_xlsx).")
-    if echo_root is None:
-        raise ValueError("echo_root is required.")
+    report_xlsx = _expand_path(pick("report_xlsx", input_xlsx))
+    if input_embeddings is None and input_xlsx is None:
+        raise ValueError("Provide either input_embeddings or input_xlsx for training.")
+    if input_embeddings is None and echo_root is None:
+        raise ValueError("echo_root is required when training from raw frames.")
     if output_dir is None:
         raise ValueError("output_dir is required.")
 
     return ResolvedConfig(
         run_name=run_name,
         input_xlsx=input_xlsx,
+        input_embeddings=input_embeddings,
         echo_root=echo_root,
         cropped_root=cropped_root,
         output_dir=output_dir,
         log_dir=log_dir,
         output_parquet=output_parquet,
+        report_xlsx=report_xlsx,
         views=str(pick("views", "") or ""),
         sampling_mode=str(pick("sampling_mode", "uniform") or "uniform"),
         t_frames=int(pick("t_frames", 16, aliases=("T_frames",))),
@@ -281,11 +289,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=Path, default=None, help="YAML config path.")
     parser.add_argument("--run-name", type=str, default=None)
     parser.add_argument("--input-xlsx", type=Path, default=None)
+    parser.add_argument("--input-embeddings", type=Path, default=None)
     parser.add_argument("--echo-root", type=Path, default=None)
     parser.add_argument("--cropped-root", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--log-dir", type=Path, default=None)
     parser.add_argument("--output-parquet", type=Path, default=None)
+    parser.add_argument("--report-xlsx", type=Path, default=None)
     parser.add_argument("--views", type=str, default=None)
     parser.add_argument("--sampling-mode", type=str, choices=["uniform", "sliding_window"], default=None)
     parser.add_argument("--t-frames", type=int, default=None)
@@ -338,9 +348,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _to_device(batch: Dict[str, object], device: torch.device) -> Dict[str, object]:
     out: Dict[str, object] = {"patient_id": batch["patient_id"]}
-    out["frames_by_view"] = {
-        k: v.to(device, non_blocking=True) for k, v in batch["frames_by_view"].items()
-    }
+    if "frames_by_view" in batch:
+        out["frames_by_view"] = {
+            k: v.to(device, non_blocking=True) for k, v in batch["frames_by_view"].items()
+        }
+    if "embeddings_by_view" in batch:
+        out["embeddings_by_view"] = {
+            k: v.to(device, non_blocking=True) for k, v in batch["embeddings_by_view"].items()
+        }
     out["frame_masks_by_view"] = {
         k: v.to(device, non_blocking=True) for k, v in batch["frame_masks_by_view"].items()
     }
@@ -418,6 +433,7 @@ def _run_epoch(
     smooth_loss_fn: SmoothnessLoss,
     cfg: ResolvedConfig,
     train: bool,
+    use_precomputed_embeddings: bool,
 ) -> Dict[str, float]:
     if train:
         model.train()
@@ -438,12 +454,20 @@ def _run_epoch(
     for batch_cpu in it:
         batch = _to_device(batch_cpu, device)
         with torch.set_grad_enabled(train):
-            outputs = model(
-                frames_by_view=batch["frames_by_view"],
-                frame_masks_by_view=batch["frame_masks_by_view"],
-                visit_mask=batch["visit_mask"],
-                visit_times=batch["visit_times"],
-            )
+            if use_precomputed_embeddings:
+                outputs = model.forward_from_frame_embeddings(
+                    embeddings_by_view=batch["embeddings_by_view"],
+                    frame_masks_by_view=batch["frame_masks_by_view"],
+                    visit_mask=batch["visit_mask"],
+                    visit_times=batch["visit_times"],
+                )
+            else:
+                outputs = model(
+                    frames_by_view=batch["frames_by_view"],
+                    frame_masks_by_view=batch["frame_masks_by_view"],
+                    visit_mask=batch["visit_mask"],
+                    visit_times=batch["visit_times"],
+                )
             metrics = _compute_losses(
                 outputs,
                 batch,
@@ -474,6 +498,7 @@ def _predict(
     loader: Optional[DataLoader],
     device: torch.device,
     split_name: str,
+    use_precomputed_embeddings: bool,
 ) -> pd.DataFrame:
     if loader is None:
         return pd.DataFrame()
@@ -482,12 +507,20 @@ def _predict(
     with torch.no_grad():
         for batch_cpu in tqdm(loader, desc=f"Predict {split_name}", leave=False):
             batch = _to_device(batch_cpu, device)
-            outputs = model(
-                frames_by_view=batch["frames_by_view"],
-                frame_masks_by_view=batch["frame_masks_by_view"],
-                visit_mask=batch["visit_mask"],
-                visit_times=batch["visit_times"],
-            )
+            if use_precomputed_embeddings:
+                outputs = model.forward_from_frame_embeddings(
+                    embeddings_by_view=batch["embeddings_by_view"],
+                    frame_masks_by_view=batch["frame_masks_by_view"],
+                    visit_mask=batch["visit_mask"],
+                    visit_times=batch["visit_times"],
+                )
+            else:
+                outputs = model(
+                    frames_by_view=batch["frames_by_view"],
+                    frame_masks_by_view=batch["frame_masks_by_view"],
+                    visit_mask=batch["visit_mask"],
+                    visit_times=batch["visit_times"],
+                )
             delta_pred = outputs["delta_gls"].detach().cpu().numpy()
             risk_prob = outputs["risk_prob"].detach().cpu().numpy()
             severity = outputs["severity_score"].detach().cpu().numpy()
@@ -523,6 +556,7 @@ def _make_dataloader(
     batch_size: int,
     shuffle: bool,
     num_workers: int,
+    collate_fn: Any,
 ) -> Optional[DataLoader]:
     if dataset is None or len(dataset) == 0:
         return None
@@ -532,7 +566,7 @@ def _make_dataloader(
         shuffle=shuffle,
         num_workers=max(0, int(num_workers)),
         pin_memory=torch.cuda.is_available(),
-        collate_fn=visit_collate_fn,
+        collate_fn=collate_fn,
     )
 
 
@@ -559,20 +593,35 @@ def main() -> None:
     device = _resolve_device(cfg.device)
     logger.info("Training on device: %s", device)
 
-    dataset = VisitDataset(
-        input_xlsx=cfg.input_xlsx,
-        echo_root=cfg.echo_root,
-        cropped_root=cfg.cropped_root,
-        views=cfg.views,
-        t_frames=cfg.t_frames,
-        sampling_mode=cfg.sampling_mode,
-        clip_stride=cfg.clip_stride,
-        include_last_window=cfg.include_last_window,
-        max_visits=cfg.max_visits,
-        min_visits=cfg.min_visits,
-        risk_delta_threshold=cfg.risk_delta_threshold,
-        random_view_sampling=False,  # TODO: add epoch-wise randomized view sampling if needed.
-    )
+    if cfg.input_embeddings is not None:
+        dataset = FrameEmbeddingVisitDataset(
+            input_embeddings=cfg.input_embeddings,
+            views=cfg.views,
+            t_frames=cfg.t_frames,
+            max_visits=cfg.max_visits,
+            min_visits=cfg.min_visits,
+            risk_delta_threshold=cfg.risk_delta_threshold,
+            report_xlsx=cfg.report_xlsx,
+        )
+        collate = embedding_visit_collate_fn
+        use_precomputed_embeddings = True
+    else:
+        dataset = VisitDataset(
+            input_xlsx=cfg.input_xlsx,
+            echo_root=cfg.echo_root,
+            cropped_root=cfg.cropped_root,
+            views=cfg.views,
+            t_frames=cfg.t_frames,
+            sampling_mode=cfg.sampling_mode,
+            clip_stride=cfg.clip_stride,
+            include_last_window=cfg.include_last_window,
+            max_visits=cfg.max_visits,
+            min_visits=cfg.min_visits,
+            risk_delta_threshold=cfg.risk_delta_threshold,
+            random_view_sampling=False,  # TODO: add epoch-wise randomized view sampling if needed.
+        )
+        collate = visit_collate_fn
+        use_precomputed_embeddings = False
 
     train_idx, val_idx, test_idx = split_patient_indices(
         n_patients=len(dataset),
@@ -584,9 +633,9 @@ def main() -> None:
     val_ds = Subset(dataset, val_idx) if val_idx else None
     test_ds = Subset(dataset, test_idx) if test_idx else None
 
-    train_loader = _make_dataloader(train_ds, cfg.batch_size, True, cfg.num_workers)
-    val_loader = _make_dataloader(val_ds, cfg.batch_size, False, cfg.num_workers)
-    test_loader = _make_dataloader(test_ds, cfg.batch_size, False, cfg.num_workers)
+    train_loader = _make_dataloader(train_ds, cfg.batch_size, True, cfg.num_workers, collate)
+    val_loader = _make_dataloader(val_ds, cfg.batch_size, False, cfg.num_workers, collate)
+    test_loader = _make_dataloader(test_ds, cfg.batch_size, False, cfg.num_workers, collate)
     if train_loader is None:
         raise RuntimeError("No training samples available after patient split.")
 
@@ -605,6 +654,9 @@ def main() -> None:
         longitudinal_dropout=cfg.longitudinal_dropout,
         use_time_encoding=cfg.use_time_encoding,
     ).to(device)
+    if use_precomputed_embeddings:
+        for p in model.frame_encoder.parameters():
+            p.requires_grad = False
 
     optimizer = torch.optim.AdamW(
         [p for p in model.parameters() if p.requires_grad],
@@ -653,6 +705,7 @@ def main() -> None:
             smooth_loss_fn=smooth_loss_fn,
             cfg=cfg,
             train=True,
+            use_precomputed_embeddings=use_precomputed_embeddings,
         )
         val_metrics = _run_epoch(
             model=model,
@@ -664,6 +717,7 @@ def main() -> None:
             smooth_loss_fn=smooth_loss_fn,
             cfg=cfg,
             train=False,
+            use_precomputed_embeddings=use_precomputed_embeddings,
         )
 
         if scheduler is not None:
@@ -744,9 +798,9 @@ def main() -> None:
     cfg_json.write_text(json.dumps(vars(cfg), indent=2, default=str), encoding="utf-8")
 
     pred_frames: List[pd.DataFrame] = []
-    pred_frames.append(_predict(model, train_loader, device, split_name="train"))
-    pred_frames.append(_predict(model, val_loader, device, split_name="val"))
-    pred_frames.append(_predict(model, test_loader, device, split_name="test"))
+    pred_frames.append(_predict(model, train_loader, device, split_name="train", use_precomputed_embeddings=use_precomputed_embeddings))
+    pred_frames.append(_predict(model, val_loader, device, split_name="val", use_precomputed_embeddings=use_precomputed_embeddings))
+    pred_frames.append(_predict(model, test_loader, device, split_name="test", use_precomputed_embeddings=use_precomputed_embeddings))
     pred_df = pd.concat([df for df in pred_frames if not df.empty], axis=0, ignore_index=True)
     pred_path = cfg.output_parquet or (cfg.output_dir / f"{cfg.run_name}_predictions.parquet")
     if pred_path.exists():

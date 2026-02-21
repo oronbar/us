@@ -13,17 +13,28 @@ logger = logging.getLogger("ichilov_pipeline3.frame_encoder")
 
 
 def _resolve_blocks(module: nn.Module) -> List[nn.Module]:
+    def _to_blocks(obj: object) -> List[nn.Module]:
+        if isinstance(obj, (nn.ModuleList, list, tuple)):
+            return [m for m in obj if isinstance(m, nn.Module)]
+        if isinstance(obj, nn.Sequential):
+            return list(obj.children())
+        if isinstance(obj, nn.Module):
+            children = list(obj.children())
+            if children:
+                return children
+        return []
+
     for attr in ("blocks", "layers"):
-        blocks = getattr(module, attr, None)
-        if isinstance(blocks, (nn.ModuleList, list, tuple)):
-            return list(blocks)
+        blocks = _to_blocks(getattr(module, attr, None))
+        if blocks:
+            return blocks
 
     encoder = getattr(module, "encoder", None)
     if encoder is not None:
         for attr in ("layer", "layers", "blocks"):
-            blocks = getattr(encoder, attr, None)
-            if isinstance(blocks, (nn.ModuleList, list, tuple)):
-                return list(blocks)
+            blocks = _to_blocks(getattr(encoder, attr, None))
+            if blocks:
+                return blocks
     return []
 
 
@@ -44,6 +55,7 @@ class FrameEncoder(nn.Module):
         freeze_backbone: bool = True,
         unfreeze_last_blocks: int = 0,
         hf_fallback_name: str = "facebook/dinov2-small",
+        input_size: Optional[int] = None,
     ) -> None:
         super().__init__()
         self.backbone_name = backbone_name
@@ -51,14 +63,24 @@ class FrameEncoder(nn.Module):
         self.backend = "timm"
         self.backbone: nn.Module
         self.output_dim: int
+        self.expected_img_size: Optional[tuple[int, int]] = None
 
         try:
             import timm
 
-            self.backbone = timm.create_model(backbone_name, pretrained=pretrained, num_classes=0)
+            create_kwargs = {"pretrained": pretrained, "num_classes": 0}
+            if input_size is not None:
+                create_kwargs["img_size"] = int(input_size)
+            self.backbone = timm.create_model(backbone_name, **create_kwargs)
             if hasattr(self.backbone, "reset_classifier"):
                 self.backbone.reset_classifier(0)
             self.output_dim = int(getattr(self.backbone, "num_features", 384))
+            patch_embed = getattr(self.backbone, "patch_embed", None)
+            img_size = getattr(patch_embed, "img_size", None) if patch_embed is not None else None
+            if isinstance(img_size, int):
+                self.expected_img_size = (img_size, img_size)
+            elif isinstance(img_size, (tuple, list)) and len(img_size) == 2:
+                self.expected_img_size = (int(img_size[0]), int(img_size[1]))
             logger.info("Loaded DINOv2 backbone from timm: %s", backbone_name)
         except Exception as exc_timm:
             logger.warning(
@@ -73,6 +95,9 @@ class FrameEncoder(nn.Module):
                 self.backbone = AutoModel.from_pretrained(hf_fallback_name)
                 self.backend = "hf"
                 self.output_dim = int(self.backbone.config.hidden_size)
+                hf_size = getattr(self.backbone.config, "image_size", None)
+                if isinstance(hf_size, int):
+                    self.expected_img_size = (hf_size, hf_size)
             except Exception as exc_hf:  # pragma: no cover - runtime dependency/environment
                 raise RuntimeError(
                     "Unable to load DINOv2 backbone from timm or HuggingFace."

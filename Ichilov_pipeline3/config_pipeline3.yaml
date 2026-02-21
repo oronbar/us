@@ -10,6 +10,8 @@ paths:
   echo_root: 'D:\'
   # Excel registry with source DICOMs and GLS labels.
   input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
+  # Optional cached frame embeddings parquet (recommended for separated encoder workflow).
+  input_embeddings: ''
   # Optional cropped DICOM root. If empty, source DICOMs are used directly.
   cropped_root: 'D:\DS\Ichilov_cropped'
   # Training output folder (checkpoints/logs/history/predictions).
@@ -25,6 +27,9 @@ steps:
     args:
       # Optional run name override.
       run_name: 'pipeline3_first_train'
+      # Use cached frame embeddings from frame_encode stage (preferred).
+      input_embeddings: ''
+      report_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
       # Optional view filter (A2C/A3C/A4C).
       views: 'A2C,A3C,A4C'
 

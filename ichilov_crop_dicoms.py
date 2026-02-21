@@ -11,7 +11,7 @@ Workflow:
       * compute a mask per sampled frame (RGB > 5), keep only largest blob
       * average blob masks and use it for the crop box (height == blob height)
       * x center is the mean of the top-20 tallest columns in y
-      * resize to 224x224
+      * resize to configured output size (e.g., 518x518 for DINOv2)
       * save to D:\\DS\\Ichilov_cropped with the same folder structure
 
 Usage (PowerShell):
@@ -728,6 +728,7 @@ def _process_entry(
     entry: DicomEntry,
     echo_root: Path,
     output_root: Path,
+    out_size: int,
     overwrite: bool,
     sampling_mode: str,
     target_frames: int,
@@ -738,6 +739,7 @@ def _process_entry(
         dicom_path=entry.path,
         echo_root=echo_root,
         output_root=output_root,
+        out_size=out_size,
         overwrite=overwrite,
         sampling_mode=sampling_mode,
         target_frames=target_frames,
@@ -750,7 +752,7 @@ def _process_entry(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Crop Ichilov DICOMs to 224x224 with optional 16-frame sampling.")
+    parser = argparse.ArgumentParser(description="Crop Ichilov DICOMs to configurable square size with optional frame sampling.")
     parser.add_argument(
         "--input-xlsx",
         type=Path,
@@ -780,6 +782,12 @@ def main() -> None:
         type=float,
         default=0.6,
         help="Temporal window length in seconds for window/adjusting_window sampling.",
+    )
+    parser.add_argument(
+        "--out-size",
+        type=int,
+        default=224,
+        help="Final spatial output size (square). Use 518 for DINOv2 ViT-S/14.",
     )
     parser.add_argument(
         "--sampling-mode",
@@ -818,6 +826,7 @@ def main() -> None:
                 entry,
                 echo_root=args.echo_root,
                 output_root=args.output_root,
+                out_size=args.out_size,
                 overwrite=args.overwrite,
                 sampling_mode=args.sampling_mode,
                 target_frames=args.clip_length,
@@ -833,6 +842,7 @@ def main() -> None:
                         dicoms,
                         repeat(args.echo_root),
                         repeat(args.output_root),
+                        repeat(args.out_size),
                         repeat(args.overwrite),
                         repeat(args.sampling_mode),
                         repeat(args.clip_length),

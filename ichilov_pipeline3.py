@@ -7,7 +7,9 @@ Config path (no CLI args):
 
 Pipeline stages:
   1) crop (optional, reuses pipeline2 crop script)
-  2) longitudinal_train (Ichilov_pipeline3/train_pipeline3.py)
+  2) frame_pretrain (optional, reuses pipeline2 frame pretraining)
+  3) frame_encode (export per-frame embeddings parquet)
+  4) longitudinal_train (Ichilov_pipeline3/train_pipeline3.py)
 """
 from __future__ import annotations
 
@@ -292,7 +294,92 @@ def main() -> None:
             logger.info("Skipping crop step. Using cropped root: %s", cropped_root)
             crop_args["output_root"] = cropped_root
 
-    # --- Longitudinal Train (pipeline3) ---
+    # --- Frame Pretrain (optional, pipeline2-compatible) ---
+    frame_pre_cfg = steps_cfg.get("frame_pretrain", {})
+    frame_pre_run = _step_enabled(frame_pre_cfg)
+    frame_pre_args = _normalize_args(
+        frame_pre_cfg.get("args", {}),
+        path_keys=("cropped_root", "weights", "output_dir", "input_xlsx", "echo_root", "resume_path"),
+    )
+    frame_pre_best: Optional[Path] = None
+    frame_pre_output_dir: Optional[Path] = None
+
+    if frame_pre_run:
+        frame_pre_output_dir = frame_pre_args.get("output_dir") or (run_dir / "frame_pretrain")
+        frame_pre_output_dir.mkdir(parents=True, exist_ok=True)
+        frame_pre_args["output_dir"] = frame_pre_output_dir
+        if frame_pre_args.get("cropped_root") is None and cropped_root is not None:
+            frame_pre_args["cropped_root"] = cropped_root
+        if frame_pre_args.get("input_xlsx") is None:
+            frame_pre_args["input_xlsx"] = _expand_path(paths_cfg.get("input_xlsx"))
+        if frame_pre_args.get("echo_root") is None:
+            frame_pre_args["echo_root"] = _expand_path(paths_cfg.get("echo_root")) or DEFAULT_ECHO_ROOT
+
+        frame_pre_run_name = str(frame_pre_args.get("run_name") or "").strip()
+        if not frame_pre_run_name:
+            frame_pre_run_name = f"frame_mae_{run_name}"
+            frame_pre_args["run_name"] = frame_pre_run_name
+        best_pattern = str(frame_pre_cfg.get("best_weights_pattern") or "").strip()
+        if best_pattern:
+            frame_pre_best = _latest_file(frame_pre_output_dir, best_pattern)
+        else:
+            best_name = _default_best_name(frame_pre_cfg, f"{frame_pre_run_name}_best.pt")
+            frame_pre_best = frame_pre_output_dir / best_name
+
+        frame_pre_script = _step_script(frame_pre_cfg, "ichilov_pretrain_frame_dinov2.py", project_root)
+        _ensure_script_exists(frame_pre_script, "frame_pretrain")
+        frame_pre_bool_flags = _merge_bool_flags({}, _parse_bool_flags(frame_pre_cfg))
+        frame_pre_cmd = _build_cmd(frame_pre_script, frame_pre_args, frame_pre_bool_flags, python_exe)
+        _run_step("frame_pretrain", frame_pre_cmd)
+        if frame_pre_best is not None and not frame_pre_best.exists():
+            frame_pre_best = _latest_file(frame_pre_output_dir, "*best*.pt")
+    else:
+        frame_pre_best = _expand_path(frame_pre_cfg.get("use_if_skipped"))
+        if frame_pre_best is None:
+            pattern = str(frame_pre_cfg.get("best_weights_pattern") or "").strip() or "*frame_mae*best*.pt"
+            frame_pre_best = _latest_file(experiments_root, pattern, dir_prefix=prefix)
+        if frame_pre_best is not None:
+            frame_pre_output_dir = frame_pre_best.parent
+
+    # --- Frame Encode (export cached frame embeddings) ---
+    frame_encode_cfg = steps_cfg.get("frame_encode", {})
+    frame_encode_run = _step_enabled(frame_encode_cfg)
+    frame_encode_args = _normalize_args(
+        frame_encode_cfg.get("args", {}),
+        path_keys=("input_xlsx", "echo_root", "cropped_root", "weights", "output_parquet"),
+    )
+    frame_embeddings_path: Optional[Path] = None
+
+    if frame_encode_run:
+        if frame_encode_args.get("input_xlsx") is None:
+            frame_encode_args["input_xlsx"] = _expand_path(paths_cfg.get("input_xlsx"))
+        if frame_encode_args.get("echo_root") is None:
+            frame_encode_args["echo_root"] = _expand_path(paths_cfg.get("echo_root")) or DEFAULT_ECHO_ROOT
+        if frame_encode_args.get("cropped_root") is None and cropped_root is not None:
+            frame_encode_args["cropped_root"] = cropped_root
+        if frame_encode_args.get("weights") is None and frame_pre_best is not None:
+            frame_encode_args["weights"] = frame_pre_best
+
+        frame_embeddings_path = frame_encode_args.get("output_parquet")
+        if frame_embeddings_path is None:
+            embeddings_dir = run_dir / "frame_embeddings"
+            embeddings_dir.mkdir(parents=True, exist_ok=True)
+            frame_embeddings_path = embeddings_dir / f"Ichilov_frame_embeddings_{run_name}.parquet"
+        frame_encode_args["output_parquet"] = frame_embeddings_path
+
+        frame_encode_script = _step_script(frame_encode_cfg, "ichilov_encode_frames_dinov2.py", project_root)
+        _ensure_script_exists(frame_encode_script, "frame_encode")
+        frame_encode_bool_flags = _merge_bool_flags({}, _parse_bool_flags(frame_encode_cfg))
+        frame_encode_cmd = _build_cmd(frame_encode_script, frame_encode_args, frame_encode_bool_flags, python_exe)
+        _run_step("frame_encode", frame_encode_cmd)
+    else:
+        frame_embeddings_path = _expand_path(frame_encode_cfg.get("use_if_skipped"))
+        if frame_embeddings_path is None:
+            frame_embeddings_path = _latest_file(
+                experiments_root, "Ichilov_frame_embeddings_*.parquet", dir_prefix=prefix
+            )
+
+    # --- Longitudinal Train (pipeline3, trains temporal+fusion+longitudinal on cached embeddings) ---
     long_cfg = steps_cfg.get("longitudinal_train", {})
     long_run = _step_enabled(long_cfg)
     long_args = _normalize_args(
@@ -300,6 +387,8 @@ def main() -> None:
         path_keys=(
             "config",
             "input_xlsx",
+            "input_embeddings",
+            "report_xlsx",
             "echo_root",
             "cropped_root",
             "output_dir",
@@ -315,6 +404,10 @@ def main() -> None:
             long_args["config"] = project_root / DEFAULT_PIPELINE3_CONFIG
         if long_args.get("input_xlsx") is None:
             long_args["input_xlsx"] = _expand_path(paths_cfg.get("input_xlsx"))
+        if long_args.get("report_xlsx") is None:
+            long_args["report_xlsx"] = _expand_path(paths_cfg.get("input_xlsx"))
+        if long_args.get("input_embeddings") is None:
+            long_args["input_embeddings"] = frame_embeddings_path
         if long_args.get("echo_root") is None:
             long_args["echo_root"] = _expand_path(paths_cfg.get("echo_root")) or DEFAULT_ECHO_ROOT
         if long_args.get("cropped_root") is None and cropped_root is not None:
@@ -359,6 +452,9 @@ def main() -> None:
 
     artifacts = {
         "cropped_root": cropped_root,
+        "frame_pretrain_output_dir": frame_pre_output_dir,
+        "frame_pretrain_best_weights": frame_pre_best,
+        "frame_embeddings_path": frame_embeddings_path,
         "longitudinal_output_dir": long_output_dir,
         "longitudinal_best_weights": long_best,
     }
@@ -368,6 +464,14 @@ def main() -> None:
     resolved["steps"].setdefault("crop", {})
     resolved["steps"]["crop"]["run"] = crop_run
     resolved["steps"]["crop"]["args"] = _stringify_paths(crop_args)
+
+    resolved["steps"].setdefault("frame_pretrain", {})
+    resolved["steps"]["frame_pretrain"]["run"] = frame_pre_run
+    resolved["steps"]["frame_pretrain"]["args"] = _stringify_paths(frame_pre_args)
+
+    resolved["steps"].setdefault("frame_encode", {})
+    resolved["steps"]["frame_encode"]["run"] = frame_encode_run
+    resolved["steps"]["frame_encode"]["args"] = _stringify_paths(frame_encode_args)
 
     resolved["steps"].setdefault("longitudinal_train", {})
     resolved["steps"]["longitudinal_train"]["run"] = long_run
@@ -380,6 +484,8 @@ def main() -> None:
     logger.info("Pipeline3 complete. Run name: %s", run_name)
     logger.info("Run folder: %s", run_dir)
     logger.info("Cropped root: %s", cropped_root)
+    logger.info("Frame pretrain output: %s", frame_pre_output_dir)
+    logger.info("Frame embeddings: %s", frame_embeddings_path)
     logger.info("Longitudinal outputs: %s", long_output_dir)
 
 

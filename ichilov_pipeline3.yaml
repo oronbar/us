@@ -1,6 +1,6 @@
 # Ichilov pipeline3 orchestrator config.
 pipeline:
-  run_name: ''
+  run_name: 'DinoPipeline'
   run_name_prefix: 'ichilov_pipeline3'
   python_exe: ''
   save_config_copy: true
@@ -22,12 +22,66 @@ steps:
       input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
       echo_root: 'D:\'
       output_root: ''
+      out_size: 518
       clip_length: 16
       window_sec: 0.6
       sampling_mode: 'sliding_window'
       spatial_only: false
       overwrite: false
       workers: 0
+
+  frame_pretrain:
+    run: true
+    use_if_skipped: ''
+    best_weights_pattern: ''
+    best_weights_name: ''
+    script: 'ichilov_pretrain_frame_dinov2.py'
+    bool_flags: {}
+    args:
+      cropped_root: ''
+      weights: ''
+      output_dir: ''
+      input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
+      echo_root: 'D:\'
+      views: 'A2C,A3C,A4C'
+      frame_stride: 1
+      mask_ratio: 0.75
+      train_encoder_blocks: 2
+      freeze_decoder: true
+      batch_size: 32
+      num_workers: 4
+      epochs: 20
+      lr: 0.0001
+      weight_decay: 0.05
+      val_ratio: 0.2
+      data_ratio: 1.0
+      max_samples: 0
+      seed: 42
+      device: 'auto'
+      run_name: ''
+      view_head: false
+      view_loss_weight: 0.1
+      backbone_name: 'vit_small_patch14_dinov2.lvd142m'
+      resume_latest: true
+      resume_path: 'C:\Users\Oron\OneDrive - Technion\Experiments\DinoPipeline_10\frame_pretrain\frame_mae_DinoPipeline_10_best.pt'
+
+  frame_encode:
+    run: true
+    use_if_skipped: ''
+    script: 'ichilov_encode_frames_dinov2.py'
+    bool_flags: {}
+    args:
+      input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
+      echo_root: 'D:\'
+      cropped_root: ''
+      weights: ''
+      output_parquet: ''
+      views: 'A2C,A3C,A4C'
+      sampling_mode: 'uniform'
+      clip_length: 1
+      clip_stride: 1
+      include_last_window: true
+      backbone_name: 'vit_small_patch14_dinov2.lvd142m'
 
   longitudinal_train:
     run: true
@@ -41,6 +95,8 @@ steps:
       config: 'Ichilov_pipeline3/config_pipeline3.yaml'
       # Can override config paths directly here if needed.
       input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
+      input_embeddings: ''
+      report_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
       echo_root: 'D:\'
       cropped_root: 'D:\DS\Ichilov_cropped'
       output_dir: 'C:\Users\oron\OneDrive - Technion\Experiments\ichilov_pipeline3\longitudinal'
