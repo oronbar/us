@@ -48,7 +48,7 @@ steps:
       mask_ratio: 0.75
       train_encoder_blocks: 2
       freeze_decoder: true
-      batch_size: 32
+      batch_size: 16
       num_workers: 4
       epochs: 20
       lr: 0.0001

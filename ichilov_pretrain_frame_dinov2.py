@@ -377,12 +377,14 @@ def _load_checkpoint_if_any(model: DINOv2PretrainModel, weights: Optional[Path])
         logger.info("Loaded raw state_dict checkpoint %s", weights)
 
 
-def _latest_resume_checkpoint(output_dir: Path) -> Optional[Path]:
+def _latest_resume_checkpoint(output_dir: Path, latest_only: bool = False) -> Optional[Path]:
     if not output_dir.exists():
         return None
     latest = sorted(output_dir.glob("*_latest.pt"), key=lambda p: p.stat().st_mtime, reverse=True)
     if latest:
         return latest[0]
+    if latest_only:
+        return None
     best = sorted(output_dir.glob("*_best.pt"), key=lambda p: p.stat().st_mtime, reverse=True)
     if best:
         return best[0]
@@ -411,6 +413,35 @@ def _load_resume_checkpoint(path: Path, model: DINOv2PretrainModel) -> Dict[str,
         raise RuntimeError(f"Checkpoint does not include model_state/backbone_state: {path}")
     logger.info("Resumed model from checkpoint: %s", path)
     return ckpt
+
+
+def _load_existing_history(path: Path) -> List[dict]:
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Failed to parse existing history file %s: %s", path, exc)
+        return []
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)]
+    return []
+
+
+def _merge_history(base: List[dict], incoming: List[dict]) -> List[dict]:
+    by_epoch: Dict[int, dict] = {}
+    ordered_epochs: List[int] = []
+    for item in base + incoming:
+        if not isinstance(item, dict):
+            continue
+        try:
+            epoch = int(item.get("epoch"))
+        except Exception:
+            continue
+        if epoch not in by_epoch:
+            ordered_epochs.append(epoch)
+        by_epoch[epoch] = item
+    return [by_epoch[e] for e in sorted(set(ordered_epochs))]
 
 
 def main() -> None:
@@ -452,6 +483,11 @@ def main() -> None:
     parser.add_argument("--backbone-name", type=str, default="vit_small_patch14_dinov2.lvd142m")
     parser.add_argument("--resume-latest", action="store_true", help="Resume from the newest checkpoint in output-dir.")
     parser.add_argument("--resume-path", type=Path, default=None, help="Explicit checkpoint path to resume from.")
+    parser.add_argument(
+        "--continue-session",
+        action="store_true",
+        help="Resume exactly from <run_name>_latest.pt in output-dir and treat --epochs as additional epochs.",
+    )
     args = parser.parse_args()
 
     if args.device == "auto":
@@ -539,6 +575,12 @@ def main() -> None:
         resume_path = args.resume_path
         if not resume_path.exists():
             raise FileNotFoundError(f"resume-path not found: {resume_path}")
+    elif args.continue_session:
+        resume_path = _latest_resume_checkpoint(args.output_dir, latest_only=True)
+        if resume_path is None:
+            raise FileNotFoundError(
+                f"--continue-session requires an existing *_latest.pt checkpoint in: {args.output_dir}"
+            )
     elif args.resume_latest:
         resume_path = _latest_resume_checkpoint(args.output_dir)
         if resume_path is None:
@@ -560,6 +602,7 @@ def main() -> None:
     start_epoch = 1
     best_loss = float("inf")
     history: List[dict] = []
+    prev_epoch = 0
     if resume_ckpt is not None:
         if "optimizer_state" in resume_ckpt and isinstance(resume_ckpt["optimizer_state"], dict):
             try:
@@ -577,18 +620,40 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     best_path = args.output_dir / f"{run_name}_best.pt"
     latest_path = args.output_dir / f"{run_name}_latest.pt"
+    history_path = args.output_dir / f"{run_name}_history.json"
+    config_path = args.output_dir / f"{run_name}_config.json"
     recon_dir = args.output_dir / f"{run_name}_reconstructions"
     recon_dir.mkdir(parents=True, exist_ok=True)
-    writer = SummaryWriter(log_dir=str(args.output_dir / "tensorboard" / run_name)) if SummaryWriter is not None else None
+    if resume_ckpt is not None:
+        existing_history = _load_existing_history(history_path)
+        history = _merge_history(existing_history, history)
 
-    if start_epoch > args.epochs:
+    target_epoch = int(args.epochs)
+    if args.continue_session and resume_ckpt is not None:
+        target_epoch = prev_epoch + max(0, int(args.epochs))
+        logger.info(
+            "Continue-session enabled: previous epoch=%d, additional epochs=%d, target epoch=%d",
+            prev_epoch,
+            int(args.epochs),
+            target_epoch,
+        )
+    writer = (
+        SummaryWriter(
+            log_dir=str(args.output_dir / "tensorboard" / run_name),
+            purge_step=(start_epoch if resume_ckpt is not None else None),
+        )
+        if SummaryWriter is not None
+        else None
+    )
+
+    if start_epoch > target_epoch:
         logger.warning(
             "Resume checkpoint epoch (%d) is already >= requested epochs (%d). Nothing to train.",
             start_epoch - 1,
-            args.epochs,
+            target_epoch,
         )
 
-    for epoch in range(start_epoch, args.epochs + 1):
+    for epoch in range(start_epoch, target_epoch + 1):
         train_loss, train_view, train_recon = _train_or_eval(
             model, train_loader, optimizer, device, args.view_head, args.view_loss_weight, args.recon_loss_weight
         )
@@ -619,7 +684,7 @@ def main() -> None:
         logger.info(
             "Epoch %d/%d | train=%.4f val=%.4f recon_val=%.4f",
             epoch,
-            args.epochs,
+            target_epoch,
             train_loss,
             val_loss if val_loader is not None else train_loss,
             val_recon if val_loader is not None else train_recon,
@@ -637,6 +702,7 @@ def main() -> None:
                 "optimizer_state": optimizer.state_dict(),
                 "history": history,
                 "config": vars(args),
+                "target_epoch": target_epoch,
             },
             latest_path,
         )
@@ -651,14 +717,19 @@ def main() -> None:
                     "optimizer_state": optimizer.state_dict(),
                     "history": history,
                     "config": vars(args),
+                    "target_epoch": target_epoch,
                 },
                 best_path,
             )
 
-    (args.output_dir / f"{run_name}_history.json").write_text(json.dumps(history, indent=2), encoding="utf-8")
-    (args.output_dir / f"{run_name}_config.json").write_text(
-        json.dumps(vars(args), indent=2, default=str), encoding="utf-8"
-    )
+    history_path.write_text(json.dumps(history, indent=2), encoding="utf-8")
+    config_payload = dict(vars(args))
+    config_payload["resolved_run_name"] = run_name
+    config_payload["start_epoch"] = start_epoch
+    config_payload["target_epoch"] = target_epoch
+    config_payload["resume_checkpoint"] = str(resume_path) if resume_path is not None else None
+    config_payload["updated_at"] = datetime.now().isoformat(timespec="seconds")
+    config_path.write_text(json.dumps(config_payload, indent=2, default=str), encoding="utf-8")
     if writer is not None:
         writer.close()
     logger.info("Best checkpoint: %s", best_path)
