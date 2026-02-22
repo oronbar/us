@@ -62,6 +62,15 @@ def _latest_dir(root: Path) -> Optional[Path]:
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
+def _latest_prefixed_dir(root: Path, prefix: str) -> Optional[Path]:
+    if not root.exists():
+        return None
+    candidates = [p for p in root.iterdir() if p.is_dir() and p.name.startswith(prefix)]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
+
+
 def _latest_file(root: Path, pattern: str, dir_prefix: Optional[str] = None) -> Optional[Path]:
     if not root.exists():
         return None
@@ -236,18 +245,41 @@ def main() -> None:
     prefix = str(pipeline_cfg.get("run_name_prefix") or "ichilov_pipeline3").strip()
     run_name_cfg = str(pipeline_cfg.get("run_name") or "").strip()
     run_name = run_name_cfg or f"{prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    continue_last_run = bool(pipeline_cfg.get("continue_last_run", False))
 
     experiments_root = _expand_path(paths_cfg.get("experiments_root")) or DEFAULT_EXPERIMENTS_ROOT
     experiments_root.mkdir(parents=True, exist_ok=True)
-    run_dir = _unique_dir(experiments_root / run_name)
-    run_dir.mkdir(parents=True, exist_ok=True)
+    if continue_last_run:
+        if run_name_cfg:
+            run_dir = experiments_root / run_name_cfg
+            if not run_dir.exists():
+                raise FileNotFoundError(
+                    f"continue_last_run=true but run folder does not exist: {run_dir}"
+                )
+        else:
+            latest = _latest_prefixed_dir(experiments_root, prefix)
+            if latest is None:
+                raise FileNotFoundError(
+                    f"continue_last_run=true but no previous run found in {experiments_root} "
+                    f"with prefix '{prefix}'"
+                )
+            run_dir = latest
+        logger.info("Continuing existing pipeline run folder: %s", run_dir)
+    else:
+        run_dir = _unique_dir(experiments_root / run_name)
+        run_dir.mkdir(parents=True, exist_ok=True)
     run_name = run_dir.name
 
     python_exe = _expand_path(pipeline_cfg.get("python_exe")) or Path(sys.executable)
     project_root = Path(__file__).resolve().parent
 
     if pipeline_cfg.get("save_config_copy", True):
-        shutil.copy2(config_path, run_dir / "config.yaml")
+        config_copy_path = run_dir / "config.yaml"
+        if continue_last_run and config_copy_path.exists():
+            stamped = run_dir / f"config_resume_{datetime.now().strftime('%Y%m%d_%H%M%S')}.yaml"
+            shutil.copy2(config_path, stamped)
+        else:
+            shutil.copy2(config_path, config_copy_path)
 
     resolved = deepcopy(config)
     resolved.setdefault("pipeline", {})
@@ -256,6 +288,7 @@ def main() -> None:
     resolved["pipeline"]["config_path"] = str(config_path)
     resolved["pipeline"]["python_exe"] = str(python_exe)
     resolved["pipeline"]["timestamp"] = datetime.now().isoformat(timespec="seconds")
+    resolved["pipeline"]["continue_last_run"] = continue_last_run
 
     # --- Crop (optional) ---
     crop_cfg = steps_cfg.get("crop", {})
@@ -308,6 +341,11 @@ def main() -> None:
         frame_pre_output_dir = frame_pre_args.get("output_dir") or (run_dir / "frame_pretrain")
         frame_pre_output_dir.mkdir(parents=True, exist_ok=True)
         frame_pre_args["output_dir"] = frame_pre_output_dir
+        if continue_last_run:
+            if frame_pre_args.get("continue_session") is None:
+                frame_pre_args["continue_session"] = True
+            if frame_pre_args.get("resume_path") is None and frame_pre_args.get("resume_latest") is None:
+                frame_pre_args["resume_latest"] = True
         if frame_pre_args.get("cropped_root") is None and cropped_root is not None:
             frame_pre_args["cropped_root"] = cropped_root
         if frame_pre_args.get("input_xlsx") is None:
@@ -317,13 +355,24 @@ def main() -> None:
 
         frame_pre_run_name = str(frame_pre_args.get("run_name") or "").strip()
         if not frame_pre_run_name:
-            frame_pre_run_name = f"frame_mae_{run_name}"
-            frame_pre_args["run_name"] = frame_pre_run_name
+            existing_latest = _latest_file(frame_pre_output_dir, "*_latest.pt")
+            should_infer_from_resume = (
+                continue_last_run
+                and existing_latest is not None
+                and (
+                    frame_pre_args.get("continue_session")
+                    or frame_pre_args.get("resume_latest")
+                    or frame_pre_args.get("resume_path") is not None
+                )
+            )
+            if not should_infer_from_resume:
+                frame_pre_run_name = f"frame_mae_{run_name}"
+                frame_pre_args["run_name"] = frame_pre_run_name
         best_pattern = str(frame_pre_cfg.get("best_weights_pattern") or "").strip()
         if best_pattern:
             frame_pre_best = _latest_file(frame_pre_output_dir, best_pattern)
         else:
-            best_name = _default_best_name(frame_pre_cfg, f"{frame_pre_run_name}_best.pt")
+            best_name = _default_best_name(frame_pre_cfg, f"{(frame_pre_run_name or 'frame_mae')}_best.pt")
             frame_pre_best = frame_pre_output_dir / best_name
 
         frame_pre_script = _step_script(frame_pre_cfg, "ichilov_pretrain_frame_dinov2.py", project_root)
@@ -480,6 +529,10 @@ def main() -> None:
     resolved_path = run_dir / "resolved_config.yaml"
     with resolved_path.open("w", encoding="utf-8") as handle:
         yaml.safe_dump(_stringify_paths(resolved), handle, sort_keys=False)
+    if continue_last_run:
+        resolved_resume_path = run_dir / f"resolved_config_resume_{datetime.now().strftime('%Y%m%d_%H%M%S')}.yaml"
+        with resolved_resume_path.open("w", encoding="utf-8") as handle:
+            yaml.safe_dump(_stringify_paths(resolved), handle, sort_keys=False)
 
     logger.info("Pipeline3 complete. Run name: %s", run_name)
     logger.info("Run folder: %s", run_dir)
