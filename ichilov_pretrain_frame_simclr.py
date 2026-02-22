@@ -1,14 +1,11 @@
 ﻿"""
-Frame-level DINOv2 pretraining with pipeline2-compatible CLI.
+Frame-level SimCLR pretraining with pipeline2-compatible CLI.
 """
 from __future__ import annotations
 
 import argparse
-import contextlib
-import copy
 import json
 import logging
-import math
 import random
 from dataclasses import dataclass
 from datetime import datetime
@@ -52,7 +49,7 @@ except Exception:  # pragma: no cover
     SummaryWriter = None  # type: ignore
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-logger = logging.getLogger("ichilov_pretrain_frame_dinov2")
+logger = logging.getLogger("ichilov_pretrain_frame_simclr")
 
 
 @dataclass
@@ -156,19 +153,18 @@ def _build_entries(
 
     return entries
 
-class DINOMultiCropDataset(Dataset):
+
+class FramePairDataset(Dataset):
     def __init__(
         self,
         entries: Sequence[FrameEntry],
-        image_size: int = 518,
-        local_crops: int = 1,
+        image_size: int = 224,
         aug_brightness: float = 0.1,
         aug_contrast: float = 0.1,
         aug_speckle: float = 0.0,
     ) -> None:
         self.entries = list(entries)
         self.image_size = int(image_size)
-        self.local_crops = max(0, int(local_crops))
         self.aug_brightness = float(aug_brightness)
         self.aug_contrast = float(aug_contrast)
         self.aug_speckle = float(aug_speckle)
@@ -188,20 +184,6 @@ class DINOMultiCropDataset(Dataset):
             x = x + torch.randn_like(x) * self.aug_speckle
         return x.clamp(0.0, 1.0)
 
-    def _random_resized_crop(self, x: torch.Tensor, scale_min: float, scale_max: float) -> torch.Tensor:
-        _, _, h, w = x.shape
-        area = float(h * w)
-        target_area = random.uniform(float(scale_min), float(scale_max)) * area
-        side = max(1, int(round(math.sqrt(target_area))))
-        crop_h = max(1, min(h, side))
-        crop_w = max(1, min(w, side))
-        top = random.randint(0, max(0, h - crop_h))
-        left = random.randint(0, max(0, w - crop_w))
-        crop = x[:, :, top : top + crop_h, left : left + crop_w]
-        if crop.shape[-2:] != (self.image_size, self.image_size):
-            crop = F.interpolate(crop, size=(self.image_size, self.image_size), mode="bilinear", align_corners=False)
-        return crop
-
     def __getitem__(self, idx: int):
         entry = self.entries[idx]
         frames = load_cropped_frames(entry.cropped_path)
@@ -210,52 +192,22 @@ class DINOMultiCropDataset(Dataset):
         frame = frames[entry.frame_index : entry.frame_index + 1]
         tensor = to_tensor(frame)  # [1,C,H,W]
         tensor = resize_tensor(tensor, size=self.image_size)
-
-        global_crops: List[torch.Tensor] = []
-        for _ in range(2):
-            crop = self._random_resized_crop(tensor, 0.8, 1.0)
-            crop = self._augment(crop).squeeze(0)
-            global_crops.append(crop)
-
-        local_crops: List[torch.Tensor] = []
-        for _ in range(self.local_crops):
-            crop = self._random_resized_crop(tensor, 0.4, 0.6)
-            crop = self._augment(crop).squeeze(0)
-            local_crops.append(crop)
-
-        recon_target = global_crops[0].clone()
-        return global_crops, local_crops, recon_target
+        x1 = self._augment(tensor.clone()).squeeze(0)
+        x2 = self._augment(tensor.clone()).squeeze(0)
+        view_idx = VIEW_KEYS.index(entry.view) if entry.view in VIEW_KEYS else -1
+        return x1, x2, view_idx
 
 
 def _collate(batch: list):
     items = [b for b in batch if b is not None]
     if not items:
         return None
-
-    n_globals = len(items[0][0])
-    n_locals = len(items[0][1])
-
-    global_batches = [torch.stack([it[0][i] for it in items], dim=0) for i in range(n_globals)]
-    local_batches = [torch.stack([it[1][i] for it in items], dim=0) for i in range(n_locals)]
-    recon_targets = torch.stack([it[2] for it in items], dim=0)
-    return global_batches, local_batches, recon_targets
-
-
-class DINOProjector(nn.Module):
-    def __init__(self, dim: int, out_dim: int = 256) -> None:
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(dim, dim),
-            nn.GELU(),
-            nn.Linear(dim, dim),
-            nn.GELU(),
-            nn.Linear(dim, out_dim),
-        )
-        self.out_dim = int(out_dim)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        z = self.net(x)
-        return F.normalize(z, dim=1)
+    x1, x2, view_idx = zip(*items)
+    return (
+        torch.stack(x1, dim=0),
+        torch.stack(x2, dim=0),
+        torch.tensor(view_idx, dtype=torch.long),
+    )
 
 
 class DINOv2PretrainModel(nn.Module):
@@ -267,50 +219,27 @@ class DINOv2PretrainModel(nn.Module):
         freeze_backbone: bool,
     ) -> None:
         super().__init__()
-        self.student_encoder = FrameEncoder(
+        self.frame_encoder = FrameEncoder(
             backbone_name=backbone_name,
             pretrained=pretrained,
             freeze_backbone=freeze_backbone,
             unfreeze_last_blocks=max(0, train_encoder_blocks),
         )
-        d = int(self.student_encoder.output_dim)
-        self.student_projector = DINOProjector(d, out_dim=256)
-
-        self.teacher_encoder = copy.deepcopy(self.student_encoder)
-        self.teacher_projector = copy.deepcopy(self.student_projector)
-
+        d = int(self.frame_encoder.output_dim)
+        self.projector = nn.Sequential(
+            nn.Linear(d, d),
+            nn.GELU(),
+            nn.Linear(d, 128),
+        )
+        self.view_head = nn.Linear(d, len(VIEW_KEYS))
         self.recon_head = nn.Sequential(
             nn.Linear(d, d),
             nn.GELU(),
             nn.Linear(d, 3 * 56 * 56),
         )
-        self._set_teacher_trainable(False)
 
-    def _set_teacher_trainable(self, trainable: bool) -> None:
-        for p in self.teacher_encoder.parameters():
-            p.requires_grad = bool(trainable)
-        for p in self.teacher_projector.parameters():
-            p.requires_grad = bool(trainable)
-
-    def train(self, mode: bool = True):
-        super().train(mode)
-        self.teacher_encoder.eval()
-        self.teacher_projector.eval()
-        return self
-
-    def student_encode(self, x: torch.Tensor) -> torch.Tensor:
-        return self.student_encoder(x)
-
-    @torch.no_grad()
-    def teacher_encode(self, x: torch.Tensor) -> torch.Tensor:
-        return self.teacher_encoder(x)
-
-    def student_project(self, feats: torch.Tensor) -> torch.Tensor:
-        return self.student_projector(feats)
-
-    @torch.no_grad()
-    def teacher_project(self, feats: torch.Tensor) -> torch.Tensor:
-        return self.teacher_projector(feats)
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        return self.frame_encoder(x)
 
     def reconstruct_from_features(self, feats: torch.Tensor, out_hw: Tuple[int, int]) -> torch.Tensor:
         recon = self.recon_head(feats).reshape(feats.shape[0], 3, 56, 56)
@@ -318,189 +247,72 @@ class DINOv2PretrainModel(nn.Module):
         return recon.clamp(0.0, 1.0)
 
     def reconstruct(self, x: torch.Tensor) -> torch.Tensor:
-        feats = self.student_encode(x)
+        feats = self.encode(x)
         return self.reconstruct_from_features(feats, (x.shape[-2], x.shape[-1]))
 
 
-@torch.no_grad()
-def _sync_teacher_from_student(model: DINOv2PretrainModel) -> None:
-    model.teacher_encoder.load_state_dict(model.student_encoder.state_dict(), strict=False)
-    model.teacher_projector.load_state_dict(model.student_projector.state_dict(), strict=False)
-
-
-@torch.no_grad()
-def _ema_update(student: nn.Module, teacher: nn.Module, momentum: float) -> None:
-    for p_s, p_t in zip(student.parameters(), teacher.parameters()):
-        p_t.data.mul_(momentum).add_(p_s.data, alpha=1.0 - momentum)
-
-
-@torch.no_grad()
-def _update_teacher(model: DINOv2PretrainModel, momentum: float) -> None:
-    _ema_update(model.student_encoder, model.teacher_encoder, momentum)
-    _ema_update(model.student_projector, model.teacher_projector, momentum)
-
-def _teacher_momentum_at_step(step: int, total_steps: int, start: float, end: float = 0.9995) -> float:
-    if total_steps <= 0:
-        return float(end)
-    step = min(max(int(step), 0), int(total_steps))
-    cosine = 0.5 * (1.0 + math.cos(math.pi * float(step) / float(total_steps)))
-    return float(end - (end - start) * cosine)
-
-
-def _dino_loss(
-    student_outs: Sequence[torch.Tensor],
-    teacher_outs: Sequence[torch.Tensor],
-    center: torch.Tensor,
-    student_temp: float,
-    teacher_temp: float,
-) -> torch.Tensor:
-    teacher_probs = [
-        F.softmax((t.detach() - center) / float(teacher_temp), dim=-1) for t in teacher_outs
-    ]
-    student_log_probs = [
-        F.log_softmax(s / float(student_temp), dim=-1) for s in student_outs
-    ]
-
-    total = 0.0
-    terms = 0
-    for t_prob in teacher_probs:
-        for s_log in student_log_probs:
-            total = total + torch.sum(-t_prob * s_log, dim=-1).mean()
-            terms += 1
-    if terms <= 0:
-        raise RuntimeError("DINO loss received zero view pairs.")
-    return total / float(terms)
-
-
-@torch.no_grad()
-def _update_center(center: torch.Tensor, teacher_outs: Sequence[torch.Tensor], momentum: float) -> None:
-    if not teacher_outs:
-        return
-    batch_center = torch.cat([t.detach() for t in teacher_outs], dim=0).mean(dim=0, keepdim=True)
-    center.mul_(float(momentum)).add_(batch_center, alpha=1.0 - float(momentum))
-
-
-def _amp_autocast(device_type: str, enabled: bool):
-    if not enabled:
-        return contextlib.nullcontext()
-
-    amp_mod = getattr(torch, "amp", None)
-    if amp_mod is not None and hasattr(amp_mod, "autocast"):
-        return amp_mod.autocast(device_type=device_type, enabled=enabled)
-
-    cuda_amp_mod = getattr(torch.cuda, "amp", None)
-    if cuda_amp_mod is not None and hasattr(cuda_amp_mod, "autocast"):
-        return cuda_amp_mod.autocast(enabled=enabled)
-
-    return contextlib.nullcontext()
-
-
-def _make_grad_scaler(device_type: str, enabled: bool):
-    amp_mod = getattr(torch, "amp", None)
-    if amp_mod is not None and hasattr(amp_mod, "GradScaler"):
-        try:
-            return amp_mod.GradScaler(device=device_type, enabled=enabled)
-        except TypeError:
-            try:
-                return amp_mod.GradScaler(device_type, enabled=enabled)
-            except TypeError:
-                pass
-
-    cuda_amp_mod = getattr(torch.cuda, "amp", None)
-    if cuda_amp_mod is not None and hasattr(cuda_amp_mod, "GradScaler"):
-        return cuda_amp_mod.GradScaler(enabled=enabled)
-
-    return None
+def _nt_xent(z1: torch.Tensor, z2: torch.Tensor, temp: float = 0.2) -> torch.Tensor:
+    z1 = F.normalize(z1, dim=1)
+    z2 = F.normalize(z2, dim=1)
+    logits = torch.mm(z1, z2.t()) / temp
+    labels = torch.arange(z1.size(0), device=z1.device)
+    return 0.5 * (F.cross_entropy(logits, labels) + F.cross_entropy(logits.t(), labels))
 
 
 def _train_or_eval(
     model: DINOv2PretrainModel,
     loader: DataLoader,
     optimizer: Optional[torch.optim.Optimizer],
-    scaler: Optional[Any],
     device: torch.device,
-    center: torch.Tensor,
-    student_temp: float,
-    teacher_temp: float,
-    center_momentum: float,
+    view_head: bool,
+    view_loss_weight: float,
     recon_loss_weight: float,
-    use_amp: bool,
-    global_step: int,
-    total_steps: int,
-    teacher_momentum_start: float,
-    teacher_momentum_final: float,
-) -> Tuple[float, float, int]:
+) -> Tuple[float, float, float]:
     train = optimizer is not None
     model.train() if train else model.eval()
-    total_loss = 0.0
+    total = 0.0
+    total_view = 0.0
     total_recon = 0.0
     n = 0
-
-    amp_enabled = bool(use_amp and device.type == "cuda")
     grad_ctx = torch.enable_grad() if train else torch.no_grad()
-
     with grad_ctx:
         for batch in tqdm(loader, desc="Train" if train else "Val", leave=False):
             if batch is None:
                 continue
-            global_crops, local_crops, recon_target = batch
-            global_crops = [crop.to(device, non_blocking=True) for crop in global_crops]
-            local_crops = [crop.to(device, non_blocking=True) for crop in local_crops]
-            recon_target = recon_target.to(device, non_blocking=True)
-            student_inputs = list(global_crops) + list(local_crops)
+            x1, x2, view_idx = batch
+            x1 = x1.to(device, non_blocking=True)
+            x2 = x2.to(device, non_blocking=True)
+            view_idx = view_idx.to(device, non_blocking=True)
 
-            amp_ctx = _amp_autocast(device_type=device.type, enabled=amp_enabled)
-            with amp_ctx:
-                student_feats = [model.student_encode(crop) for crop in student_inputs]
-                student_outs = [model.student_project(feat) for feat in student_feats]
-
-                with torch.no_grad():
-                    teacher_feats = [model.teacher_encode(crop) for crop in global_crops]
-                    teacher_outs = [model.teacher_project(feat) for feat in teacher_feats]
-
-                dino_loss = _dino_loss(
-                    student_outs=student_outs,
-                    teacher_outs=teacher_outs,
-                    center=center,
-                    student_temp=student_temp,
-                    teacher_temp=teacher_temp,
-                )
-                recon_loss = torch.tensor(0.0, device=device)
-                if recon_loss_weight > 0:
-                    recon = model.reconstruct_from_features(
-                        student_feats[0],
-                        out_hw=(recon_target.shape[-2], recon_target.shape[-1]),
-                    )
-                    recon_loss = F.mse_loss(recon, recon_target)
-
-                loss = dino_loss + float(recon_loss_weight) * recon_loss
+            f1 = model.encode(x1)
+            f2 = model.encode(x2)
+            z1 = model.projector(f1)
+            z2 = model.projector(f2)
+            loss = _nt_xent(z1, z2)
+            view_loss = torch.tensor(0.0, device=device)
+            recon_loss = torch.tensor(0.0, device=device)
+            if recon_loss_weight > 0:
+                recon = model.reconstruct_from_features(f1, (x1.shape[-2], x1.shape[-1]))
+                recon_loss = F.mse_loss(recon, x1)
+                loss = loss + recon_loss_weight * recon_loss
+            if view_head:
+                mask = view_idx >= 0
+                if mask.any():
+                    logits = model.view_head(f1)
+                    view_loss = F.cross_entropy(logits[mask], view_idx[mask])
+                    loss = loss + view_loss_weight * view_loss
 
             if train:
                 optimizer.zero_grad(set_to_none=True)
-                if amp_enabled and scaler is not None:
-                    scaler.scale(loss).backward()
-                    scaler.step(optimizer)
-                    scaler.update()
-                else:
-                    loss.backward()
-                    optimizer.step()
+                loss.backward()
+                optimizer.step()
 
-                momentum = _teacher_momentum_at_step(
-                    step=global_step,
-                    total_steps=total_steps,
-                    start=teacher_momentum_start,
-                    end=teacher_momentum_final,
-                )
-                _update_teacher(model, momentum)
-                _update_center(center, teacher_outs, center_momentum)
-                global_step += 1
-
-            bsz = global_crops[0].size(0)
-            total_loss += float(loss.item()) * bsz
+            bsz = x1.size(0)
+            total += float(loss.item()) * bsz
+            total_view += float(view_loss.item()) * bsz
             total_recon += float(recon_loss.item()) * bsz
             n += bsz
-
-    return total_loss / max(1, n), total_recon / max(1, n), global_step
+    return total / max(1, n), total_view / max(1, n), total_recon / max(1, n)
 
 
 def _save_recon_grid(
@@ -517,13 +329,13 @@ def _save_recon_grid(
         for batch in loader:
             if batch is None:
                 continue
-            global_crops, _, _ = batch
-            x = global_crops[0].to(device, non_blocking=True)
-            recon = model.reconstruct(x)
-            count = min(int(n_samples), x.shape[0])
+            x1, _, _ = batch
+            x1 = x1.to(device, non_blocking=True)
+            recon = model.reconstruct(x1)
+            count = min(int(n_samples), x1.shape[0])
             if count <= 0:
                 return
-            orig = x[:count].detach().cpu().permute(0, 2, 3, 1).numpy()
+            orig = x1[:count].detach().cpu().permute(0, 2, 3, 1).numpy()
             rec = recon[:count].detach().cpu().permute(0, 2, 3, 1).numpy()
 
             rows = int(np.ceil(count / 3))
@@ -547,53 +359,21 @@ def _save_recon_grid(
             plt.close(fig)
             return
 
-def _extract_backbone_state_from_model_state(model_state: Dict[str, Any]) -> Dict[str, Any]:
-    backbone_sd: Dict[str, Any] = {}
-    for k, v in model_state.items():
-        if k.startswith("student_encoder.backbone."):
-            backbone_sd[k[len("student_encoder.backbone.") :]] = v
-        elif k.startswith("frame_encoder.backbone."):
-            backbone_sd[k[len("frame_encoder.backbone.") :]] = v
-        elif k.startswith("backbone."):
-            backbone_sd[k[len("backbone.") :]] = v
-    return backbone_sd
 
-
-def _load_checkpoint_if_any(model: DINOv2PretrainModel, weights: Optional[Path], center: torch.Tensor) -> None:
+def _load_checkpoint_if_any(model: DINOv2PretrainModel, weights: Optional[Path]) -> None:
     if weights is None or not weights.exists():
         return
     ckpt = torch.load(weights, map_location="cpu")
-
     if isinstance(ckpt, dict) and "model_state" in ckpt and isinstance(ckpt["model_state"], dict):
-        model_state = ckpt["model_state"]
-        dino_keys = any(k.startswith("student_encoder.") for k in model_state.keys())
-        if dino_keys:
-            missing, unexpected = model.load_state_dict(model_state, strict=False)
-            logger.info("Loaded DINO checkpoint %s (missing=%d unexpected=%d)", weights, len(missing), len(unexpected))
-            if isinstance(ckpt.get("center"), torch.Tensor):
-                c = ckpt["center"]
-                if c.ndim == 1:
-                    c = c.unsqueeze(0)
-                if c.shape == center.shape:
-                    center.copy_(c)
-            return
-
-        backbone_sd = _extract_backbone_state_from_model_state(model_state)
-        if backbone_sd:
-            model.student_encoder.backbone.load_state_dict(backbone_sd, strict=False)
-            _sync_teacher_from_student(model)
-            logger.info("Loaded backbone from model_state checkpoint %s", weights)
-            return
-
+        missing, unexpected = model.load_state_dict(ckpt["model_state"], strict=False)
+        logger.info("Loaded checkpoint %s (missing=%d unexpected=%d)", weights, len(missing), len(unexpected))
+        return
     if isinstance(ckpt, dict) and "backbone_state" in ckpt and isinstance(ckpt["backbone_state"], dict):
-        model.student_encoder.backbone.load_state_dict(ckpt["backbone_state"], strict=False)
-        _sync_teacher_from_student(model)
+        model.frame_encoder.backbone.load_state_dict(ckpt["backbone_state"], strict=False)
         logger.info("Loaded backbone checkpoint %s", weights)
         return
-
     if isinstance(ckpt, dict):
-        model.student_encoder.backbone.load_state_dict(ckpt, strict=False)
-        _sync_teacher_from_student(model)
+        model.frame_encoder.backbone.load_state_dict(ckpt, strict=False)
         logger.info("Loaded raw state_dict checkpoint %s", weights)
 
 
@@ -620,23 +400,17 @@ def _resume_run_name_from_checkpoint(path: Path) -> str:
     return stem
 
 
-def _load_resume_checkpoint(path: Path, model: DINOv2PretrainModel, center: torch.Tensor) -> Dict[str, Any]:
+def _load_resume_checkpoint(path: Path, model: DINOv2PretrainModel) -> Dict[str, Any]:
     ckpt = torch.load(path, map_location="cpu")
     if not isinstance(ckpt, dict):
         raise RuntimeError(f"Unsupported checkpoint format for resume: {path}")
 
     if "model_state" in ckpt and isinstance(ckpt["model_state"], dict):
         model.load_state_dict(ckpt["model_state"], strict=False)
+    elif "backbone_state" in ckpt and isinstance(ckpt["backbone_state"], dict):
+        model.frame_encoder.backbone.load_state_dict(ckpt["backbone_state"], strict=False)
     else:
-        raise RuntimeError(f"Checkpoint does not include model_state: {path}")
-
-    if isinstance(ckpt.get("center"), torch.Tensor):
-        c = ckpt["center"]
-        if c.ndim == 1:
-            c = c.unsqueeze(0)
-        if c.shape == center.shape:
-            center.copy_(c)
-
+        raise RuntimeError(f"Checkpoint does not include model_state/backbone_state: {path}")
     logger.info("Resumed model from checkpoint: %s", path)
     return ckpt
 
@@ -669,8 +443,9 @@ def _merge_history(base: List[dict], incoming: List[dict]) -> List[dict]:
         by_epoch[epoch] = item
     return [by_epoch[e] for e in sorted(set(ordered_epochs))]
 
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Frame-level DINOv2 pretraining.")
+    parser = argparse.ArgumentParser(description="Frame-level SimCLR pretraining.")
     parser.add_argument("--cropped-root", type=Path, required=True, help="Root of cropped DICOMs.")
     parser.add_argument("--weights", type=Path, default=None, help="Optional initial checkpoint.")
     parser.add_argument("--output-dir", type=Path, required=True, help="Output directory for checkpoints.")
@@ -680,7 +455,7 @@ def main() -> None:
     parser.add_argument("--frame-stride", type=int, default=1, help="Stride between frames sampled from each cine.")
     parser.add_argument("--mask-ratio", type=float, default=0.75, help="Unused (kept for pipeline2 compatibility).")
     parser.add_argument("--train-encoder-blocks", type=int, default=2, help="Number of last encoder blocks to train.")
-    parser.add_argument("--freeze-decoder", action="store_true", help="Unused for DINOv2 (kept for compatibility).")
+    parser.add_argument("--freeze-decoder", action="store_true", help="Unused for SimCLR (kept for compatibility).")
     parser.add_argument("--batch-size", type=int, default=64, help="Batch size.")
     parser.add_argument("--num-workers", type=int, default=4, help="Data loader workers.")
     parser.add_argument("--epochs", type=int, default=50, help="Training epochs.")
@@ -692,18 +467,18 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     parser.add_argument("--device", type=str, default="auto", help="Device: auto|cuda|cpu.")
     parser.add_argument("--run-name", type=str, default="", help="Run name.")
-    parser.add_argument("--view-head", action="store_true", help="Unused (kept for pipeline2 compatibility).")
-    parser.add_argument("--view-loss-weight", type=float, default=0.1, help="Unused (kept for pipeline2 compatibility).")
+    parser.add_argument("--view-head", action="store_true", help="Enable view classification head.")
+    parser.add_argument("--view-loss-weight", type=float, default=0.1, help="View loss weight.")
     parser.add_argument("--aug-brightness", type=float, default=0.1, help="Max brightness delta.")
     parser.add_argument("--aug-contrast", type=float, default=0.1, help="Max contrast delta.")
-    parser.add_argument("--aug-rotate-deg", type=float, default=5.0, help="Unused (kept for pipeline2 compatibility).")
-    parser.add_argument("--aug-blur", type=float, default=0.0, help="Unused (kept for pipeline2 compatibility).")
+    parser.add_argument("--aug-rotate-deg", type=float, default=5.0, help="Unused (kept for compatibility).")
+    parser.add_argument("--aug-blur", type=float, default=0.0, help="Unused (kept for compatibility).")
     parser.add_argument("--aug-speckle", type=float, default=0.0, help="Speckle noise std.")
-    parser.add_argument("--aug-random-erase", type=float, default=0.0, help="Unused (kept for pipeline2 compatibility).")
-    parser.add_argument("--recon-samples", type=int, default=9, help="Number of validation samples to save per epoch.")
-    parser.add_argument("--recon-seed", type=int, default=123, help="Unused (kept for pipeline2 compatibility).")
-    parser.add_argument("--recon-mask-ratio", type=float, default=None, help="Unused (kept for pipeline2 compatibility).")
-    parser.add_argument("--recon-loss-weight", type=float, default=0.0, help="Weight for optional reconstruction loss.")
+    parser.add_argument("--aug-random-erase", type=float, default=0.0, help="Unused (kept for compatibility).")
+    parser.add_argument("--recon-samples", type=int, default=9, help="Unused (kept for compatibility).")
+    parser.add_argument("--recon-seed", type=int, default=123, help="Unused (kept for compatibility).")
+    parser.add_argument("--recon-mask-ratio", type=float, default=None, help="Unused (kept for compatibility).")
+    parser.add_argument("--recon-loss-weight", type=float, default=1.0, help="Weight for reconstruction loss.")
     parser.add_argument("--safe-decode", action="store_true", help="Disable GDCM/pylibjpeg decoders.")
     parser.add_argument("--backbone-name", type=str, default="vit_small_patch14_dinov2.lvd142m")
     parser.add_argument("--resume-latest", action="store_true", help="Resume from the newest checkpoint in output-dir.")
@@ -713,13 +488,6 @@ def main() -> None:
         action="store_true",
         help="Resume exactly from <run_name>_latest.pt in output-dir and treat --epochs as additional epochs.",
     )
-    parser.add_argument("--teacher-momentum", type=float, default=0.996, help="Initial EMA momentum for teacher update.")
-    parser.add_argument("--teacher-momentum-final", type=float, default=0.9995, help="Final EMA momentum at the end of cosine schedule.")
-    parser.add_argument("--student-temp", type=float, default=0.1, help="Student temperature.")
-    parser.add_argument("--teacher-temp", type=float, default=0.04, help="Teacher temperature.")
-    parser.add_argument("--local-crops", type=int, default=1, help="Number of local crops per frame.")
-    parser.add_argument("--center-momentum", type=float, default=0.9, help="Center update momentum.")
-    parser.add_argument("--use-amp", action="store_true", help="Enable torch.cuda.amp mixed precision training.")
     args = parser.parse_args()
 
     if args.device == "auto":
@@ -728,12 +496,7 @@ def main() -> None:
         device = torch.device(args.device)
 
     if args.freeze_decoder:
-        logger.info("--freeze-decoder is ignored for DINOv2 pretraining.")
-    if args.view_head:
-        logger.info("--view-head is ignored for DINOv2 pretraining.")
-    if args.view_loss_weight != 0.1:
-        logger.info("--view-loss-weight is ignored for DINOv2 pretraining.")
-
+        logger.info("--freeze-decoder is ignored for SimCLR pretraining.")
     configure_pydicom_handlers(args.safe_decode)
     _set_seed(args.seed)
 
@@ -760,19 +523,17 @@ def main() -> None:
         train_entries = entries
         val_entries = []
 
-    train_ds = DINOMultiCropDataset(
+    train_ds = FramePairDataset(
         train_entries,
         image_size=518,
-        local_crops=max(0, int(args.local_crops)),
         aug_brightness=args.aug_brightness,
         aug_contrast=args.aug_contrast,
         aug_speckle=args.aug_speckle,
     )
     val_ds = (
-        DINOMultiCropDataset(
+        FramePairDataset(
             val_entries,
             image_size=518,
-            local_crops=max(0, int(args.local_crops)),
             aug_brightness=0.0,
             aug_contrast=0.0,
             aug_speckle=0.0,
@@ -808,9 +569,6 @@ def main() -> None:
         train_encoder_blocks=max(0, args.train_encoder_blocks),
         freeze_backbone=True,
     ).to(device)
-    _sync_teacher_from_student(model)
-
-    center = torch.zeros(1, model.student_projector.out_dim, device=device)
 
     resume_path: Optional[Path] = None
     if args.resume_path is not None:
@@ -830,25 +588,21 @@ def main() -> None:
 
     resume_ckpt: Optional[Dict[str, Any]] = None
     if resume_path is not None:
-        resume_ckpt = _load_resume_checkpoint(resume_path, model, center)
+        resume_ckpt = _load_resume_checkpoint(resume_path, model)
         if not args.run_name:
             args.run_name = _resume_run_name_from_checkpoint(resume_path)
     else:
-        _load_checkpoint_if_any(model, args.weights, center)
+        _load_checkpoint_if_any(model, args.weights)
 
     trainable = [p for p in model.parameters() if p.requires_grad]
     if not trainable:
         raise RuntimeError("No trainable parameters.")
     optimizer = torch.optim.AdamW(trainable, lr=args.lr, weight_decay=args.weight_decay)
 
-    amp_enabled = bool(args.use_amp and device.type == "cuda")
-    scaler = _make_grad_scaler(device_type=device.type, enabled=amp_enabled)
-
     start_epoch = 1
     best_loss = float("inf")
     history: List[dict] = []
     prev_epoch = 0
-    global_step = 0
     if resume_ckpt is not None:
         if "optimizer_state" in resume_ckpt and isinstance(resume_ckpt["optimizer_state"], dict):
             try:
@@ -856,16 +610,9 @@ def main() -> None:
                 logger.info("Loaded optimizer state from resume checkpoint.")
             except Exception as exc:
                 logger.warning("Failed to load optimizer state from resume checkpoint: %s", exc)
-        if "scaler_state" in resume_ckpt and isinstance(resume_ckpt["scaler_state"], dict):
-            try:
-                scaler.load_state_dict(resume_ckpt["scaler_state"])
-                logger.info("Loaded AMP scaler state from resume checkpoint.")
-            except Exception as exc:
-                logger.warning("Failed to load AMP scaler state from resume checkpoint: %s", exc)
         prev_epoch = int(resume_ckpt.get("epoch", 0))
         start_epoch = max(1, prev_epoch + 1)
         best_loss = float(resume_ckpt.get("best_loss", best_loss))
-        global_step = int(resume_ckpt.get("global_step", max(0, (start_epoch - 1) * max(1, len(train_loader)))))
         if isinstance(resume_ckpt.get("history"), list):
             history = list(resume_ckpt["history"])
 
@@ -906,66 +653,34 @@ def main() -> None:
             target_epoch,
         )
 
-    total_steps = max(1, target_epoch * max(1, len(train_loader)))
-
     for epoch in range(start_epoch, target_epoch + 1):
-        train_loss, train_recon, global_step = _train_or_eval(
-            model=model,
-            loader=train_loader,
-            optimizer=optimizer,
-            scaler=scaler,
-            device=device,
-            center=center,
-            student_temp=float(args.student_temp),
-            teacher_temp=float(args.teacher_temp),
-            center_momentum=float(args.center_momentum),
-            recon_loss_weight=float(args.recon_loss_weight),
-            use_amp=amp_enabled,
-            global_step=global_step,
-            total_steps=total_steps,
-            teacher_momentum_start=float(args.teacher_momentum),
-            teacher_momentum_final=float(args.teacher_momentum_final),
+        train_loss, train_view, train_recon = _train_or_eval(
+            model, train_loader, optimizer, device, args.view_head, args.view_loss_weight, args.recon_loss_weight
         )
-
-        val_loss, val_recon = (0.0, 0.0)
+        val_loss, val_view, val_recon = (0.0, 0.0, 0.0)
         if val_loader is not None:
-            val_loss, val_recon, _ = _train_or_eval(
+            val_loss, val_view, val_recon = _train_or_eval(
+                model, val_loader, None, device, args.view_head, args.view_loss_weight, args.recon_loss_weight
+            )
+            _save_recon_grid(
                 model=model,
                 loader=val_loader,
-                optimizer=None,
-                scaler=None,
                 device=device,
-                center=center,
-                student_temp=float(args.student_temp),
-                teacher_temp=float(args.teacher_temp),
-                center_momentum=float(args.center_momentum),
-                recon_loss_weight=float(args.recon_loss_weight),
-                use_amp=amp_enabled,
-                global_step=global_step,
-                total_steps=total_steps,
-                teacher_momentum_start=float(args.teacher_momentum),
-                teacher_momentum_final=float(args.teacher_momentum_final),
+                out_path=recon_dir / f"epoch_{epoch:03d}.png",
+                n_samples=max(1, int(args.recon_samples)),
             )
-            if args.recon_loss_weight > 0:
-                _save_recon_grid(
-                    model=model,
-                    loader=val_loader,
-                    device=device,
-                    out_path=recon_dir / f"epoch_{epoch:03d}.png",
-                    n_samples=max(1, int(args.recon_samples)),
-                )
-
         metric = val_loss if val_loader is not None else train_loss
         history.append(
             {
                 "epoch": epoch,
                 "train_loss": train_loss,
                 "val_loss": val_loss if val_loader is not None else None,
+                "train_view_loss": train_view,
+                "val_view_loss": val_view if val_loader is not None else None,
                 "train_recon_loss": train_recon,
                 "val_recon_loss": val_recon if val_loader is not None else None,
             }
         )
-
         logger.info(
             "Epoch %d/%d | train=%.4f val=%.4f recon_val=%.4f",
             epoch,
@@ -975,27 +690,16 @@ def main() -> None:
             val_recon if val_loader is not None else train_recon,
         )
         if writer is not None:
-            writer.add_scalars(
-                "loss/total",
-                {"train": train_loss, "val": val_loss if val_loader is not None else train_loss},
-                epoch,
-            )
-            writer.add_scalars(
-                "loss/recon",
-                {"train": train_recon, "val": val_recon if val_loader is not None else train_recon},
-                epoch,
-            )
-
+            writer.add_scalars("loss/total", {"train": train_loss, "val": val_loss if val_loader is not None else train_loss}, epoch)
+            writer.add_scalars("loss/recon", {"train": train_recon, "val": val_recon if val_loader is not None else train_recon}, epoch)
+            writer.add_scalars("loss/view", {"train": train_view, "val": val_view if val_loader is not None else train_view}, epoch)
         torch.save(
             {
                 "epoch": epoch,
                 "best_loss": best_loss,
-                "global_step": global_step,
-                "center": center.detach().cpu(),
                 "model_state": model.state_dict(),
-                "backbone_state": model.student_encoder.backbone.state_dict(),
+                "backbone_state": model.frame_encoder.backbone.state_dict(),
                 "optimizer_state": optimizer.state_dict(),
-                "scaler_state": scaler.state_dict() if amp_enabled else None,
                 "history": history,
                 "config": vars(args),
                 "target_epoch": target_epoch,
@@ -1008,12 +712,9 @@ def main() -> None:
                 {
                     "epoch": epoch,
                     "best_loss": best_loss,
-                    "global_step": global_step,
-                    "center": center.detach().cpu(),
                     "model_state": model.state_dict(),
-                    "backbone_state": model.student_encoder.backbone.state_dict(),
+                    "backbone_state": model.frame_encoder.backbone.state_dict(),
                     "optimizer_state": optimizer.state_dict(),
-                    "scaler_state": scaler.state_dict() if amp_enabled else None,
                     "history": history,
                     "config": vars(args),
                     "target_epoch": target_epoch,
@@ -1037,3 +738,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+

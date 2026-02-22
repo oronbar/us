@@ -1,9 +1,9 @@
 """
-Run Ichilov pipeline3 from a YAML configuration file.
+Run Ichilov pipeline4 from a YAML configuration file.
 
 Config path (no CLI args):
-  - default: ichilov_pipeline3.yaml (next to this file)
-  - override with env var: ICHILOV_PIPELINE3_CONFIG
+  - default: ichilov_pipeline4.yaml
+  - override with env var: ICHILOV_PIPELINE4_CONFIG
 
 Pipeline stages:
   1) crop (optional, reuses pipeline2 crop script)
@@ -32,19 +32,15 @@ except Exception as exc:  # pragma: no cover - runtime check
 
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-logger = logging.getLogger("ichilov_pipeline3")
+logger = logging.getLogger("ichilov_pipeline4")
 
-CONFIG_ENV = "ICHILOV_PIPELINE3_CONFIG"
-DEFAULT_CONFIG_NAME = "ichilov_pipeline3.yaml"
+CONFIG_ENV = "ICHILOV_PIPELINE4_CONFIG"
+DEFAULT_CONFIG_NAME = "ichilov_pipeline4.yaml"
 
 DEFAULT_EXPERIMENTS_ROOT = Path(r"C:\Users\oron\OneDrive - Technion\Experiments")
 DEFAULT_CROPPED_ROOT_BASE = Path(r"D:\DS\Ichilov_cropped")
 DEFAULT_ECHO_ROOT = Path(r"D:\\")
 DEFAULT_PIPELINE3_CONFIG = Path("Ichilov_pipeline3") / "config_pipeline3.yaml"
-LEGACY_FRAME_SCRIPT_ALIASES = {
-    "ichilov_pretrain_frame_dinov2.py": "ichilov_pretrain_frame_simclr.py",
-    "ichilov_encode_frames_dinov2.py": "ichilov_encode_frames_simclr.py",
-}
 
 
 def _unique_dir(path: Path) -> Path:
@@ -220,11 +216,6 @@ def _step_script(step_cfg: Dict[str, Any], default_script: str, project_root: Pa
         script_path = project_root / default_script
     elif not script_path.is_absolute():
         script_path = project_root / script_path
-    alias = LEGACY_FRAME_SCRIPT_ALIASES.get(script_path.name)
-    if alias and script_path == (project_root / script_path.name):
-        remapped = project_root / alias
-        logger.info("Remapping legacy script '%s' -> '%s' for pipeline3 SimCLR.", script_path.name, alias)
-        script_path = remapped
     return script_path
 
 
@@ -251,7 +242,7 @@ def main() -> None:
     if not isinstance(steps_cfg, dict) or not steps_cfg:
         raise ValueError("Missing required 'steps' section in YAML config.")
 
-    prefix = str(pipeline_cfg.get("run_name_prefix") or "ichilov_pipeline3").strip()
+    prefix = str(pipeline_cfg.get("run_name_prefix") or "ichilov_pipeline4").strip()
     run_name_cfg = str(pipeline_cfg.get("run_name") or "").strip()
     run_name = run_name_cfg or f"{prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     continue_last_run = bool(pipeline_cfg.get("continue_last_run", False))
@@ -375,16 +366,16 @@ def main() -> None:
                 )
             )
             if not should_infer_from_resume:
-                frame_pre_run_name = f"frame_mae_{run_name}"
+                frame_pre_run_name = f"frame_dinov2_{run_name}"
                 frame_pre_args["run_name"] = frame_pre_run_name
         best_pattern = str(frame_pre_cfg.get("best_weights_pattern") or "").strip()
         if best_pattern:
             frame_pre_best = _latest_file(frame_pre_output_dir, best_pattern)
         else:
-            best_name = _default_best_name(frame_pre_cfg, f"{(frame_pre_run_name or 'frame_mae')}_best.pt")
+            best_name = _default_best_name(frame_pre_cfg, f"{(frame_pre_run_name or 'frame_dinov2')}_best.pt")
             frame_pre_best = frame_pre_output_dir / best_name
 
-        frame_pre_script = _step_script(frame_pre_cfg, "ichilov_pretrain_frame_simclr.py", project_root)
+        frame_pre_script = _step_script(frame_pre_cfg, "ichilov_pretrain_frame_dinov2.py", project_root)
         _ensure_script_exists(frame_pre_script, "frame_pretrain")
         frame_pre_bool_flags = _merge_bool_flags({}, _parse_bool_flags(frame_pre_cfg))
         frame_pre_cmd = _build_cmd(frame_pre_script, frame_pre_args, frame_pre_bool_flags, python_exe)
@@ -394,7 +385,7 @@ def main() -> None:
     else:
         frame_pre_best = _expand_path(frame_pre_cfg.get("use_if_skipped"))
         if frame_pre_best is None:
-            pattern = str(frame_pre_cfg.get("best_weights_pattern") or "").strip() or "*frame_mae*best*.pt"
+            pattern = str(frame_pre_cfg.get("best_weights_pattern") or "").strip() or "*frame_dinov2*best*.pt"
             frame_pre_best = _latest_file(experiments_root, pattern, dir_prefix=prefix)
         if frame_pre_best is not None:
             frame_pre_output_dir = frame_pre_best.parent
@@ -425,7 +416,7 @@ def main() -> None:
             frame_embeddings_path = embeddings_dir / f"Ichilov_frame_embeddings_{run_name}.parquet"
         frame_encode_args["output_parquet"] = frame_embeddings_path
 
-        frame_encode_script = _step_script(frame_encode_cfg, "ichilov_encode_frames_simclr.py", project_root)
+        frame_encode_script = _step_script(frame_encode_cfg, "ichilov_encode_frames_dinov2.py", project_root)
         _ensure_script_exists(frame_encode_script, "frame_encode")
         frame_encode_bool_flags = _merge_bool_flags({}, _parse_bool_flags(frame_encode_cfg))
         frame_encode_cmd = _build_cmd(frame_encode_script, frame_encode_args, frame_encode_bool_flags, python_exe)
@@ -437,7 +428,7 @@ def main() -> None:
                 experiments_root, "Ichilov_frame_embeddings_*.parquet", dir_prefix=prefix
             )
 
-    # --- Longitudinal Train (pipeline3, trains temporal+fusion+longitudinal on cached embeddings) ---
+    # --- Longitudinal Train (shared downstream model, trains temporal+fusion+longitudinal on cached embeddings) ---
     long_cfg = steps_cfg.get("longitudinal_train", {})
     long_run = _step_enabled(long_cfg)
     long_args = _normalize_args(
@@ -480,7 +471,7 @@ def main() -> None:
 
         long_run_name = str(long_args.get("run_name") or "").strip()
         if not long_run_name:
-            long_run_name = f"pipeline3_{run_name}"
+            long_run_name = f"pipeline4_{run_name}"
             long_args["run_name"] = long_run_name
 
         best_pattern = str(long_cfg.get("best_weights_pattern") or "").strip()
@@ -500,7 +491,7 @@ def main() -> None:
     else:
         long_best = _expand_path(long_cfg.get("use_if_skipped"))
         if long_best is None:
-            pattern = str(long_cfg.get("best_weights_pattern") or "").strip() or "*pipeline3*best*.pt"
+            pattern = str(long_cfg.get("best_weights_pattern") or "").strip() or "*pipeline4*best*.pt"
             long_best = _latest_file(experiments_root, pattern, dir_prefix=prefix)
         if long_best is None:
             logger.info("Skipping longitudinal training step.")
@@ -543,7 +534,7 @@ def main() -> None:
         with resolved_resume_path.open("w", encoding="utf-8") as handle:
             yaml.safe_dump(_stringify_paths(resolved), handle, sort_keys=False)
 
-    logger.info("Pipeline3 complete. Run name: %s", run_name)
+    logger.info("Pipeline4 complete. Run name: %s", run_name)
     logger.info("Run folder: %s", run_dir)
     logger.info("Cropped root: %s", cropped_root)
     logger.info("Frame pretrain output: %s", frame_pre_output_dir)

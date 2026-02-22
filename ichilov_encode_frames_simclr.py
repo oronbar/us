@@ -1,5 +1,5 @@
-"""
-Encode cropped DICOMs into per-frame embeddings using DINOv2 encoder.
+﻿"""
+Encode cropped DICOMs into per-frame embeddings using SimCLR encoder.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from ichilov_pipeline2_utils import (
 from Ichilov_pipeline3.models.frame_encoder import FrameEncoder
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-logger = logging.getLogger("ichilov_encode_frames_dinov2")
+logger = logging.getLogger("ichilov_encode_frames_simclr")
 
 
 def _infer_view_from_path(path: Path) -> Optional[str]:
@@ -54,9 +54,7 @@ def _load_encoder(weights_path: Optional[Path], backbone_name: str) -> FrameEnco
         sd = checkpoint["model_state"]
         backbone_sd = {}
         for k, v in sd.items():
-            if k.startswith("student_encoder.backbone."):
-                backbone_sd[k[len("student_encoder.backbone.") :]] = v
-            elif k.startswith("frame_encoder.backbone."):
+            if k.startswith("frame_encoder.backbone."):
                 backbone_sd[k[len("frame_encoder.backbone.") :]] = v
             elif k.startswith("backbone."):
                 backbone_sd[k[len("backbone.") :]] = v
@@ -81,7 +79,7 @@ def main() -> None:
     parser.add_argument("--input-xlsx", type=Path, default=None, help="Optional Excel registry.")
     parser.add_argument("--echo-root", type=Path, default=None, help="Root of original DICOMs.")
     parser.add_argument("--cropped-root", type=Path, required=True, help="Root of cropped DICOMs.")
-    parser.add_argument("--weights", type=Path, default=None, help="Path to DINOv2 checkpoint.")
+    parser.add_argument("--weights", type=Path, default=None, help="Path to SimCLR checkpoint.")
     parser.add_argument("--output-parquet", type=Path, required=True, help="Output parquet path.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite output parquet.")
     parser.add_argument("--sampling-mode", type=str, choices=["uniform", "sliding_window"], default="uniform")
@@ -96,7 +94,7 @@ def main() -> None:
 
     configure_pydicom_handlers(args.safe_decode)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logger.info("Loading DINOv2 encoder on %s", device)
+    logger.info("Loading SimCLR encoder on %s", device)
     encoder = _load_encoder(args.weights, backbone_name=args.backbone_name).to(device)
 
     selected_views = parse_views(args.views)
@@ -175,8 +173,11 @@ def main() -> None:
         logger.warning("Output exists; writing embeddings to %s", output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     out_df.to_parquet(output_path, index=False)
-    logger.info("Saved DINOv2 embeddings: %s (%d rows)", output_path, len(out_df))
+    logger.info("Saved SimCLR embeddings: %s (%d rows)", output_path, len(out_df))
 
 
 if __name__ == "__main__":
     main()
+
+
+

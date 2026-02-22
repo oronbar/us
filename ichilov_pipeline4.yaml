@@ -1,0 +1,150 @@
+# Ichilov pipeline3 orchestrator config.
+pipeline:
+  run_name: 'DinoPipeline'
+  run_name_prefix: 'ichilov_pipeline4'
+  python_exe: ''
+  save_config_copy: true
+
+paths:
+  experiments_root: 'C:\Users\oron\OneDrive - Technion\Experiments'
+  cropped_root_base: 'D:\DS\Ichilov_cropped'
+  echo_root: 'D:\'
+  input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
+
+steps:
+  crop:
+    run: false
+    use_if_skipped: ''
+    output_root_base: ''
+    script: ''
+    bool_flags: {}
+    args:
+      input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
+      echo_root: 'D:\'
+      output_root: ''
+      out_size: 518
+      clip_length: 16
+      window_sec: 0.6
+      sampling_mode: 'sliding_window'
+      spatial_only: false
+      overwrite: false
+      workers: 0
+
+  frame_pretrain:
+    run: true
+    use_if_skipped: ''
+    best_weights_pattern: ''
+    best_weights_name: ''
+    script: 'ichilov_pretrain_frame_dinov2.py'
+    bool_flags: {}
+    args:
+      cropped_root: ''
+      weights: ''
+      output_dir: ''
+      input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
+      echo_root: 'D:\'
+      views: 'A2C,A3C,A4C'
+      frame_stride: 1
+      mask_ratio: 0.75
+      train_encoder_blocks: 2
+      freeze_decoder: true
+      batch_size: 24
+      num_workers: 4
+      epochs: 20
+      lr: 0.0001
+      weight_decay: 0.05
+      val_ratio: 0.2
+      data_ratio: 1.0
+      max_samples: 0
+      seed: 42
+      device: 'auto'
+      run_name: ''
+      view_head: false
+      view_loss_weight: 0.1
+      teacher_momentum: 0.996
+      student_temp: 0.1
+      teacher_temp: 0.04
+      local_crops: 1
+      center_momentum: 0.9
+      use_amp: true
+      backbone_name: 'vit_small_patch14_dinov2.lvd142m'
+      resume_latest: false
+      resume_path: ''
+
+  frame_encode:
+    run: true
+    use_if_skipped: ''
+    script: 'ichilov_encode_frames_dinov2.py'
+    bool_flags: {}
+    args:
+      input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
+      echo_root: 'D:\'
+      cropped_root: ''
+      weights: ''
+      output_parquet: ''
+      views: 'A2C,A3C,A4C'
+      sampling_mode: 'uniform'
+      clip_length: 1
+      clip_stride: 1
+      include_last_window: true
+      backbone_name: 'vit_small_patch14_dinov2.lvd142m'
+
+  longitudinal_train:
+    run: true
+    use_if_skipped: ''
+    best_weights_pattern: ''
+    best_weights_name: ''
+    script: 'Ichilov_pipeline3/train_pipeline3.py'
+    bool_flags: {}
+    args:
+      # Optional YAML for model/train hyperparameters.
+      config: 'Ichilov_pipeline3/config_pipeline3.yaml'
+      # Can override config paths directly here if needed.
+      input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
+      input_embeddings: ''
+      report_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
+      echo_root: 'D:\'
+      cropped_root: 'D:\DS\Ichilov_cropped'
+      output_dir: 'C:\Users\oron\OneDrive - Technion\Experiments\ichilov_pipeline3\longitudinal'
+      log_dir: 'C:\Users\oron\OneDrive - Technion\Experiments\ichilov_pipeline3\tensorboard'
+      output_parquet: 'C:\Users\oron\OneDrive - Technion\Experiments\ichilov_pipeline3\predictions\pipeline3_predictions.parquet'
+      run_name: 'pipeline3_first_train'
+      views: 'A2C,A3C,A4C'
+      sampling_mode: 'uniform'
+      t_frames: 16
+      clip_stride: 1
+      include_last_window: true
+      max_visits: 5
+      min_visits: 2
+      val_ratio: 0.2
+      test_ratio: 0.1
+      num_workers: 4
+      seed: 42
+      epochs: 20
+      batch_size: 1
+      lr: 0.0001
+      weight_decay: 0.01
+      scheduler: 'plateau'
+      scheduler_patience: 5
+      scheduler_factor: 0.5
+      scheduler_min_lr: 0.000001
+      save_every: 5
+      device: 'auto'
+      backbone_name: 'vit_small_patch16_dinov2.lvd142m'
+      backbone_pretrained: true
+      backbone_freeze: true
+      unfreeze_last_blocks: 1
+      temporal_layers: 2
+      temporal_heads: 6
+      temporal_dropout: 0.1
+      longitudinal_model: 'gru'
+      longitudinal_hidden: 256
+      longitudinal_layers: 1
+      longitudinal_heads: 4
+      longitudinal_dropout: 0.1
+      use_time_encoding: true
+      lambda_delta: 1.0
+      lambda_rank: 1.0
+      lambda_smooth: 0.1
+      huber_beta: 1.0
+      risk_delta_threshold: 2.0
