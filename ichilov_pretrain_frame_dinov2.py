@@ -781,22 +781,30 @@ def main() -> None:
         else None
     )
 
+    loader_kwargs: Dict[str, Any] = {
+        "batch_size": args.batch_size,
+        "num_workers": args.num_workers,
+        "pin_memory": False,
+        "collate_fn": _collate,
+    }
+    if args.num_workers > 0:
+        loader_kwargs.update(
+            {
+                "persistent_workers": True,
+                "prefetch_factor": 1,
+            }
+        )
+
     train_loader = DataLoader(
         train_ds,
-        batch_size=args.batch_size,
         shuffle=True,
-        num_workers=args.num_workers,
-        pin_memory=torch.cuda.is_available(),
-        collate_fn=_collate,
+        **loader_kwargs,
     )
     val_loader = (
         DataLoader(
             val_ds,
-            batch_size=args.batch_size,
             shuffle=False,
-            num_workers=args.num_workers,
-            pin_memory=torch.cuda.is_available(),
-            collate_fn=_collate,
+            **loader_kwargs,
         )
         if val_ds is not None
         else None
