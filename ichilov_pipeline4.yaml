@@ -31,7 +31,7 @@ steps:
       workers: 0
 
   frame_pretrain:
-    run: true
+    run: false
     use_if_skipped: ''
     best_weights_pattern: ''
     best_weights_name: ''
