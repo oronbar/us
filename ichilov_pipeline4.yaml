@@ -8,7 +8,7 @@ pipeline:
 paths:
   experiments_root: 'C:\Users\oron\OneDrive - Technion\Experiments'
   cropped_root_base: 'D:\DS\Ichilov_cropped'
-  echo_root: 'D:\'
+  echo_root: 'D:\DS\Ichilov'
   input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
 
 steps:
@@ -20,7 +20,7 @@ steps:
     bool_flags: {}
     args:
       input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
-      echo_root: 'D:\'
+      echo_root: 'D:\DS\Ichilov'
       output_root: ''
       out_size: 518
       clip_length: 16
@@ -31,18 +31,18 @@ steps:
       workers: 0
 
   frame_pretrain:
-    run: false
+    run: true
     use_if_skipped: ''
     best_weights_pattern: ''
     best_weights_name: ''
     script: 'ichilov_pretrain_frame_dinov2.py'
     bool_flags: {}
     args:
-      cropped_root: ''
+      cropped_root: 'D:\DS\Ichilov_cropped\DinoPipeline_3'
       weights: ''
       output_dir: ''
       input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
-      echo_root: 'D:\'
+      echo_root: 'D:\DS\Ichilov'
       views: 'A2C,A3C,A4C'
       frame_stride: 1
       mask_ratio: 0.75
@@ -78,8 +78,8 @@ steps:
     bool_flags: {}
     args:
       input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
-      echo_root: 'D:\'
-      cropped_root: ''
+      echo_root: 'D:\DS\Ichilov'
+      cropped_root: 'D:\DS\Ichilov_cropped\DinoPipeline_3'
       weights: ''
       output_parquet: ''
       views: 'A2C,A3C,A4C'
@@ -103,7 +103,7 @@ steps:
       input_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
       input_embeddings: ''
       report_xlsx: 'C:\Users\oron\OneDrive - Technion\DS\Report_Ichilov_GLS_and_Strain_oron.xlsx'
-      echo_root: 'D:\'
+      echo_root: 'D:\DS\Ichilov'
       cropped_root: 'D:\DS\Ichilov_cropped'
       output_dir: 'C:\Users\oron\OneDrive - Technion\Experiments\ichilov_pipeline3\longitudinal'
       log_dir: 'C:\Users\oron\OneDrive - Technion\Experiments\ichilov_pipeline3\tensorboard'

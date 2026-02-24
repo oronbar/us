@@ -106,11 +106,20 @@ def main() -> None:
         df.columns = [str(c).strip() for c in df.columns]
         dicoms = collect_dicoms_from_report(df, args.echo_root, views=selected_views)
         entries = []
+        unresolved = 0
         for entry in dicoms:
             cropped = to_cropped_path(entry.path, args.echo_root, args.cropped_root)
             if cropped is None:
+                unresolved += 1
                 continue
             entries.append((entry, cropped))
+        logger.info("Resolved cropped paths: %d/%d", len(entries), len(dicoms))
+        if unresolved:
+            logger.warning(
+                "Skipped %d source DICOMs with no unique cropped match. "
+                "Check echo_root/cropped_root path alignment.",
+                unresolved,
+            )
     else:
         entries = []
         for path in args.cropped_root.rglob("*.dcm"):

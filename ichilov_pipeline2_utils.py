@@ -227,11 +227,33 @@ def to_cropped_path(src_path: Path, echo_root: Path, cropped_root: Path) -> Opti
             return cand
     except Exception:
         pass
-    cand = cropped_root / src_path.name
-    if cand.is_file():
-        return cand
+    # Fallback matching must stay strict to avoid basename collisions across
+    # patients/visits (e.g., many different ".../DCM0035.dcm" files).
     hits = list(cropped_root.rglob(src_path.name))
-    return hits[0] if hits else None
+    if not hits:
+        return None
+
+    src_parts = src_path.parts
+    if len(src_parts) >= 3:
+        suffix3 = tuple(src_parts[-3:])  # patient/visit/file in this dataset layout
+        strict_hits = [h for h in hits if tuple(h.parts[-3:]) == suffix3]
+        if len(strict_hits) == 1:
+            return strict_hits[0]
+        if len(strict_hits) > 1:
+            logger.warning(
+                "Ambiguous cropped mapping for %s (multiple patient/visit/file matches): %d",
+                src_path,
+                len(strict_hits),
+            )
+            return None
+
+    logger.warning(
+        "No unique cropped mapping for %s under %s (basename hits=%d).",
+        src_path,
+        cropped_root,
+        len(hits),
+    )
+    return None
 
 
 def normalize_path(s: str) -> str:

@@ -111,9 +111,11 @@ def _build_entries(
         df = pd.read_excel(input_xlsx, engine="openpyxl")
         df.columns = [str(c).strip() for c in df.columns]
         dicoms = collect_dicoms_from_report(df, echo_root, views=views)
+        unresolved = 0
         for entry in dicoms:
             cropped = to_cropped_path(entry.path, echo_root, cropped_root)
             if cropped is None:
+                unresolved += 1
                 continue
             n_frames = _read_frame_count(cropped) or 0
             if n_frames <= 0:
@@ -128,6 +130,13 @@ def _build_entries(
                         patient_key=str(patient_key),
                     )
                 )
+        logger.info("Resolved cropped paths for pretrain: %d/%d", len(dicoms) - unresolved, len(dicoms))
+        if unresolved:
+            logger.warning(
+                "Skipped %d source DICOMs with no unique cropped match. "
+                "Check echo_root/cropped_root path alignment.",
+                unresolved,
+            )
     else:
         for path in cropped_root.rglob("*.dcm"):
             n_frames = _read_frame_count(path) or 0
@@ -954,14 +963,13 @@ def main() -> None:
                 teacher_momentum_start=float(args.teacher_momentum),
                 teacher_momentum_final=float(args.teacher_momentum_final),
             )
-            if args.recon_loss_weight > 0:
-                _save_recon_grid(
-                    model=model,
-                    loader=val_loader,
-                    device=device,
-                    out_path=recon_dir / f"epoch_{epoch:03d}.png",
-                    n_samples=max(1, int(args.recon_samples)),
-                )
+            _save_recon_grid(
+                model=model,
+                loader=val_loader,
+                device=device,
+                out_path=recon_dir / f"epoch_{epoch:03d}.png",
+                n_samples=max(1, int(args.recon_samples)),
+            )
 
         metric = val_loss if val_loader is not None else train_loss
         history.append(
