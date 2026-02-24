@@ -19,7 +19,6 @@ from ichilov_pipeline2_utils import (
     configure_pydicom_handlers,
     iter_cropped_frames,
     parse_views,
-    resize_tensor,
     to_cropped_path,
 )
 from Ichilov_pipeline3.models.frame_encoder import FrameEncoder
@@ -146,7 +145,7 @@ def main() -> None:
         if not frame_items:
             continue
         for item in frame_items:
-            tensor = resize_tensor(item["tensor"], size=224).squeeze(0)
+            tensor = item["tensor"].squeeze(0)
             emb = _encode_tensor(encoder, tensor, device)
             rows.append(
                 {
