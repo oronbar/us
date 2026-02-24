@@ -83,7 +83,7 @@ steps:
       weights: ''
       output_parquet: ''
       views: 'A2C,A3C,A4C'
-      sampling_mode: 'uniform'
+      sampling_mode: 'sliding_window'
       clip_length: 1
       clip_stride: 1
       include_last_window: true
