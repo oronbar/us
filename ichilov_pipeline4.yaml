@@ -68,8 +68,8 @@ steps:
       center_momentum: 0.9
       use_amp: true
       backbone_name: 'vit_small_patch14_dinov2.lvd142m'
-      resume_latest: false
-      resume_path: ''
+      resume_latest: true
+      resume_path: 'C:\Users\Oron\OneDrive - Technion\Experiments\DinoPipeline_17\frame_pretrain\frame_dinov2_DinoPipeline_17_latest_epoch0002.pt'
 
   frame_encode:
     run: true

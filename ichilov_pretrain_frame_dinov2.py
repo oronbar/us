@@ -1015,7 +1015,13 @@ def main() -> None:
                 epoch,
             )
 
-        latest_path = args.output_dir / f"{run_name}_latest_epoch{epoch:04d}.pt"
+        latest_epoch_path = args.output_dir / f"{run_name}_latest_epoch{epoch:04d}.pt"
+        if latest_path is not None and latest_path != latest_epoch_path and latest_path.exists():
+            try:
+                latest_path.unlink()
+            except Exception as exc:
+                logger.warning("Failed to remove previous latest checkpoint %s: %s", latest_path, exc)
+        latest_path = latest_epoch_path
         torch.save(
             {
                 "epoch": epoch,
@@ -1034,7 +1040,13 @@ def main() -> None:
         )
         if metric < best_loss:
             best_loss = metric
-            best_path = args.output_dir / f"{run_name}_best_epoch{epoch:04d}.pt"
+            best_epoch_path = args.output_dir / f"{run_name}_best_epoch{epoch:04d}.pt"
+            if best_path is not None and best_path != best_epoch_path and best_path.exists():
+                try:
+                    best_path.unlink()
+                except Exception as exc:
+                    logger.warning("Failed to remove previous best checkpoint %s: %s", best_path, exc)
+            best_path = best_epoch_path
             torch.save(
                 {
                     "epoch": epoch,
