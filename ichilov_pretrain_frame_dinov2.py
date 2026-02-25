@@ -609,12 +609,20 @@ def _load_checkpoint_if_any(model: DINOv2PretrainModel, weights: Optional[Path],
 def _latest_resume_checkpoint(output_dir: Path, latest_only: bool = False) -> Optional[Path]:
     if not output_dir.exists():
         return None
-    latest = sorted(output_dir.glob("*_latest.pt"), key=lambda p: p.stat().st_mtime, reverse=True)
+    latest = sorted(
+        [p for pat in ("*_latest_epoch*.pt", "*_latest.pt") for p in output_dir.glob(pat)],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
     if latest:
         return latest[0]
     if latest_only:
         return None
-    best = sorted(output_dir.glob("*_best.pt"), key=lambda p: p.stat().st_mtime, reverse=True)
+    best = sorted(
+        [p for pat in ("*_best_epoch*.pt", "*_best.pt") for p in output_dir.glob(pat)],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
     if best:
         return best[0]
     any_pt = sorted(output_dir.glob("*.pt"), key=lambda p: p.stat().st_mtime, reverse=True)
@@ -623,6 +631,11 @@ def _latest_resume_checkpoint(output_dir: Path, latest_only: bool = False) -> Op
 
 def _resume_run_name_from_checkpoint(path: Path) -> str:
     stem = path.stem
+    parts = stem.rsplit("_", 2)
+    if len(parts) == 3 and parts[1] in ("latest", "best"):
+        epoch_token = parts[2]
+        if epoch_token.startswith("epoch") and epoch_token[len("epoch") :].isdigit():
+            return parts[0]
     for suffix in ("_latest", "_best"):
         if stem.endswith(suffix):
             return stem[: -len(suffix)]
@@ -720,7 +733,7 @@ def main() -> None:
     parser.add_argument(
         "--continue-session",
         action="store_true",
-        help="Resume exactly from <run_name>_latest.pt in output-dir and treat --epochs as additional epochs.",
+        help="Resume from newest <run_name>_latest_epochXXXX.pt (or legacy <run_name>_latest.pt) and treat --epochs as additional epochs.",
     )
     parser.add_argument("--teacher-momentum", type=float, default=0.996, help="Initial EMA momentum for teacher update.")
     parser.add_argument("--teacher-momentum-final", type=float, default=0.9995, help="Final EMA momentum at the end of cosine schedule.")
@@ -838,7 +851,7 @@ def main() -> None:
         resume_path = _latest_resume_checkpoint(args.output_dir, latest_only=True)
         if resume_path is None:
             raise FileNotFoundError(
-                f"--continue-session requires an existing *_latest.pt checkpoint in: {args.output_dir}"
+                f"--continue-session requires an existing *_latest_epoch*.pt (or legacy *_latest.pt) checkpoint in: {args.output_dir}"
             )
     elif args.resume_latest:
         resume_path = _latest_resume_checkpoint(args.output_dir)
@@ -888,8 +901,8 @@ def main() -> None:
 
     run_name = args.run_name or f"frame_dinov2_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    best_path = args.output_dir / f"{run_name}_best.pt"
-    latest_path = args.output_dir / f"{run_name}_latest.pt"
+    best_path: Optional[Path] = None
+    latest_path: Optional[Path] = None
     history_path = args.output_dir / f"{run_name}_history.json"
     config_path = args.output_dir / f"{run_name}_config.json"
     recon_dir = args.output_dir / f"{run_name}_reconstructions"
@@ -1002,6 +1015,7 @@ def main() -> None:
                 epoch,
             )
 
+        latest_path = args.output_dir / f"{run_name}_latest_epoch{epoch:04d}.pt"
         torch.save(
             {
                 "epoch": epoch,
@@ -1020,6 +1034,7 @@ def main() -> None:
         )
         if metric < best_loss:
             best_loss = metric
+            best_path = args.output_dir / f"{run_name}_best_epoch{epoch:04d}.pt"
             torch.save(
                 {
                     "epoch": epoch,
@@ -1047,8 +1062,14 @@ def main() -> None:
     config_path.write_text(json.dumps(config_payload, indent=2, default=str), encoding="utf-8")
     if writer is not None:
         writer.close()
-    logger.info("Best checkpoint: %s", best_path)
-    logger.info("Latest checkpoint: %s", latest_path)
+    if best_path is not None:
+        logger.info("Best checkpoint: %s", best_path)
+    else:
+        logger.info("Best checkpoint: not updated in this run.")
+    if latest_path is not None:
+        logger.info("Latest checkpoint: %s", latest_path)
+    else:
+        logger.info("Latest checkpoint: not written in this run.")
 
 
 if __name__ == "__main__":
