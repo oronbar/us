@@ -4,7 +4,7 @@ Temporal encoder for per-view frame embeddings.
 from __future__ import annotations
 
 import math
-from typing import Optional
+from typing import Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -41,6 +41,7 @@ class TemporalEncoder(nn.Module):
         self.encoder = nn.TransformerEncoder(enc_layer, num_layers=int(num_layers))
         self.attn_pool = nn.Linear(self.dim, 1)
         self.norm = nn.LayerNorm(self.dim)
+        self._debug_last: Dict[str, torch.Tensor] = {}
 
         pos = self._build_sinusoidal(self.max_seq_len, self.dim)
         self.register_buffer("positional", pos, persistent=False)
@@ -54,7 +55,17 @@ class TemporalEncoder(nn.Module):
         pe[:, 1::2] = torch.cos(position * div_term)
         return pe
 
-    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def pop_debug(self) -> Dict[str, torch.Tensor]:
+        debug = self._debug_last
+        self._debug_last = {}
+        return debug
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+        return_attention: bool = False,
+    ) -> torch.Tensor:
         if x.ndim != 3:
             raise ValueError(f"Expected [B,T,D], got {tuple(x.shape)}")
         bsz, seq_len, dim = x.shape
@@ -81,6 +92,24 @@ class TemporalEncoder(nn.Module):
         attn = torch.where(mask, attn, torch.zeros_like(attn))
         denom = attn.sum(dim=1, keepdim=True).clamp(min=1e-6)
         attn = attn / denom
+        valid_counts = mask.sum(dim=1)
+        non_empty = valid_counts > 0
+        if torch.any(non_empty):
+            if torch.any(denom[non_empty] <= 0):
+                raise RuntimeError("Temporal attention normalization failed for non-empty masks.")
         pooled = torch.sum(h * attn.unsqueeze(-1), dim=1)
+
+        with torch.no_grad():
+            masked_vals = attn.masked_select(~mask)
+            masked_max = (
+                float(masked_vals.max().item()) if masked_vals.numel() > 0 else 0.0
+            )
+            self._debug_last = {
+                "attn": attn.detach(),
+                "mask": mask.detach(),
+                "masked_attention_max": torch.tensor(masked_max, device=attn.device),
+            }
+        if return_attention:
+            return pooled, attn
         return pooled
 

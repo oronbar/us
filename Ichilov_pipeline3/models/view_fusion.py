@@ -34,11 +34,18 @@ class ViewFusion(nn.Module):
             nn.Linear(self.dim, 1),
         )
         nn.init.trunc_normal_(self.view_tokens, std=0.02)
+        self._debug_last: Dict[str, torch.Tensor] = {}
+
+    def pop_debug(self) -> Dict[str, torch.Tensor]:
+        debug = self._debug_last
+        self._debug_last = {}
+        return debug
 
     def forward(
         self,
         views: Dict[str, Optional[torch.Tensor]],
         view_masks: Optional[Dict[str, Optional[torch.Tensor]]] = None,
+        return_attention: bool = False,
     ) -> torch.Tensor:
         first_tensor = None
         for key in self.VIEW_ORDER:
@@ -58,17 +65,19 @@ class ViewFusion(nn.Module):
         for view_idx, view_name in enumerate(self.VIEW_ORDER):
             emb = views.get(view_name)
             if emb is None:
-                continue
-            if emb.ndim != 2 or emb.shape[1] != self.dim:
-                raise ValueError(
-                    f"{view_name} embedding expected [B,{self.dim}], got {tuple(emb.shape)}"
-                )
+                emb = torch.zeros(bsz, self.dim, device=device, dtype=first_tensor.dtype)
+                valid = torch.zeros(bsz, device=device, dtype=torch.bool)
+            else:
+                if emb.ndim != 2 or emb.shape[1] != self.dim:
+                    raise ValueError(
+                        f"{view_name} embedding expected [B,{self.dim}], got {tuple(emb.shape)}"
+                    )
+                if view_masks and view_name in view_masks and view_masks[view_name] is not None:
+                    valid = view_masks[view_name].to(device=device, dtype=torch.bool)
+                else:
+                    valid = torch.ones(bsz, device=device, dtype=torch.bool)
             token = self.view_tokens[view_idx].unsqueeze(0).expand_as(emb)
             score = self.score(emb + token).squeeze(-1)
-            if view_masks and view_name in view_masks and view_masks[view_name] is not None:
-                valid = view_masks[view_name].to(device=device, dtype=torch.bool)
-            else:
-                valid = torch.ones(bsz, device=device, dtype=torch.bool)
             score = score.masked_fill(~valid, float("-inf"))
             embs.append(emb)
             scores.append(score)
@@ -82,6 +91,23 @@ class ViewFusion(nn.Module):
         attn = torch.where(mask_stack, attn, torch.zeros_like(attn))
         denom = attn.sum(dim=1, keepdim=True).clamp(min=1e-6)
         attn = attn / denom
+        valid_counts = mask_stack.sum(dim=1)
+        non_empty = valid_counts > 0
+        if torch.any(non_empty):
+            if torch.any(denom[non_empty] <= 0):
+                raise RuntimeError("View attention normalization failed for non-empty masks.")
         fused = torch.sum(emb_stack * attn.unsqueeze(-1), dim=1)
+        with torch.no_grad():
+            masked_vals = attn.masked_select(~mask_stack)
+            masked_max = (
+                float(masked_vals.max().item()) if masked_vals.numel() > 0 else 0.0
+            )
+            self._debug_last = {
+                "attn": attn.detach(),
+                "mask": mask_stack.detach(),
+                "masked_attention_max": torch.tensor(masked_max, device=attn.device),
+            }
+        if return_attention:
+            return fused, attn, mask_stack
         return fused
 

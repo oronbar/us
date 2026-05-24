@@ -122,7 +122,7 @@
             "program": "plot_global_strain_curves.py",
             "console": "integratedTerminal",
             "args": [
-                "--input", "D:\\us\\AutoStrainCap_32651872-7_20260209_173807 Demo case 2.txt"
+                "--input", "D:\\us\\global_strain_plots\\AutoStrainCap_2571168-0_20260317_130933.txt"
             ]
         }
     ]

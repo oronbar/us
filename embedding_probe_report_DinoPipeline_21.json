@@ -1,0 +1,105 @@
+{
+  "inputs": {
+    "embeddings_parquet": "C:\\Users\\oron\\OneDrive - Technion\\Experiments\\DinoPipeline_21\\frame_embeddings\\Ichilov_frame_embeddings_DinoPipeline_21.parquet",
+    "report_xlsx": "C:\\Users\\oron\\OneDrive - Technion\\DS\\Report_Ichilov_GLS_and_Strain_oron.xlsx",
+    "seed": 42,
+    "test_size": 0.2
+  },
+  "dataset_summary": {
+    "n_rows": 54255,
+    "n_patients": 67,
+    "n_visits": 260,
+    "n_views": 3,
+    "gls_labeled_rows": 54255,
+    "gls_labeled_row_fraction": 1.0,
+    "gls_labeled_visits": 260
+  },
+  "probe_1_view_linear": {
+    "n_train": 43404,
+    "n_test": 10851,
+    "n_classes": 3,
+    "train_accuracy": 0.9649341074555341,
+    "test_accuracy": 0.9576075937701595,
+    "test_balanced_accuracy": 0.9575842977972671,
+    "test_weighted_f1": 0.957617605622202,
+    "test_macro_f1": 0.9575753234367915
+  },
+  "probe_2_patient_id_linear": {
+    "n_train": 43404,
+    "n_test": 10851,
+    "n_classes": 67,
+    "train_accuracy": 0.9011842226522901,
+    "test_accuracy": 0.8882130679200074,
+    "test_balanced_accuracy": 0.8843665028593867,
+    "test_weighted_f1": 0.8879939223563023,
+    "test_macro_f1": 0.888757087374269
+  },
+  "probe_3_visit_change_signal": {
+    "all_frames": {
+      "n_visits_with_gls": 260,
+      "n_pairs": 193,
+      "corr_l2_abs_delta_gls": {
+        "n_pairs": 193,
+        "pearson_r": 0.20680544556963246,
+        "pearson_p": 0.003906302111409887,
+        "spearman_rho": 0.2185163052187383,
+        "spearman_p": 0.0022657585964847558
+      },
+      "corr_cosine_abs_delta_gls": {
+        "n_pairs": 193,
+        "pearson_r": 0.1878734452192363,
+        "pearson_p": 0.008886074406766427,
+        "spearman_rho": 0.2181323780780941,
+        "spearman_p": 0.0023076138695090165
+      },
+      "corr_l2_signed_delta_gls": {
+        "n_pairs": 193,
+        "pearson_r": -0.03993982616315198,
+        "pearson_p": 0.581306389406261,
+        "spearman_rho": -0.04533845681320442,
+        "spearman_p": 0.5312543271259058
+      },
+      "corr_cosine_signed_delta_gls": {
+        "n_pairs": 193,
+        "pearson_r": -0.04025619997247911,
+        "pearson_p": 0.5783137943467848,
+        "spearman_rho": -0.046346682869504836,
+        "spearman_p": 0.5221530076973342
+      },
+      "scatter_png": "D:\\us\\embedding_probe_report_artifacts\\visit_change_all_frames_l2_vs_abs_delta_gls.png"
+    },
+    "ed_es_only": {
+      "n_visits_with_gls": 260,
+      "n_pairs": 193,
+      "corr_l2_abs_delta_gls": {
+        "n_pairs": 193,
+        "pearson_r": 0.1904848602948777,
+        "pearson_p": 0.007967360742158343,
+        "spearman_rho": 0.20920523743389774,
+        "spearman_p": 0.0035017495132968718
+      },
+      "corr_cosine_abs_delta_gls": {
+        "n_pairs": 193,
+        "pearson_r": 0.16466112243822564,
+        "pearson_p": 0.02211844676988409,
+        "spearman_rho": 0.20799837081352487,
+        "spearman_p": 0.003700215214985129
+      },
+      "corr_l2_signed_delta_gls": {
+        "n_pairs": 193,
+        "pearson_r": -0.03647323542293998,
+        "pearson_p": 0.6145576640900662,
+        "spearman_rho": -0.048443258907109654,
+        "spearman_p": 0.5034850344424022
+      },
+      "corr_cosine_signed_delta_gls": {
+        "n_pairs": 193,
+        "pearson_r": -0.03491567129280078,
+        "pearson_p": 0.6297633038693279,
+        "spearman_rho": -0.04980369638374017,
+        "spearman_p": 0.4915614331971684
+      },
+      "scatter_png": "D:\\us\\embedding_probe_report_artifacts\\visit_change_edes_frames_l2_vs_abs_delta_gls.png"
+    }
+  }
+}

@@ -62,6 +62,8 @@ class LongitudinalModel(nn.Module):
                 norm_first=True,
             )
             self.encoder = nn.TransformerEncoder(layer, num_layers=int(num_layers))
+        elif self.model_type in {"last_visit_linear", "mean_visit_linear", "delta_only_linear"}:
+            self.encoder = None
         else:
             raise ValueError(f"Unknown longitudinal model type: {model_type}")
 
@@ -88,9 +90,56 @@ class LongitudinalModel(nn.Module):
     @staticmethod
     def _last_valid(hidden: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         # hidden: [B,V,D], mask: [B,V]
-        lengths = mask.long().sum(dim=1).clamp(min=1) - 1
-        gather_idx = lengths.view(-1, 1, 1).expand(-1, 1, hidden.shape[-1])
+        if hidden.ndim != 3 or mask.ndim != 2:
+            raise ValueError("Expected hidden [B,V,D] and mask [B,V].")
+        if hidden.shape[:2] != mask.shape:
+            raise ValueError(
+                f"Shape mismatch in _last_valid: hidden {tuple(hidden.shape)} vs mask {tuple(mask.shape)}"
+            )
+        if not torch.all(mask.any(dim=1)):
+            raise ValueError("visit_mask must contain at least one valid visit per sample.")
+        idx = torch.zeros(mask.shape[0], dtype=torch.long, device=hidden.device)
+        for i in range(mask.shape[1]):
+            idx = torch.where(mask[:, i], torch.full_like(idx, i), idx)
+        gather_idx = idx.view(-1, 1, 1).expand(-1, 1, hidden.shape[-1])
         return hidden.gather(dim=1, index=gather_idx).squeeze(1)
+
+    @staticmethod
+    def _first_valid(hidden: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        # hidden: [B,V,D], mask: [B,V]
+        if hidden.ndim != 3 or mask.ndim != 2:
+            raise ValueError("Expected hidden [B,V,D] and mask [B,V].")
+        if hidden.shape[:2] != mask.shape:
+            raise ValueError(
+                f"Shape mismatch in _first_valid: hidden {tuple(hidden.shape)} vs mask {tuple(mask.shape)}"
+            )
+        if not torch.all(mask.any(dim=1)):
+            raise ValueError("visit_mask must contain at least one valid visit per sample.")
+        idx = torch.zeros(mask.shape[0], dtype=torch.long, device=hidden.device)
+        found = torch.zeros(mask.shape[0], dtype=torch.bool, device=hidden.device)
+        for i in range(mask.shape[1]):
+            take = (~found) & mask[:, i]
+            idx = torch.where(take, torch.full_like(idx, i), idx)
+            found = found | take
+        gather_idx = idx.view(-1, 1, 1).expand(-1, 1, hidden.shape[-1])
+        return hidden.gather(dim=1, index=gather_idx).squeeze(1)
+
+    @staticmethod
+    def _masked_mean(hidden: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        weights = mask.to(hidden.dtype).unsqueeze(-1)
+        denom = weights.sum(dim=1).clamp(min=1.0)
+        return (hidden * weights).sum(dim=1) / denom
+
+    def _pool_linear_mode(self, hidden: torch.Tensor, visit_mask: torch.Tensor) -> torch.Tensor:
+        if self.model_type == "last_visit_linear":
+            return self._last_valid(hidden, visit_mask)
+        if self.model_type == "mean_visit_linear":
+            return self._masked_mean(hidden, visit_mask)
+        if self.model_type == "delta_only_linear":
+            first = self._first_valid(hidden, visit_mask)
+            last = self._last_valid(hidden, visit_mask)
+            return last - first
+        raise ValueError(f"Unsupported linear longitudinal mode: {self.model_type}")
 
     def forward(
         self,
@@ -105,6 +154,12 @@ class LongitudinalModel(nn.Module):
             visit_mask = torch.ones(bsz, n_visits, dtype=torch.bool, device=x.device)
         if visit_mask.ndim != 2:
             raise ValueError(f"Expected visit_mask [B,V], got {tuple(visit_mask.shape)}")
+        if visit_mask.shape != (bsz, n_visits):
+            raise ValueError(
+                f"visit_mask shape mismatch. Expected {(bsz, n_visits)}, got {tuple(visit_mask.shape)}"
+            )
+        if not torch.all(visit_mask.any(dim=1)):
+            raise ValueError("Each sample must have at least one valid visit in visit_mask.")
 
         h = self.input_proj(x)
         h = self._add_time_encoding(h, visit_times)
@@ -118,13 +173,16 @@ class LongitudinalModel(nn.Module):
             h, _ = nn.utils.rnn.pad_packed_sequence(
                 packed_out, batch_first=True, total_length=n_visits
             )
-        else:
+            pooled = self._last_valid(h, visit_mask)
+        elif self.model_type == "transformer":
             h = self.encoder(h, src_key_padding_mask=~visit_mask)
+            pooled = self._last_valid(h, visit_mask)
+        else:
+            pooled = self._pool_linear_mode(h, visit_mask)
 
         severity = self.severity_head(h).squeeze(-1)
         severity = severity.masked_fill(~visit_mask, 0.0)
 
-        pooled = self._last_valid(h, visit_mask)
         delta = self.delta_head(pooled).squeeze(-1)
         risk_logit = self.risk_head(pooled).squeeze(-1)
         risk_prob = torch.sigmoid(risk_logit)

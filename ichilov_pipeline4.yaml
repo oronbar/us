@@ -31,7 +31,7 @@ steps:
       workers: 0
 
   frame_pretrain:
-    run: true
+    run: false
     use_if_skipped: ''
     best_weights_pattern: ''
     best_weights_name: ''
@@ -74,6 +74,7 @@ steps:
   frame_encode:
     run: true
     use_if_skipped: ''
+    use_pretrained_dino_as_is: true
     script: 'ichilov_encode_frames_dinov2.py'
     bool_flags: {}
     args:

@@ -343,14 +343,18 @@ def _is_valid_curve(curve: np.ndarray, eps: float = 1e-8) -> bool:
 
 
 def _plot_segment_curves(
-    layer: str, seg_curves: Dict[int, np.ndarray], seg_names: Dict[int, str], out_path: Path
+    layer: str,
+    view: str,
+    seg_curves: Dict[int, np.ndarray],
+    seg_names: Dict[int, str],
+    out_path: Path,
 ) -> None:
     fig, ax = plt.subplots(figsize=(8, 4.5))
     for seg_id, curve in sorted(seg_curves.items()):
         name = seg_names.get(seg_id)
         label = f"Seg {seg_id} ({name})" if name else f"Seg {seg_id}"
         ax.plot(np.arange(len(curve)), curve, linewidth=2.2, alpha=0.8, label=label)
-    ax.set_title(f"{layer} valid segment strains")
+    ax.set_title(f"{view} {layer} valid segment strains")
     ax.set_xlabel("Frame")
     ax.set_ylabel("Strain")
     ax.grid(True, alpha=0.25, linewidth=0.8)
@@ -451,6 +455,10 @@ def main() -> None:
         mid_df = _load_layer_df(input_path, args.sheet_mid)
         curves_by_view: Dict[str, Dict[str, np.ndarray]] = {"A2C": {}, "A3C": {}, "A4C": {}}
         segment_curves: Dict[str, Dict[int, np.ndarray]] = {"endo": {}, "mid": {}}
+        segment_curves_by_view: Dict[str, Dict[str, Dict[int, np.ndarray]]] = {
+            "endo": {"A2C": {}, "A3C": {}, "A4C": {}},
+            "mid": {"A2C": {}, "A3C": {}, "A4C": {}},
+        }
         valid_by_view: Dict[str, Dict[str, List[np.ndarray]]] = {
             "endo": {"A2C": [], "A3C": [], "A4C": []},
             "mid": {"A2C": [], "A3C": [], "A4C": []},
@@ -478,6 +486,7 @@ def main() -> None:
                     view = view_map.get(col)
                     if view in ("A2C", "A3C", "A4C"):
                         valid_by_view[layer_name][view].append(arr)
+                        segment_curves_by_view[layer_name][view][seg_id] = arr
             for view in ("A2C", "A3C", "A4C"):
                 curve = _global_curve_from_arrays(valid_by_view[layer_name][view])
                 if curve is not None:
@@ -495,11 +504,12 @@ def main() -> None:
                     delta = endo[:n] - mid[:n]
                     delta_path = out_dir / f"global_{view}_endo_minus_mid.png"
                     _plot_view_delta(view, delta, delta_path)
-        for layer_name, segs in segment_curves.items():
-            if not segs:
-                continue
-            seg_out = out_dir / f"segments_{layer_name}.png"
-            _plot_segment_curves(layer_name, segs, seg_names.get(layer_name, {}), seg_out)
+        for layer_name, view_map in segment_curves_by_view.items():
+            for view, segs in view_map.items():
+                if not segs:
+                    continue
+                seg_out = out_dir / f"segments_{layer_name}_{view}.png"
+                _plot_segment_curves(layer_name, view, segs, seg_names.get(layer_name, {}), seg_out)
         return
     except ET.ParseError:
         logger.info("Input is not SpreadsheetML XML. Falling back to text/CSV export parser.")
@@ -515,6 +525,10 @@ def main() -> None:
 
     curves_by_view: Dict[str, Dict[str, np.ndarray]] = {"A2C": {}, "A3C": {}, "A4C": {}}
     segment_curves: Dict[str, Dict[int, np.ndarray]] = {"endo": {}, "mid": {}}
+    segment_curves_by_view: Dict[str, Dict[str, Dict[int, np.ndarray]]] = {
+        "endo": {"A2C": {}, "A3C": {}, "A4C": {}},
+        "mid": {"A2C": {}, "A3C": {}, "A4C": {}},
+    }
     for layer_name in ("endo", "mid"):
         seg_map = sections.get(layer_name)
         if not seg_map:
@@ -524,6 +538,9 @@ def main() -> None:
             arr = np.asarray(values, dtype=float)
             if _is_valid_curve(arr):
                 segment_curves[layer_name][seg_id] = arr
+                view = SEGMENT_TO_VIEW_18.get(seg_id)
+                if view in ("A2C", "A3C", "A4C"):
+                    segment_curves_by_view[layer_name][view][seg_id] = arr
         for view in ("A2C", "A3C", "A4C"):
             arrays = [segment_curves[layer_name][sid] for sid in view_to_segments[view] if sid in segment_curves[layer_name]]
             curve = _global_curve_from_arrays(arrays)
@@ -542,11 +559,12 @@ def main() -> None:
                 delta = endo[:n] - mid[:n]
                 delta_path = out_dir / f"global_{view}_endo_minus_mid.png"
                 _plot_view_delta(view, delta, delta_path)
-    for layer_name, segs in segment_curves.items():
-        if not segs:
-            continue
-        seg_out = out_dir / f"segments_{layer_name}.png"
-        _plot_segment_curves(layer_name, segs, segment_names.get(layer_name, {}), seg_out)
+    for layer_name, view_map in segment_curves_by_view.items():
+        for view, segs in view_map.items():
+            if not segs:
+                continue
+            seg_out = out_dir / f"segments_{layer_name}_{view}.png"
+            _plot_segment_curves(layer_name, view, segs, segment_names.get(layer_name, {}), seg_out)
 
 
 if __name__ == "__main__":

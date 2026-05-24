@@ -15,11 +15,11 @@ paths:
   # Optional cropped DICOM root. If empty, source DICOMs are used directly.
   cropped_root: 'D:\DS\Ichilov_cropped'
   # Training output folder (checkpoints/logs/history/predictions).
-  output_dir: 'C:\Users\oron\OneDrive - Technion\Experiments\ichilov_pipeline3\longitudinal'
+  output_dir: 'C:\Users\Oron\OneDrive - Technion\Experiments\DinoPipeline_21\pipeline3_longitudinal'
   # Optional TensorBoard directory.
-  log_dir: 'C:\Users\oron\OneDrive - Technion\Experiments\ichilov_pipeline3\tensorboard'
+  log_dir: 'C:\Users\Oron\OneDrive - Technion\Experiments\DinoPipeline_21\pipeline3_tensorboard'
   # Optional explicit prediction export path.
-  output_parquet: 'C:\Users\oron\OneDrive - Technion\Experiments\ichilov_pipeline3\predictions\pipeline3_predictions.parquet'
+  output_parquet: 'C:\Users\Oron\OneDrive - Technion\Experiments\DinoPipeline_21\pipeline3_predictions.parquet'
 
 steps:
   longitudinal_train:
@@ -34,10 +34,12 @@ steps:
       views: 'A2C,A3C,A4C'
 
       # Data sampling (reuses pipeline2 frame sampling utilities).
-      sampling_mode: 'uniform'      # uniform | sliding_window
+      sampling_mode: 'uniform'      # uniform | sliding_window | phase_aligned
       t_frames: 16                  # T_frames
       clip_stride: 1
       include_last_window: true
+      phase_aligned_include_midpoints: true
+      phase_aligned_strategy: 'cycle' # cycle | segment
       max_visits: 5
       min_visits: 2
 
@@ -77,6 +79,26 @@ steps:
       longitudinal_heads: 4
       longitudinal_dropout: 0.1
       use_time_encoding: true
+      time_encoding_mode: 'inherit' # inherit | on | off
+
+      # Ablations
+      temporal_mode: 'attn_pool'     # attn_pool | mean_pool | max_pool | first_frame | last_frame
+      view_fusion_mode: 'attn'       # attn | mean | max | single_best_view | concat_then_linear
+      single_best_view: 'A4C'        # used only for single_best_view mode
+      longitudinal_ablation_mode: 'inherit' # inherit | gru | transformer | last_visit_linear | mean_visit_linear | delta_only_linear
+
+      # Diagnostics / probes
+      enable_diagnostics: true
+      diagnostics_batches: 2
+      diagnostics_topk: 5
+      diagnostics_every: 1
+      run_patient_id_probe: true
+      run_delta_gls_probe: true
+      delta_gls_convention: 'latest_minus_earliest'  # latest_minus_earliest | earliest_minus_latest
+      debug_delta: false
+      debug_delta_samples: 2
+      split_json: ''
+      summary_json: 'C:\Users\Oron\OneDrive - Technion\Experiments\DinoPipeline_21\pipeline3_summary.json'
 
       # Multitask objective:
       # L = lambda_delta * delta + lambda_rank * ranking + lambda_smooth * smoothness

@@ -397,6 +397,7 @@ def main() -> None:
         frame_encode_cfg.get("args", {}),
         path_keys=("input_xlsx", "echo_root", "cropped_root", "weights", "output_parquet"),
     )
+    use_pretrained_dino_as_is = bool(frame_encode_cfg.get("use_pretrained_dino_as_is", False))
     frame_embeddings_path: Optional[Path] = None
 
     if frame_encode_run:
@@ -406,7 +407,17 @@ def main() -> None:
             frame_encode_args["echo_root"] = _expand_path(paths_cfg.get("echo_root")) or DEFAULT_ECHO_ROOT
         if frame_encode_args.get("cropped_root") is None and cropped_root is not None:
             frame_encode_args["cropped_root"] = cropped_root
-        if frame_encode_args.get("weights") is None and frame_pre_best is not None:
+        if use_pretrained_dino_as_is:
+            if frame_encode_args.get("weights") is not None:
+                logger.info(
+                    "frame_encode.use_pretrained_dino_as_is=true; ignoring configured weights: %s",
+                    frame_encode_args["weights"],
+                )
+            frame_encode_args["weights"] = None
+            logger.info(
+                "frame_encode: using pretrained DINO backbone as-is (no checkpoint loading)."
+            )
+        elif frame_encode_args.get("weights") is None and frame_pre_best is not None:
             frame_encode_args["weights"] = frame_pre_best
 
         frame_embeddings_path = frame_encode_args.get("output_parquet")
@@ -520,6 +531,7 @@ def main() -> None:
 
     resolved["steps"].setdefault("frame_encode", {})
     resolved["steps"]["frame_encode"]["run"] = frame_encode_run
+    resolved["steps"]["frame_encode"]["use_pretrained_dino_as_is"] = use_pretrained_dino_as_is
     resolved["steps"]["frame_encode"]["args"] = _stringify_paths(frame_encode_args)
 
     resolved["steps"].setdefault("longitudinal_train", {})

@@ -1,0 +1,109 @@
+# Ichilov pipeline5: DICOM/view-level strain curve prediction from phase-aligned cine frames.
+pipeline:
+  run_name_prefix: ichilov_pipeline5
+  run_name: ""
+  continue_last_run: false
+  save_config_copy: true
+  python_exe: ""
+
+paths:
+  experiments_root: "C:\\Users\\Oron\\OneDrive - Technion\\Experiments"
+  echo_root: "D:\\DS\\Ichilov"
+  cropped_root: "D:\\DS\\Ichilov_cropped"
+  ed_es_xlsx: "C:\\Users\\Oron\\OneDrive - Technion\\DS\\Report_Ichilov_GLS_and_Strain_oron_window_best_ed_es_adjusted_600ms.xlsx"
+  strain_xlsx: "C:\\Users\\Oron\\OneDrive - Technion\\DS\\Report_Ichilov_GLS_and_Strain_oron.xlsx"
+
+reports:
+  column_map:
+    patient_id: null
+    patient_num: null
+    dicom_path: null
+    dicom_name: null
+    view: null
+    visit_date: null
+    ed_index: null
+    es_index: null
+    gls_peak: null
+    strain_curve: null
+
+data:
+  views: "A2C,A3C,A4C"
+  curve_length: 64
+  t_frames: 16
+  phase_sampling_mode: "ed_es_cycle"
+  image_size: 518
+
+encoder:
+  backbone_name: "vit_small_patch14_dinov2.lvd142m"
+  weights: null
+  batch_size: 16
+  num_workers: 4
+  use_amp: true
+  freeze_backbone: true
+
+train:
+  model_type: "temporal_transformer"
+  hidden_dim: 256
+  num_layers: 2
+  num_heads: 4
+  dropout: 0.1
+  batch_size: 16
+  epochs: 50
+  lr: 1.0e-4
+  weight_decay: 0.01
+  val_ratio: 0.2
+  seed: 42
+  device: "auto"
+  num_workers: 0
+  early_stopping_patience: 10
+  curve_loss: "huber"
+  curve_loss_weight: 1.0
+  peak_loss_weight: 0.5
+  ttp_loss_weight: 0.1
+  derivative_loss_weight: 0.2
+  smoothness_loss_weight: 0.01
+  use_amp: true
+  derive_predicted_peak_from_curve: false
+  diagnostic_samples: 40
+
+cv:
+  run: false
+  n_splits: 5
+  seeds: [42, 43, 44, 45, 46]
+
+steps:
+  validate_reports:
+    run: true
+    script: "ichilov_validate_strain_reports.py"
+    use_if_skipped: ""
+    args: {}
+
+  prepare_curve_dataset:
+    run: true
+    script: "ichilov_prepare_strain_curve_dataset.py"
+    use_if_skipped: ""
+    args: {}
+
+  encode_phase_frames:
+    run: true
+    script: "ichilov_encode_phase_frames_dinov2.py"
+    use_if_skipped: ""
+    args: {}
+
+  train_strain_curve_model:
+    run: true
+    script: "train_strain_curve_model.py"
+    use_if_skipped: ""
+    args: {}
+
+  evaluate_strain_curve_model:
+    run: true
+    script: "evaluate_strain_curve_model.py"
+    use_if_skipped: ""
+    args: {}
+
+  optional_quality_report:
+    run: true
+    script: "ichilov_strain_quality_report.py"
+    use_if_skipped: ""
+    args: {}

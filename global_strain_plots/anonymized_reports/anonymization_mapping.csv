@@ -1,0 +1,2 @@
+﻿study_uid,study_id,study_date_and_time,export_date_and_time,patient_name,patient_id,patient_date_of_birth,patient_sex,source_file,anonymized_file
+1.2.826.0.1.3680043.2.97.1.1.872525684.260208100657405,40516329,"2026-02-08,11:39:12","2026-02-08,14:37:32",DOTAN BELLA,330568-7,1947-01-09,female,D:\us\global_strain_plots\AutoStrainCap_330568-7_20260208_143723.txt,D:\us\global_strain_plots\anonymized_reports\AutoStrainCap_330568-7_20260208_143723.txt

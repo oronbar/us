@@ -391,6 +391,113 @@ def clip_indices_sliding(n_frames: int, clip_length: int, stride: int, include_l
     return [np.arange(start, start + clip_length, dtype=int) for start in starts]
 
 
+def _to_phase_index(
+    idx_raw: Optional[int],
+    n_frames: int,
+    assume_one_based: bool,
+) -> Optional[int]:
+    if idx_raw is None:
+        return None
+    try:
+        idx = int(idx_raw)
+    except Exception:
+        return None
+    if idx < 0:
+        return None
+    if assume_one_based:
+        idx = idx - 1
+    if idx < 0:
+        return None
+    if idx >= n_frames:
+        idx = n_frames - 1
+    return idx
+
+
+def _arc_indices(start: int, end: int, n_frames: int) -> List[int]:
+    if n_frames <= 0:
+        return []
+    out = [int(start)]
+    cur = int(start)
+    max_steps = max(1, n_frames * 2)
+    for _ in range(max_steps):
+        if cur == int(end):
+            break
+        cur = (cur + 1) % n_frames
+        out.append(cur)
+        if cur == int(end):
+            break
+    return out
+
+
+def _sample_path(path: Sequence[int], n: int) -> np.ndarray:
+    if n <= 0:
+        return np.array([], dtype=int)
+    if not path:
+        return np.array([], dtype=int)
+    if len(path) == 1:
+        return np.full((n,), int(path[0]), dtype=int)
+    pos = np.linspace(0, len(path) - 1, n)
+    idx = np.clip(np.round(pos).astype(int), 0, len(path) - 1)
+    return np.asarray([int(path[i]) for i in idx], dtype=int)
+
+
+def phase_aligned_indices(
+    n_frames: int,
+    clip_length: int,
+    end_diastole: Optional[int] = None,
+    end_systole: Optional[int] = None,
+    include_midpoints: bool = True,
+    strategy: str = "cycle",
+) -> np.ndarray:
+    if n_frames <= 0:
+        return np.array([], dtype=int)
+    if clip_length <= 0:
+        return np.array([], dtype=int)
+    strategy = str(strategy).strip().lower()
+    if strategy not in {"cycle", "segment"}:
+        raise ValueError("phase_aligned strategy must be 'cycle' or 'segment'.")
+
+    ed_raw = None if end_diastole is None else int(end_diastole)
+    es_raw = None if end_systole is None else int(end_systole)
+    assume_one_based = not any(v == 0 for v in (ed_raw, es_raw) if v is not None)
+    ed = _to_phase_index(ed_raw, n_frames=n_frames, assume_one_based=assume_one_based)
+    es = _to_phase_index(es_raw, n_frames=n_frames, assume_one_based=assume_one_based)
+    if ed is None or es is None or ed == es:
+        return sample_indices(n_frames, target=clip_length)
+
+    if strategy == "segment":
+        arc = _arc_indices(ed, es, n_frames=n_frames)
+        if not include_midpoints and clip_length >= 2:
+            mids = arc[1:-1]
+            extra = _sample_path(mids, max(0, clip_length - 2))
+            seq = np.concatenate(
+                [np.asarray([ed], dtype=int), extra, np.asarray([es], dtype=int)]
+            )
+            return np.clip(seq.astype(int), 0, n_frames - 1)
+        return _sample_path(arc, clip_length)
+
+    # cycle: ED -> ES plus ES -> ED (wrap-around), covering the full cardiac cycle.
+    if clip_length == 1:
+        return np.asarray([ed], dtype=int)
+    if clip_length == 2:
+        return np.asarray([ed, es], dtype=int)
+    arc1 = _arc_indices(ed, es, n_frames=n_frames)
+    arc2 = _arc_indices(es, ed, n_frames=n_frames)
+    n1 = max(2, int(np.ceil(float(clip_length) / 2.0)))
+    n2 = max(2, clip_length - n1 + 1)
+    seg1 = _sample_path(arc1, n1)
+    seg2 = _sample_path(arc2, n2)
+    seq = np.concatenate([seg1, seg2[1:]])[:clip_length]
+    if not include_midpoints and clip_length >= 2:
+        remain = clip_length - 2
+        if remain > 0:
+            uni = sample_indices(n_frames, target=remain)
+            seq = np.concatenate([np.asarray([ed, es], dtype=int), uni])[:clip_length]
+        else:
+            seq = np.asarray([ed, es], dtype=int)
+    return np.clip(seq.astype(int), 0, n_frames - 1)
+
+
 def to_tensor(frames: np.ndarray) -> torch.Tensor:
     # frames: T,H,W,C with C in {1,3}
     if frames.ndim != 4:
@@ -422,6 +529,10 @@ def iter_cropped_frames(
     clip_length: int,
     clip_stride: int,
     include_last: bool,
+    end_diastole: Optional[int] = None,
+    end_systole: Optional[int] = None,
+    phase_aligned_include_midpoints: bool = True,
+    phase_aligned_strategy: str = "cycle",
 ) -> Optional[List[Dict[str, object]]]:
     frames = load_cropped_frames(dicom_path)
     if frames is None:
@@ -431,6 +542,17 @@ def iter_cropped_frames(
         indices_list = clip_indices_uniform(n_frames, clip_length)
     elif sampling_mode == "sliding_window":
         indices_list = clip_indices_sliding(n_frames, clip_length, clip_stride, include_last)
+    elif sampling_mode == "phase_aligned":
+        indices_list = [
+            phase_aligned_indices(
+                n_frames=n_frames,
+                clip_length=clip_length,
+                end_diastole=end_diastole,
+                end_systole=end_systole,
+                include_midpoints=phase_aligned_include_midpoints,
+                strategy=phase_aligned_strategy,
+            )
+        ]
     else:
         raise ValueError(f"Unknown sampling mode: {sampling_mode}")
     if not indices_list:
