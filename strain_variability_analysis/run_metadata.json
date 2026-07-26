@@ -1,0 +1,14 @@
+{
+  "roots": [
+    "C:\\Users\\Oron\\OneDrive - Technion\\DS\\Tags_SZMC\\VVI",
+    "C:\\Users\\Oron\\OneDrive - Technion\\DS\\Tags_Ichilov\\VVI"
+  ],
+  "output_dir": "D:\\us\\strain_variability_analysis",
+  "resample_len": 96,
+  "latent_dim": 8,
+  "epochs": 250,
+  "latent_method": "torch_mlp_autoencoder",
+  "xml_records": 140,
+  "segment_features": 1680,
+  "visit_variability_rows": 136
+}
