@@ -1,0 +1,22 @@
+task,metric,baseline,relative_threshold,eligible_transitions,events,event_rate,event_patients,description
+mid_first_rel10,mid,first,0.1,211,65,0.3080568720379147,65,Next Mid-GLS magnitude is >=10% below first visit
+mid_first_rel12,mid,first,0.12,225,58,0.2577777777777778,58,Next Mid-GLS magnitude is >=12% below first visit
+mid_first_rel15,mid,first,0.15,238,49,0.20588235294117646,49,Next Mid-GLS magnitude is >=15% below first visit
+mid_first_rel20,mid,first,0.2,262,29,0.11068702290076336,29,Next Mid-GLS magnitude is >=20% below first visit
+mid_roll2_rel10,mid,roll2,0.1,194,51,0.26288659793814434,45,Next Mid-GLS magnitude is >=10% below mean of the last 2 observed visits
+mid_roll2_rel12,mid,roll2,0.12,194,42,0.21649484536082475,39,Next Mid-GLS magnitude is >=12% below mean of the last 2 observed visits
+mid_roll2_rel15,mid,roll2,0.15,194,29,0.14948453608247422,29,Next Mid-GLS magnitude is >=15% below mean of the last 2 observed visits
+mid_roll2_rel20,mid,roll2,0.2,194,13,0.06701030927835051,13,Next Mid-GLS magnitude is >=20% below mean of the last 2 observed visits
+mid_roll3_rel10,mid,roll3,0.1,93,19,0.20430107526881722,19,Next Mid-GLS magnitude is >=10% below mean of the last 3 observed visits
+mid_roll3_rel12,mid,roll3,0.12,93,14,0.15053763440860216,14,Next Mid-GLS magnitude is >=12% below mean of the last 3 observed visits
+mid_roll3_rel15,mid,roll3,0.15,93,9,0.0967741935483871,9,Next Mid-GLS magnitude is >=15% below mean of the last 3 observed visits
+mid_roll3_rel20,mid,roll3,0.2,93,4,0.043010752688172046,4,Next Mid-GLS magnitude is >=20% below mean of the last 3 observed visits
+endo_first_rel15,endo,first,0.15,245,47,0.19183673469387755,47,Next Endo-GLS magnitude is >=15% below first
+endo_roll2_rel15,endo,roll2,0.15,194,24,0.12371134020618557,24,Next Endo-GLS magnitude is >=15% below roll2
+endo_roll3_rel15,endo,roll3,0.15,93,9,0.0967741935483871,9,Next Endo-GLS magnitude is >=15% below roll3
+ef_first_rel10,ef,first,0.1,231,41,0.1774891774891775,41,Next biplane EF is >=10% below first
+ef_first_rel15,ef,first,0.15,254,23,0.09055118110236221,23,Next biplane EF is >=15% below first
+ef_roll2_rel10,ef,roll2,0.1,175,20,0.11428571428571428,18,Next biplane EF is >=10% below roll2
+ef_roll2_rel15,ef,roll2,0.15,175,6,0.03428571428571429,6,Next biplane EF is >=15% below roll2
+ef_roll3_rel10,ef,roll3,0.1,82,8,0.0975609756097561,8,Next biplane EF is >=10% below roll3
+ef_roll3_rel15,ef,roll3,0.15,82,2,0.024390243902439025,2,Next biplane EF is >=15% below roll3

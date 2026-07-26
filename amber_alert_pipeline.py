@@ -891,7 +891,7 @@ def write_report(
         f"The best selected-transition GLS MAE was {best_mae['mae_next_gls']:.2f} strain points ({best_mae['model']}). "
         f"The best incident-alert average precision was {best_ap['average_precision']:.2f} ({best_ap['model']}).",
         "",
-        "All performance estimates are exploratory because the independent sample contains only 33 patients and few incident events.",
+        f"All performance estimates are exploratory because the independent sample contains only {pairs['patient_id'].nunique()} patients and few incident events.",
         "",
         "## Frozen endpoint",
         "",

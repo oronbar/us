@@ -1,0 +1,2 @@
+task,comparison,reference_model,candidate_model,n,delta_roc_auc,delta_roc_auc_ci_low,delta_roc_auc_ci_high,delta_average_precision,delta_average_precision_ci_low,delta_average_precision_ci_high
+mid_first_rel15,attention_vs_existing_trees,existing_combined_trees,attention_binary,238,0.01101392938127621,-0.06803959453405016,0.09292086469775018,0.019316080495276944,-0.10957729518382454,0.1264157755029415

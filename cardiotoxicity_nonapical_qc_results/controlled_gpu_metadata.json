@@ -1,0 +1,12 @@
+{
+  "device": "NVIDIA GeForce RTX 4060 Ti",
+  "scalar_features": "same 27 clinical trajectory features in all four models",
+  "controlled18_segments": 18,
+  "controlled_nonapical_segments": 12,
+  "all18_qc_models": [
+    "controlled18_fixed_qc",
+    "controlled18_shape_qc"
+  ],
+  "cv": "3 repeated 5-fold patient-held-out",
+  "bootstraps": 1000
+}

@@ -1,0 +1,7 @@
+subset,layer,relative_decline_threshold,n_transitions,n_patients,eligible_transitions,incident_events,incident_rate_among_eligible,already_deteriorated,target_positive,recovered_by_dropping_late_visits,excluded_patients
+first_event_population,mid,0.125,66,66,66,20,0.30303030303030304,0,20,7,37
+first_event_population,mid,0.15,71,71,71,15,0.2112676056338028,0,15,7,32
+first_event_population,mid,0.175,79,79,79,14,0.17721518987341772,0,14,10,24
+first_event_population,endo,0.125,66,66,66,20,0.30303030303030304,0,20,7,37
+first_event_population,endo,0.15,75,75,75,17,0.22666666666666666,0,17,8,28
+first_event_population,endo,0.175,81,81,81,13,0.16049382716049382,0,13,10,22

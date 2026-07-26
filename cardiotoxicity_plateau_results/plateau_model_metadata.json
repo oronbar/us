@@ -1,0 +1,61 @@
+{
+  "device": "NVIDIA GeForce RTX 4060 Ti",
+  "torch": "2.5.1+cu121",
+  "cuda": "12.1",
+  "patients": 103,
+  "transitions": 297,
+  "curve_input": [
+    297,
+    18,
+    6,
+    96
+  ],
+  "scalar_features": 96,
+  "active_tasks": [
+    "mid_first_rel10",
+    "mid_first_rel12",
+    "mid_first_rel15",
+    "mid_first_rel20",
+    "mid_roll2_rel10",
+    "mid_roll2_rel12",
+    "mid_roll2_rel15",
+    "mid_roll2_rel20",
+    "mid_roll3_rel10",
+    "mid_roll3_rel12",
+    "mid_roll3_rel15",
+    "endo_first_rel15",
+    "endo_roll2_rel15",
+    "endo_roll3_rel15",
+    "ef_first_rel10",
+    "ef_first_rel15",
+    "ef_roll2_rel10",
+    "ef_roll3_rel10"
+  ],
+  "variants": [
+    {
+      "name": "uniform_binary",
+      "attention": false,
+      "auxiliary": false
+    },
+    {
+      "name": "attention_binary",
+      "attention": true,
+      "auxiliary": false
+    },
+    {
+      "name": "uniform_gls_aux",
+      "attention": false,
+      "auxiliary": true
+    },
+    {
+      "name": "attention_gls_aux",
+      "attention": true,
+      "auxiliary": true
+    }
+  ],
+  "auxiliary_target": "relative Mid-GLS change from current to immediately next visit",
+  "auxiliary_loss": "0.25 * standardized SmoothL1 added to masked binary BCE",
+  "cv": "3 repeated 5-fold patient-held-out",
+  "bootstraps": 500,
+  "seed": 20260722
+}

@@ -1,0 +1,55 @@
+{
+  "source_directory": "D:\\DS\\anonymized_reports",
+  "output_directory": "D:\\us\\amber_full_105_preprocessed",
+  "source_files": 416,
+  "patients": 103,
+  "true_visits": 400,
+  "technical_reanalysis_pairs": 16,
+  "result_rows": 59098,
+  "curve_rows": 36961,
+  "curve_samples": 2145357,
+  "segment_strain_curves": 14976,
+  "parse_failures": 0,
+  "visits_without_ef": 16,
+  "study_date_min": "2017-02-12 15:04:20",
+  "study_date_max": "2025-09-16 17:34:48",
+  "visit_count_distribution": {
+    "2": 2,
+    "3": 9,
+    "4": 91,
+    "5": 1
+  },
+  "curve_point_count_min": 17,
+  "curve_point_count_median": 57.0,
+  "curve_point_count_max": 156,
+  "intervisit_days_median": 96.24699074074074,
+  "intervisit_days_min": 16.75752314814815,
+  "intervisit_days_max": 970.2054513888888,
+  "vendor_curve_validation": {
+    "time_to_peak_median_absolute_difference_ms": 3.4399999999999977,
+    "time_to_peak_95th_percentile_absolute_difference_ms": 9.5,
+    "time_to_peak_correlation": 0.9937779006923256,
+    "global_min_vs_vendor_peak_systolic_median_absolute_difference_pp": 0.060000000000002274,
+    "global_min_vs_vendor_peak_systolic_95th_percentile_absolute_difference_pp": 4.9825,
+    "global_min_vs_vendor_peak_systolic_correlation": 0.9637174199253411
+  },
+  "resample_len": 96,
+  "permutations": 5000,
+  "bootstraps": 2000,
+  "random_seed": 20260712,
+  "pca": {
+    "latent_dim": 8,
+    "explained_variance_ratio": [
+      0.5183476768489647,
+      0.2256756864547791,
+      0.09076756519489727,
+      0.061024403193493205,
+      0.030920210084995455,
+      0.024117013397869754,
+      0.013675469353472535,
+      0.010379980012575559
+    ]
+  },
+  "dataset_sha256": "4d5f619ed0d5b6def39d33de4418c0026c3b07155575dff9cad707b0607245ed",
+  "dataset_bytes": 35269349
+}

@@ -1,0 +1,28 @@
+{
+  "raw_directory": "D:\\DS\\anonymized_reports",
+  "raw_txt_files": 416,
+  "visits_path": "D:\\us\\amber_full_105_preprocessed\\Ichilov_july_visits.parquet",
+  "visits_sha256": "f5e97dc2687c9eddcf1732b8cef4bfa61c8eb6560e3dae3279875faf49aac6df",
+  "curves_path": "D:\\us\\amber_full_105_preprocessed\\Ichilov_july_dataset.parquet",
+  "curves_sha256": "4d5f619ed0d5b6def39d33de4418c0026c3b07155575dff9cad707b0607245ed",
+  "patients_in_visit_table": 103,
+  "true_visits": 400,
+  "landmark_patients": 101,
+  "transmural_visit_feature_rows": 400,
+  "clinical_feature_count": 12,
+  "transmural_feature_count": 255,
+  "variability_feature_count": 108,
+  "classification_outcomes": 15,
+  "feature_quality_control": {
+    "minimum_segment_peak_for_ratio": 3.0,
+    "peak_ratio_clip": [
+      0.0,
+      5.0
+    ],
+    "linear_preprocessing": "training-fold median imputation, RobustScaler(10th-90th percentile), transformed-value clip [-5, 5]"
+  },
+  "cv_repeats": 5,
+  "bootstraps": 1000,
+  "stability_bootstraps": 300,
+  "seed": 20260721
+}

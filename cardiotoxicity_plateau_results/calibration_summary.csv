@@ -1,0 +1,4 @@
+model,quintile_ece
+clinical_ridge,0.256453516020431
+existing_combined_trees,0.10053943334306045
+attention_binary,0.26346301832118957

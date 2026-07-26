@@ -1,0 +1,51 @@
+{
+  "raw_directory": "D:\\DS\\anonymized_reports",
+  "raw_txt_files": 416,
+  "visits_path": "D:\\us\\amber_full_105_preprocessed\\Ichilov_july_visits.parquet",
+  "visits_sha256": "f5e97dc2687c9eddcf1732b8cef4bfa61c8eb6560e3dae3279875faf49aac6df",
+  "curves_path": "D:\\us\\amber_full_105_preprocessed\\Ichilov_july_dataset.parquet",
+  "curves_sha256": "4d5f619ed0d5b6def39d33de4418c0026c3b07155575dff9cad707b0607245ed",
+  "patients": 103,
+  "adjacent_transitions": 297,
+  "active_tasks": 18,
+  "active_task_names": [
+    "mid_first_rel10",
+    "mid_first_rel12",
+    "mid_first_rel15",
+    "mid_first_rel20",
+    "mid_roll2_rel10",
+    "mid_roll2_rel12",
+    "mid_roll2_rel15",
+    "mid_roll2_rel20",
+    "mid_roll3_rel10",
+    "mid_roll3_rel12",
+    "mid_roll3_rel15",
+    "endo_first_rel15",
+    "endo_roll2_rel15",
+    "endo_roll3_rel15",
+    "ef_first_rel10",
+    "ef_first_rel15",
+    "ef_roll2_rel10",
+    "ef_roll3_rel10"
+  ],
+  "cv_repeats": 3,
+  "folds_per_repeat": 5,
+  "bootstraps": 1000,
+  "seed": 20260722,
+  "gpu": {
+    "device": "NVIDIA GeForce RTX 4060 Ti",
+    "torch_version": "2.5.1+cu121",
+    "torch_cuda_version": "12.1",
+    "parameter_count": 16746,
+    "curve_input": "18 segments x 6 channels x 96 phase points",
+    "curve_channels": [
+      "current_endo",
+      "current_mid",
+      "current_endo_minus_mid",
+      "change_endo_from_previous",
+      "change_mid_from_previous",
+      "change_endo_minus_mid_from_previous"
+    ],
+    "scalar_features": 96
+  }
+}

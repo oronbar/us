@@ -1,0 +1,17 @@
+{
+  "primary_task": "mid_first_rel15",
+  "error_models": [
+    "clinical_ridge",
+    "existing_combined_trees",
+    "attention_binary"
+  ],
+  "subgroup_bootstraps": 500,
+  "noise_simulations_per_setting": 2000,
+  "noise_thresholds": [
+    0.1,
+    0.12,
+    0.15,
+    0.2
+  ],
+  "noise_interpretation": "replicate-derived SD is uncertain because only 16 paired analyses are available"
+}

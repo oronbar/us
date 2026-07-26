@@ -1,0 +1,71 @@
+{
+  "excluded_segments": [
+    13,
+    14,
+    15,
+    16,
+    17,
+    18
+  ],
+  "retained_segments": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+  ],
+  "policies": [
+    "noapex",
+    "noapex_fixed_qc",
+    "noapex_shape_qc"
+  ],
+  "patients": 103,
+  "transitions": 297,
+  "active_mid_tasks": [
+    "mid_first_rel10",
+    "mid_first_rel12",
+    "mid_first_rel15",
+    "mid_first_rel20",
+    "mid_roll2_rel10",
+    "mid_roll2_rel12",
+    "mid_roll2_rel15",
+    "mid_roll2_rel20"
+  ],
+  "gpu_auxiliary_tasks": [
+    "mid_first_rel10",
+    "mid_first_rel12",
+    "mid_first_rel15",
+    "mid_first_rel20",
+    "mid_roll2_rel10",
+    "mid_roll2_rel12",
+    "mid_roll2_rel15",
+    "mid_roll2_rel20",
+    "mid_roll3_rel10",
+    "mid_roll3_rel12",
+    "mid_roll3_rel15",
+    "endo_first_rel15",
+    "endo_roll2_rel15",
+    "endo_roll3_rel15",
+    "ef_first_rel10",
+    "ef_first_rel15",
+    "ef_roll2_rel10",
+    "ef_roll3_rel10"
+  ],
+  "cv_repeats": 3,
+  "folds_per_repeat": 5,
+  "bootstraps": 1000,
+  "seed": 20260722,
+  "gpu": {
+    "device": "NVIDIA GeForce RTX 4060 Ti",
+    "torch_version": "2.5.1+cu121",
+    "torch_cuda_version": "12.1",
+    "curve_input": "12 non-apical segments x 6 channels x 96 phase points"
+  }
+}

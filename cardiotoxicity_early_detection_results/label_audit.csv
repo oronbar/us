@@ -1,0 +1,16 @@
+outcome,description,eligible_patients,events,event_rate
+mid_gls_relative_drop_10,Final Mid-GLS magnitude drop >=10% from visit 1,101,46,0.45544554455445546
+mid_gls_relative_drop_12,Final Mid-GLS magnitude drop >=12% from visit 1,101,40,0.39603960396039606
+mid_gls_relative_drop_15,Final Mid-GLS magnitude drop >=15% from visit 1,101,30,0.297029702970297
+mid_gls_relative_drop_20,Final Mid-GLS magnitude drop >=20% from visit 1,101,11,0.10891089108910891
+mid_gls_absolute_drop_2p9,Final Mid-GLS magnitude drop >=2.9 points from visit 1,101,28,0.27722772277227725
+endo_gls_relative_drop_10,Final Endo-GLS magnitude drop >=10% from visit 1,101,45,0.44554455445544555
+endo_gls_relative_drop_15,Final Endo-GLS magnitude drop >=15% from visit 1,101,28,0.27722772277227725
+ef_absolute_drop_5,Final biplane EF drop >=5 points from visit 1,95,26,0.2736842105263158
+ef_absolute_drop_7,Final biplane EF drop >=7 points from visit 1,95,16,0.16842105263157894
+ef_absolute_drop_10,Final biplane EF drop >=10 points from visit 1,95,7,0.07368421052631578
+concordant_mid15_ef5,Both Mid-GLS >=15% and EF >=5-point final decline,95,10,0.10526315789473684
+either_mid15_or_ef5,Either Mid-GLS >=15% or EF >=5-point final decline,95,44,0.4631578947368421
+incident_mid_gls_relative_drop_10,Crosses 10% Mid-GLS decline only after visit 2,66,21,0.3181818181818182
+incident_mid_gls_relative_drop_15,Crosses 15% Mid-GLS decline only after visit 2,76,17,0.2236842105263158
+incident_ef_absolute_drop_5,Crosses 5-point EF decline only after visit 2,68,18,0.2647058823529412
