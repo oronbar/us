@@ -1,0 +1,57 @@
+{
+  "device": "NVIDIA GeForce RTX 4060 Ti",
+  "torch": "2.5.1+cu121",
+  "cuda": "12.1",
+  "primary_task": "mid_first_rel15",
+  "input_shape": [
+    297,
+    18,
+    6,
+    96
+  ],
+  "scalar_features": 96,
+  "baseline_parameters": 17491,
+  "new_parameters": {
+    "segment_self_attention": 22363,
+    "timing8_no_segment_attention": 22123,
+    "timing8_segment_self_attention": 26995
+  },
+  "segment_attention": {
+    "heads": 4,
+    "embedding_dimension": 24,
+    "head_dimension": 6,
+    "attention_map_shape": "B x 4 x 18 x 18",
+    "ffn": [
+      24,
+      48,
+      24
+    ],
+    "dropout": 0.1
+  },
+  "timing_bins": 8,
+  "active_tasks": [
+    "mid_first_rel10",
+    "mid_first_rel12",
+    "mid_first_rel15",
+    "mid_first_rel20",
+    "mid_roll2_rel10",
+    "mid_roll2_rel12",
+    "mid_roll2_rel15",
+    "mid_roll2_rel20",
+    "mid_roll3_rel10",
+    "mid_roll3_rel12",
+    "mid_roll3_rel15",
+    "endo_first_rel15",
+    "endo_roll2_rel15",
+    "endo_roll3_rel15",
+    "ef_first_rel10",
+    "ef_first_rel15",
+    "ef_roll2_rel10",
+    "ef_roll3_rel10"
+  ],
+  "cv": "3 repeated 5-fold patient-held-out",
+  "bootstraps": 1000,
+  "epochs": 180,
+  "patience": 25,
+  "seed": 20260722
+}

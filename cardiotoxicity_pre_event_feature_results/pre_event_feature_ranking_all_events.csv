@@ -1,0 +1,270 @@
+rank,feature,feature_name,family,direction_in_pre_event_visit,visit_order_stratified_auc,auc_ci_low,auc_ci_high,case_rows_used,control_rows_used,visit_order_strata,outcome_coupled
+1,current_endo_decline_from_roll3,Current endocardial decline from roll3,Clinical/trajectory,higher,0.7253384912959382,0.544248188405797,0.8748874999999999,11,47,1,False
+2,current_mid_decline_from_roll3,Current mid-wall decline from roll3,Clinical/trajectory,higher,0.7040618955512572,0.533446511627907,0.8498542490118577,11,47,1,True
+3,first_endo_gls,Baseline Endocardial GLS magnitude,Clinical/trajectory,higher,0.6611792090074494,0.5792974122747826,0.7391630597040186,49,188,3,False
+4,first_mid_gls,Baseline Mid-wall GLS magnitude,Clinical/trajectory,higher,0.6609285742481574,0.5667671450615024,0.7466169743286605,49,188,3,True
+5,current_mid_decline_from_roll2,Current mid-wall decline from roll2,Clinical/trajectory,higher,0.6569293478260869,0.5037975596760443,0.8051970693035316,23,111,2,True
+6,current_endo_decline_from_roll2,Current endocardial decline from roll2,Clinical/trajectory,higher,0.6521739130434783,0.508820217717429,0.7900905069254867,23,111,2,False
+7,cur_var__endo_vendor_peak_systolic_abs_robust_sd,Between-segment dispersion of vendor Endocardial peak-systolic strain,Segment variability,lower,0.6415610584866719,0.5621138311832607,0.7245059210372606,49,188,3,False
+8,cur_var__mid_peak_abs_robust_sd,Between-segment dispersion of Mid-wall peak strain,Segment variability,lower,0.6406898945333868,0.5500609228534126,0.7203085150654949,49,188,3,False
+9,cur_tm_sd_gap_dct06,Current finer phase pattern of segmental layer-gap variability,Endo-Mid,lower,0.6263694376617737,0.5383909703063907,0.7137050642660325,49,188,3,False
+10,cur_var__mid_vendor_peak_systolic_abs_robust_sd,Current: Mid-wall vendocardialr peak systolic abs robust dispersion,Segment variability,lower,0.617879928636279,0.5348403026205463,0.6971517811031698,49,188,3,False
+11,cur_var__endo_impaired_segment_fraction_lt15,Current: Endocardial impaired segment fraction lt15,Segment variability,lower,0.6144925925952033,0.5220176832372977,0.7074210488101901,49,188,3,False
+12,cur_var__endo_peak_abs_robust_sd,Between-segment dispersion of Endocardial peak strain,Segment variability,lower,0.6100163676965674,0.5165503146516792,0.6853658013634001,49,188,3,False
+13,cur_tm_mean_shape_gap_dct04,Intermediate phase pattern of normalized layer-shape separation,Endo-Mid,lower,0.608162754256165,0.5148953151120148,0.6960880663454193,49,188,3,False
+14,cur_var__mid_impaired_segment_fraction_lt15,Current: Mid-wall impaired segment fraction lt15,Segment variability,lower,0.6057489243279517,0.5055349993470126,0.6954854244416475,49,188,3,False
+15,current_endo_gls,Current Endocardial GLS magnitude,Clinical/trajectory,higher,0.604256173835934,0.5097911830257218,0.686476982135813,49,188,3,False
+16,current_mid_gls,Current Mid-wall GLS magnitude,Clinical/trajectory,higher,0.6036730922681314,0.5138054050879335,0.6873895484166231,49,188,3,True
+17,cur_var__mid_curve_integrated_robust_mad,Current: Mid-wall curve integrated robust mad,Segment variability,lower,0.6012909826821029,0.5179359655719463,0.693551363117541,49,188,3,False
+18,cur_var__mid_within_view_peak_robust_sd_mean,Current: Mid-wall within view peak robust dispersion mean,Segment variability,lower,0.6012635798309376,0.5039965282589043,0.6864418588778686,49,188,3,False
+19,cur_tm_mean_gap_dct02,Broad temporal trend in the current Endocardial-minus-Mid curve gap,Endo-Mid,higher,0.6001322209596742,0.5133390458594533,0.6907625844920091,49,188,3,False
+20,cur_var__endo_peak_abs_cv,Current: Endocardial peak abs cv,Segment variability,lower,0.5998206567097688,0.5188213158301402,0.6827357161240597,49,188,3,False
+21,cur_tm_mean_gap_dct06,Current Endocardial-Mid: Mean gap dct coefficient 06,Endo-Mid,higher,0.5988588254450717,0.5114805490097274,0.6857406661919203,49,188,3,False
+22,cur_var__endo_curve_integrated_robust_mad,Current: Endocardial curve integrated robust mad,Segment variability,lower,0.597175796955975,0.5214574547384796,0.6823497123506381,49,188,3,False
+23,cur_tm_curve_abs_area_median,Current Endocardial-Mid: Curve abs area median,Endo-Mid,higher,0.596619809847122,0.5061326517965099,0.6808328800675095,49,188,3,False
+24,cur_tm_vendor_ttp_gap_std,Current Endocardial-Mid: Vendocardialr time-to-peak gap std,Endo-Mid,lower,0.5965092292097829,0.496717130088132,0.6907457952721734,49,188,3,False
+25,cur_tm_mean_gap_dct01,Current Endocardial-Mid: Mean gap dct coefficient 01,Endo-Mid,lower,0.5959341217835574,0.5158732156486049,0.6847902875916102,49,188,3,False
+26,cur_tm_curve_abs_area_mean,Current Endocardial-Mid: Curve abs area mean,Endo-Mid,higher,0.5944244097196768,0.500543718855451,0.6771542456267221,49,188,3,False
+27,cur_var__mid_peak_abs_cv,Current: Mid-wall peak abs cv,Segment variability,lower,0.5930933008047099,0.5055050320837987,0.6821019799728384,49,188,3,False
+28,cur_tm_peak_ratio_std,Current Endocardial-Mid: Peak ratio std,Endo-Mid,lower,0.5920027378179789,0.5118414086887444,0.6673478045499672,49,188,3,False
+29,cur_var__mid_shape_pairwise_rmse,Current: Mid-wall shape pairwise rmse,Segment variability,lower,0.590937022432626,0.5001927120532966,0.6756926143379027,49,188,3,False
+30,d_tm_sd_gap_dct04,Change in phase pattern of segmental layer-gap variability,Endo-Mid,higher,0.5907511940946591,0.531605131387391,0.6474378052503053,49,188,3,False
+31,current_endo_decline_from_first,Current relative Endocardial GLS decline from baseline,Clinical/trajectory,higher,0.5896656534954408,0.5317434134969441,0.6575282050811229,49,188,3,False
+32,cur_var__mid_spatial_timing_graph_roughness,Current: Mid-wall spatial timing graph roughness,Segment variability,lower,0.589467577580908,0.5068135091019489,0.6655242499097546,49,188,3,False
+33,cur_var__mid_shape_dispersion_rms,Current: Mid-wall shape dispersion rms,Segment variability,lower,0.588145191760042,0.5017247353323002,0.6725415975844972,49,188,3,False
+34,cur_tm_ttp_gap_std,Current Endocardial-Mid: Time-to-peak gap std,Endo-Mid,lower,0.5876796076264161,0.49019786298417883,0.6780263610115561,49,188,3,False
+35,cur_var__endo_spatial_timing_graph_roughness,Current: Endocardial spatial timing graph roughness,Segment variability,lower,0.5851111410300511,0.496821979011733,0.6673492621487109,49,188,3,False
+36,current_mid_decline_from_first,Current relative Mid-GLS decline from baseline,Clinical/trajectory,higher,0.584081904038211,0.5259005910606398,0.6439197530655958,49,188,3,True
+37,cur_var__endo_shape_incoherence,Current: Endocardial shape incoherence,Segment variability,lower,0.5832839612081362,0.49844887165702045,0.6640418919430562,49,188,3,False
+38,cur_var__mid_shape_incoherence,Current: Mid-wall shape incoherence,Segment variability,lower,0.5816471915513927,0.502406622224375,0.668459431079051,49,188,3,False
+39,cur_tm_mean_gap_dct03,Current Endocardial-Mid: Mean gap dct coefficient 03,Endo-Mid,higher,0.5809481985665224,0.4860675773321053,0.6723524925824954,49,188,3,False
+40,cur_tm_curve_rms_mean,Current Endocardial-Mid: Curve rms mean,Endo-Mid,higher,0.5788138600977832,0.4989476700073193,0.6677299778222889,49,188,3,False
+41,cur_var__endo_within_ring_peak_robust_sd_mean,Current: Endocardial within ring peak robust dispersion mean,Segment variability,lower,0.5787012528830267,0.48699112978524745,0.6669363227258028,49,188,3,False
+42,cur_var__endo_within_view_peak_robust_sd_mean,Current: Endocardial within view peak robust dispersion mean,Segment variability,lower,0.5767686910354084,0.48195995646338147,0.6711124793284587,49,188,3,False
+43,cur_tm_curve_rms_median,Current Endocardial-Mid: Curve rms median,Endo-Mid,higher,0.5764074315827465,0.49474802473627427,0.6638676628167183,49,188,3,False
+44,cur_var__endo_shape_pairwise_rmse,Current: Endocardial shape pairwise rmse,Segment variability,lower,0.5763199363055529,0.4947691132785863,0.666895885432294,49,188,3,False
+45,cur_tm_peak_ratio_p90_p10,Current Endocardial-Mid: Peak ratio p90 p10,Endo-Mid,lower,0.5742196090926008,0.4926824733235343,0.6614079316226493,49,188,3,False
+46,d_tm_peak_gap_mean,Change in mean Endocardial-minus-Mid peak-strain gap,Endo-Mid,lower,0.5739863764654798,0.5191785569010294,0.6302576149809982,49,188,3,False
+47,last_mid_relative_change,Most recent relative Mid-GLS change,Clinical/trajectory,higher,0.5736607142857143,0.5023805247328316,0.6433042400491412,49,188,3,True
+48,cur_tm_mean_shape_gap_dct02,Current Endocardial-Mid: Mean shape gap dct coefficient 02,Endo-Mid,higher,0.57358890295549,0.48365812082437354,0.6539907081931274,49,188,3,False
+49,cur_var__endo_shape_dispersion_rms,Current: Endocardial shape dispersion rms,Segment variability,lower,0.5735475783985879,0.4907101703054778,0.6697592568897537,49,188,3,False
+50,cur_tm_ttp_layer_correlation,Current Endocardial-Mid: Time-to-peak layer correlation,Endo-Mid,higher,0.5733319681837918,0.47350830907767394,0.6651063366335179,49,188,3,False
+51,current_ef,Current ejection fraction,Clinical/trajectory,higher,0.5717277058388212,0.47751027315304206,0.6627165812995588,46,181,3,False
+52,last_endo_relative_change,Most recent relative Endocardial GLS change,Clinical/trajectory,higher,0.5714285714285714,0.5056081604319203,0.6435797830922124,49,188,3,False
+53,cur_tm_peak_ratio_mean,Current Endocardial-Mid: Peak ratio mean,Endo-Mid,lower,0.5710562979682063,0.4772884081572044,0.6622711411387672,49,188,3,False
+54,cur_tm_consensus_curve_correlation,Current Endocardial-Mid: Consensus curve correlation,Endo-Mid,higher,0.565508410120058,0.46909291239419937,0.6481835539726426,49,188,3,False
+55,mid_decline_slope_per_100d,Mid-GLS decline slope per 100 days,Clinical/trajectory,higher,0.5620522145028224,0.49702688879694007,0.6359788421898179,49,188,3,True
+56,cur_tm_vendor_peak_gap_median,Current Endocardial-Mid: Vendocardialr peak gap median,Endo-Mid,higher,0.5615740303443842,0.46963862677239704,0.6515276473111433,49,188,3,False
+57,d_tm_vendor_peak_gap_mean,Change in mean vendor Endocardial-minus-Mid peak gap,Endo-Mid,lower,0.56131947459835,0.5054479104391976,0.620851185930568,49,188,3,False
+58,cur_tm_shape_rms_p90_p10,Current Endocardial-Mid: Shape rms p90 p10,Endo-Mid,lower,0.560985001212422,0.4730771790450228,0.6478512074771341,49,188,3,False
+59,endo_decline_slope_per_100d,Endocardial GLS decline slope per 100 days,Clinical/trajectory,higher,0.5608309813287017,0.4914907739353743,0.6349394683192775,49,188,3,False
+60,cur_tm_fraction_ttp_discordant_gt_5pct_cycle,Current Endocardial-Mid: Fraction time-to-peak discordant gt 5pct cycle,Endo-Mid,lower,0.5597317393039006,0.4811632159835812,0.6449888907541816,49,188,3,False
+61,cur_tm_mean_shape_gap_dct07,Finer temporal pattern of normalized layer-shape separation,Endo-Mid,lower,0.5589104908335261,0.48039458754850334,0.6410308391239226,49,188,3,False
+62,d_tm_peak_ratio_mean,Change in Endocardial-Mid: Peak ratio mean,Endo-Mid,lower,0.5585445614415979,0.5053873834410837,0.6186883442688372,49,188,3,False
+63,cur_tm_mean_shape_gap_dct01,Overall normalized Endocardial-minus-Mid curve-shape separation,Endo-Mid,higher,0.5580223212523473,0.4666959520344414,0.6448582310712205,49,188,3,False
+64,d_tm_sd_gap_dct06,Change in Endocardial-Mid: Sd gap dct coefficient 06,Endo-Mid,lower,0.5569501736864959,0.4927152472527473,0.6205265040678068,49,188,3,False
+65,last_endo_mid_gap_change,Most recent change in Endocardial-minus-Mid GLS gap,Clinical/trajectory,lower,0.5568110887972211,0.4973624887002664,0.6228030161839667,49,188,3,False
+66,cur_var__mid_within_ring_peak_robust_sd_mean,Current: Mid-wall within ring peak robust dispersion mean,Segment variability,lower,0.556652795478512,0.4649318039703938,0.6445042867653815,49,188,3,False
+67,first_ef,Baseline ejection fraction,Clinical/trajectory,higher,0.5566339941164969,0.4683933031395481,0.6484522944448745,48,186,3,False
+68,d_var__mid_within_view_peak_robust_sd_mean,Change since previous visit: Mid-wall within view peak robust dispersion mean,Segment variability,lower,0.5559664025184543,0.4902545948807879,0.6197703547714521,49,188,3,False
+69,cur_tm_vendor_peak_gap_mean,Current Endocardial-Mid: Vendocardialr peak gap mean,Endo-Mid,higher,0.5543858483570273,0.4660795396008598,0.6416442153705366,49,188,3,False
+70,cur_tm_sd_gap_dct04,Current Endocardial-Mid: Sd gap dct coefficient 04,Endo-Mid,higher,0.554193323502377,0.46098369018369023,0.6550952492928352,49,188,3,False
+71,cur_tm_peak_gap_mean,Current Endocardial-Mid: Peak gap mean,Endo-Mid,higher,0.5539996531909254,0.4713438354472359,0.644410661801966,49,188,3,False
+72,cur_tm_peak_ratio_robust_sd,Current Endocardial-Mid: Peak ratio robust dispersion,Endo-Mid,lower,0.5527389458131968,0.47010966142371596,0.6406165857229686,49,188,3,False
+73,cur_tm_mean_gap_dct04,Current Endocardial-Mid: Mean gap dct coefficient 04,Endo-Mid,lower,0.552387995471745,0.47269505261353084,0.6420819843758561,49,188,3,False
+74,d_tm_peak_gap_median,Change in Endocardial-Mid: Peak gap median,Endo-Mid,lower,0.5519566869300911,0.49575376779437297,0.6108368133212189,49,188,3,False
+75,d_tm_peak_ratio_std,Change in Endocardial-Mid: Peak ratio std,Endo-Mid,lower,0.5517531480677378,0.5000037276382797,0.6063480574009932,49,188,3,False
+76,d_tm_mean_gap_dct03,Change in Endocardial-Mid: Mean gap dct coefficient 03,Endo-Mid,lower,0.5513121471993052,0.4957155858898966,0.6100863161995431,49,188,3,False
+77,cur_tm_mean_shape_gap_dct05,Current Endocardial-Mid: Mean shape gap dct coefficient 05,Endo-Mid,lower,0.5509139687928225,0.4563791860891528,0.6489533301332445,49,188,3,False
+78,cur_tm_segment_curve_correlation_std,Variation across segments in Endocardial/Mid curve similarity,Endo-Mid,lower,0.5507736943907158,0.4608936320528786,0.6406265260012853,49,188,3,False
+79,d_var__mid_peak_abs_robust_sd,Change since previous visit: Mid-wall peak abs robust dispersion,Segment variability,lower,0.5490121580547113,0.4885874743337644,0.6145514969518378,49,188,3,False
+80,cur_tm_mean_gap_dct08,Current Endocardial-Mid: Mean gap dct coefficient 08,Endo-Mid,lower,0.5486170635703853,0.4537858169353259,0.6304997496341762,49,188,3,False
+81,d_tm_curve_rms_mean,Change in Endocardial-Mid: Curve rms mean,Endo-Mid,lower,0.5479808944854538,0.49598948828092176,0.6076636721453593,49,188,3,False
+82,cur_tm_peak_gap_median,Current Endocardial-Mid: Peak gap median,Endo-Mid,higher,0.5476822827086071,0.4626264688378675,0.6432675343452452,49,188,3,False
+83,cur_tm_vendor_ttp_gap_p90_p10,Current Endocardial-Mid: Vendocardialr time-to-peak gap p90 p10,Endo-Mid,lower,0.5472214566263089,0.4562940038026109,0.6409238292138862,49,188,3,False
+84,cur_tm_mean_gap_dct05,Current Endocardial-Mid: Mean gap dct coefficient 05,Endo-Mid,lower,0.5472009265159503,0.45823916116058144,0.6311911654535198,49,188,3,False
+85,d_tm_mean_gap_dct01,Change in Endocardial-Mid: Mean gap dct coefficient 01,Endo-Mid,higher,0.5467257381676075,0.4921536543715847,0.6092911578471278,49,188,3,False
+86,d_var__endo_impaired_segment_fraction_lt15,Change since previous visit: Endocardial impaired segment fraction lt15,Segment variability,higher,0.5466409303082935,0.4949910382266372,0.6044721867517713,49,188,3,False
+87,cur_var__mid_time_to_peak_norm_circular_std,Current: Mid-wall time to peak norm circular dispersion,Segment variability,lower,0.5462642953008781,0.4646468975464156,0.6256749207500537,49,188,3,False
+88,d_tm_curve_rms_median,Change in Endocardial-Mid: Curve rms median,Endo-Mid,lower,0.5451720581849762,0.4852000787300363,0.6091053491332381,49,188,3,False
+89,d_tm_curve_abs_area_mean,Change in Endocardial-Mid: Curve abs area mean,Endo-Mid,lower,0.5450770733825445,0.48390620252443417,0.6075385615920964,49,188,3,False
+90,d_tm_segment_curve_correlation_iqr,Change in Endocardial-Mid: Segment curve correlation iqr,Endo-Mid,higher,0.5439101172383848,0.48132858870112666,0.6100354914308718,49,188,3,False
+91,d_tm_mean_shape_gap_dct08,Change in Endocardial-Mid: Mean shape gap dct coefficient 08,Endo-Mid,lower,0.5438761940946591,0.4890425078588366,0.5991228604602432,49,188,3,False
+92,cur_var__mid_vendor_time_to_peak_norm_circular_std,Current: Mid-wall vendocardialr time to peak norm circular dispersion,Segment variability,lower,0.5437190902887821,0.4568217306751403,0.6191640931177863,49,188,3,False
+93,d_tm_shape_rms_std,Change in Endocardial-Mid: Shape rms std,Endo-Mid,lower,0.5433741315675207,0.49014495047086,0.6014842475916865,49,188,3,False
+94,d_var__endo_spatial_timing_graph_roughness,Change since previous visit: Endocardial spatial timing graph roughness,Segment variability,lower,0.5424649913156752,0.4883582365762778,0.5996854518124695,49,188,3,False
+95,cur_tm_sd_gap_dct05,Current Endocardial-Mid: Sd gap dct coefficient 05,Endo-Mid,lower,0.5422833042446047,0.44605004852657826,0.6316813681564605,49,188,3,False
+96,d_var__endo_within_view_peak_robust_sd_mean,Change since previous visit: Endocardial within view peak robust dispersion mean,Segment variability,lower,0.5410198653929656,0.4889375352342404,0.5937425873245243,49,188,3,False
+97,d_tm_curve_abs_area_median,Change in Endocardial-Mid: Curve abs area median,Endo-Mid,lower,0.540918095961789,0.47913655602875577,0.5946978801904489,49,188,3,False
+98,d_tm_sd_gap_dct02,Change in Endocardial-Mid: Sd gap dct coefficient 02,Endo-Mid,lower,0.540748480243161,0.4834577022077022,0.6030063526618147,49,188,3,False
+99,cur_tm_shape_rms_robust_sd,Current Endocardial-Mid: Shape rms robust dispersion,Endo-Mid,lower,0.5400865824362351,0.4508750987042129,0.6220576440119785,49,188,3,False
+100,current_endo_mid_gap,Current Endocardial-minus-Mid GLS gap,Clinical/trajectory,higher,0.5383516559428414,0.44440244238886284,0.6241464280244314,49,188,3,False
+101,cur_var__mid_spatial_peak_graph_roughness,Current: Mid-wall spatial peak graph roughness,Segment variability,lower,0.5382473312618775,0.4511346169383746,0.6303034149142591,49,188,3,False
+102,d_tm_shape_rms_robust_sd,Change in Endocardial-Mid: Shape rms robust dispersion,Endo-Mid,higher,0.5379057207989579,0.4806809489077065,0.6003693324185987,49,188,3,False
+103,cur_tm_shape_rms_std,Current Endocardial-Mid: Shape rms std,Endo-Mid,lower,0.5377932016962629,0.44833257780553293,0.6199362252774094,49,188,3,False
+104,cur_tm_mean_shape_gap_dct08,Current Endocardial-Mid: Mean shape gap dct coefficient 08,Endo-Mid,lower,0.5374417226824413,0.44499137346227413,0.6306957948856549,49,188,3,False
+105,d_tm_mean_shape_gap_dct07,Change in Endocardial-Mid: Mean shape gap dct coefficient 07,Endo-Mid,lower,0.5364945180199739,0.4832103725514909,0.597311597414945,49,188,3,False
+106,d_var__endo_vendor_peak_systolic_abs_robust_sd,Change since previous visit: Endocardial vendocardialr peak systolic abs robust dispersion,Segment variability,lower,0.5358398013460703,0.4779646502428922,0.5947191865355009,49,188,3,False
+107,cur_tm_shape_rms_iqr,Current Endocardial-Mid: Shape rms iqr,Endo-Mid,lower,0.5358034551206501,0.4509669433273852,0.6143553200693533,49,188,3,False
+108,d_tm_vendor_peak_gap_std,Change in Endocardial-Mid: Vendocardialr peak gap std,Endo-Mid,lower,0.5357278549717759,0.47120632033769205,0.6052715694843522,49,188,3,False
+109,d_var__mid_within_ring_peak_robust_sd_mean,Change since previous visit: Mid-wall within ring peak robust dispersion mean,Segment variability,lower,0.5352393617021277,0.47101816003752583,0.6066441498587334,49,188,3,False
+110,d_var__mid_impaired_segment_fraction_lt15,Change since previous visit: Mid-wall impaired segment fraction lt15,Segment variability,higher,0.5352088308727747,0.4703794590184313,0.5992068621419129,49,188,3,False
+111,cur_tm_segment_curve_correlation_mean,Current Endocardial-Mid: Segment curve correlation mean,Endo-Mid,higher,0.5350536214762224,0.44927421557732294,0.6157066926831852,49,188,3,False
+112,d_tm_mean_shape_gap_dct05,Change in Endocardial-Mid: Mean shape gap dct coefficient 05,Endo-Mid,higher,0.5350493920972644,0.4749113475972875,0.5902438057040997,49,188,3,False
+113,cur_tm_ttp_gap_iqr,Current Endocardial-Mid: Time-to-peak gap iqr,Endo-Mid,lower,0.5347565076044234,0.49044199233546865,0.5719915021955345,49,188,3,False
+114,d_var__endo_shape_dispersion_rms,Change since previous visit: Endocardial shape dispersion rms,Segment variability,higher,0.5346016066000869,0.4814038015875273,0.5864644772410185,49,188,3,False
+115,current_ef_decline_from_roll2,Current ef decline from roll2,Clinical/trajectory,higher,0.5345193740685543,0.41453746518229156,0.6595497107905376,20,105,2,False
+116,cur_tm_segment_curve_correlation_p90_p10,Current Endocardial-Mid: Segment curve correlation p90 p10,Endo-Mid,lower,0.5344526972159408,0.4468412268337108,0.6206339925210759,49,188,3,False
+117,cur_tm_sd_gap_dct07,Current Endocardial-Mid: Sd gap dct coefficient 07,Endo-Mid,higher,0.5344253824768371,0.43834171387518994,0.6302542625311884,49,188,3,False
+118,d_tm_mean_gap_dct04,Change in Endocardial-Mid: Mean gap dct coefficient 04,Endo-Mid,lower,0.5343912831089883,0.4703849896766218,0.596464525282413,49,188,3,False
+119,cur_tm_sd_gap_dct02,Current Endocardial-Mid: Sd gap dct coefficient 02,Endo-Mid,lower,0.532816191895382,0.4343088373630638,0.6279011417262997,49,188,3,False
+120,d_var__endo_shape_pairwise_rmse,Change since previous visit: Endocardial shape pairwise rmse,Segment variability,higher,0.53272226443769,0.4756784024060444,0.5882474006867626,49,188,3,False
+121,d_var__endo_peak_abs_robust_sd,Change since previous visit: Endocardial peak abs robust dispersion,Segment variability,lower,0.5325322948328268,0.4612278079710145,0.5996134875842757,49,188,3,False
+122,cur_tm_segment_curve_correlation_robust_sd,Current Endocardial-Mid: Segment curve correlation robust dispersion,Endo-Mid,lower,0.5323193279798795,0.44720995595979857,0.6167090581983996,49,188,3,False
+123,d_tm_mean_gap_dct02,Change in Endocardial-Mid: Mean gap dct coefficient 02,Endo-Mid,higher,0.5320505861919236,0.47118503193924527,0.5946737382993229,49,188,3,False
+124,cur_var__mid_curve_pairwise_rmse,Current: Mid-wall curve pairwise rmse,Segment variability,lower,0.5318194682542814,0.44225691410984314,0.6204151856323576,49,188,3,False
+125,cur_tm_ttp_gap_p90_p10,Current Endocardial-Mid: Time-to-peak gap p90 p10,Endo-Mid,lower,0.5317645744398892,0.43200953234099565,0.6305816182471058,49,188,3,False
+126,d_tm_ttp_layer_correlation,Change in Endocardial-Mid: Time-to-peak layer correlation,Endo-Mid,lower,0.5315553082935303,0.4804358004387578,0.5849398994519801,49,188,3,False
+127,cur_tm_segment_curve_correlation_iqr,Current Endocardial-Mid: Segment curve correlation iqr,Endo-Mid,lower,0.5313493022934512,0.45186830683135654,0.6229891228307786,49,188,3,False
+128,cur_var__endo_curve_pairwise_rmse,Current: Endocardial curve pairwise rmse,Segment variability,lower,0.5305970015112981,0.44268448427882395,0.6248503116361706,49,188,3,False
+129,d_tm_shape_rms_median,Change in Endocardial-Mid: Shape rms median,Endo-Mid,higher,0.5296420429874077,0.465592560782241,0.6033396468710122,49,188,3,False
+130,cur_var__mid_curve_dispersion_rms,Current: Mid-wall curve dispersion rms,Segment variability,lower,0.5295135756015585,0.44514668141372943,0.6307639340299562,49,188,3,False
+131,cur_tm_mean_shape_gap_dct03,Current Endocardial-Mid: Mean shape gap dct coefficient 03,Endo-Mid,lower,0.5293987655852613,0.4432105079205956,0.6113034121215772,49,188,3,False
+132,d_tm_peak_ratio_p90_p10,Change in Endocardial-Mid: Peak ratio p90 p10,Endo-Mid,lower,0.529302811550152,0.4676089357139655,0.5816842184948632,49,188,3,False
+133,cur_tm_vendor_ttp_gap_robust_sd,Current Endocardial-Mid: Vendocardialr time-to-peak gap robust dispersion,Endo-Mid,higher,0.5291896756630257,0.44347599084259726,0.6225774881920461,49,188,3,False
+134,d_tm_peak_gap_std,Change in Endocardial-Mid: Peak gap std,Endo-Mid,lower,0.5291806882327399,0.45981075373619235,0.5991192752860176,49,188,3,False
+135,cur_var__endo_curve_dispersion_rms,Current: Endocardial curve dispersion rms,Segment variability,lower,0.5288222483660499,0.4491551468946378,0.6068204592162377,49,188,3,False
+136,d_var__endo_within_ring_peak_robust_sd_mean,Change since previous visit: Endocardial within ring peak robust dispersion mean,Segment variability,lower,0.5288143182805036,0.4649665773035338,0.599278040286661,49,188,3,False
+137,cur_tm_shape_rms_mean,Current Endocardial-Mid: Shape rms mean,Endo-Mid,lower,0.5285335932521669,0.4328308562977342,0.6075488231738232,49,188,3,False
+138,days_since_first,Days since baseline,Clinical/trajectory,lower,0.5284072405557967,0.46014649527215973,0.5936890570367133,49,188,3,False
+139,cur_tm_peak_gap_std,Current Endocardial-Mid: Peak gap std,Endo-Mid,lower,0.5282688165069841,0.44000931594882364,0.6198059932032383,49,188,3,False
+140,d_tm_vendor_peak_gap_median,Change in Endocardial-Mid: Vendocardialr peak gap median,Endo-Mid,lower,0.5280239090316978,0.47025420423003295,0.5888702319756582,49,188,3,False
+141,cur_var__endo_spatial_peak_graph_roughness,Current: Endocardial spatial peak graph roughness,Segment variability,lower,0.5280078285804513,0.4407767804511285,0.6159704439207611,49,188,3,False
+142,d_tm_sd_gap_dct07,Change in Endocardial-Mid: Sd gap dct coefficient 07,Endo-Mid,higher,0.5279865935735997,0.4652839871865562,0.581068171917994,49,188,3,False
+143,cur_tm_peak_layer_correlation,Current Endocardial-Mid: Peak layer correlation,Endo-Mid,lower,0.5274717547975255,0.44113621453456847,0.6182375958986287,49,188,3,False
+144,d_tm_curve_rms_robust_sd,Change in Endocardial-Mid: Curve rms robust dispersion,Endo-Mid,higher,0.5274370386452453,0.46067792030027177,0.5990292452188006,49,188,3,False
+145,d_tm_mean_shape_gap_dct03,Change in Endocardial-Mid: Mean shape gap dct coefficient 03,Endo-Mid,higher,0.5273827616152844,0.4721645911585781,0.5760085344883259,49,188,3,False
+146,cur_tm_ttp_gap_mean,Current Endocardial-Mid: Time-to-peak gap mean,Endo-Mid,lower,0.5264374954181728,0.44377286724379283,0.6053668547412336,49,188,3,False
+147,cur_tm_peak_gap_p90_p10,Current Endocardial-Mid: Peak gap p90 p10,Endo-Mid,lower,0.5261525410108779,0.4362527445238004,0.6200385194343921,49,188,3,False
+148,d_var__mid_shape_pairwise_rmse,Change since previous visit: Mid-wall shape pairwise rmse,Segment variability,higher,0.526120820668693,0.4714343871079238,0.5825664786397913,49,188,3,False
+149,d_var__mid_curve_integrated_robust_mad,Change since previous visit: Mid-wall curve integrated robust mad,Segment variability,lower,0.5259579895788102,0.4685418097605051,0.5824965404450445,49,188,3,False
+150,d_var__mid_apical_basal_peak_gradient,Change since previous visit: Mid-wall apical basal peak gradient,Segment variability,lower,0.5259376356925749,0.46675691802070474,0.58606283711788,49,188,3,False
+151,d_tm_vendor_ttp_gap_std,Change in Endocardial-Mid: Vendocardialr time-to-peak gap std,Endo-Mid,higher,0.5257205275727312,0.47843063872875247,0.5782298295891527,49,188,3,False
+152,cur_tm_vendor_peak_gap_p90_p10,Current Endocardial-Mid: Vendocardialr peak gap p90 p10,Endo-Mid,lower,0.525442005345935,0.4252799871027031,0.6194357511701261,49,188,3,False
+153,d_tm_shape_rms_p90_p10,Change in Endocardial-Mid: Shape rms p90 p10,Endo-Mid,lower,0.5250759878419453,0.47104080987012337,0.5768069264361521,49,188,3,False
+154,d_tm_consensus_curve_correlation,Change in Endocardial-Mid: Consensus curve correlation,Endo-Mid,higher,0.5250624185844551,0.46563072997478344,0.5871109238547119,49,188,3,False
+155,d_tm_ttp_gap_std,Change in Endocardial-Mid: Time-to-peak gap std,Endo-Mid,higher,0.5247503256621798,0.4760467238362842,0.5804234375248928,49,188,3,False
+156,d_tm_vendor_ttp_gap_p90_p10,Change in Endocardial-Mid: Vendocardialr time-to-peak gap p90 p10,Endo-Mid,higher,0.5243975249674339,0.4709246655518394,0.5796989039523273,49,188,3,False
+157,d_var__mid_shape_dispersion_rms,Change since previous visit: Mid-wall shape dispersion rms,Segment variability,higher,0.5237190620929223,0.47275160025160023,0.5748279696493982,49,188,3,False
+158,cur_tm_vendor_peak_gap_std,Current Endocardial-Mid: Vendocardialr peak gap std,Endo-Mid,lower,0.5236559738567989,0.42971610288075784,0.6200183345182324,49,188,3,False
+159,d_tm_sd_gap_dct05,Change in Endocardial-Mid: Sd gap dct coefficient 05,Endo-Mid,lower,0.5235765848892748,0.46743066802268873,0.5773146919018316,49,188,3,False
+160,cur_tm_mean_gap_dct07,Current Endocardial-Mid: Mean gap dct coefficient 07,Endo-Mid,lower,0.5230413922269653,0.44171381000398185,0.611914138904268,49,188,3,False
+161,d_tm_curve_rms_std,Change in Endocardial-Mid: Curve rms std,Endo-Mid,lower,0.5230338145896657,0.45645879564616887,0.5963744775935209,49,188,3,False
+162,d_var__endo_curve_integrated_robust_mad,Change since previous visit: Endocardial curve integrated robust mad,Segment variability,lower,0.5226267368649588,0.4647732997841418,0.5860289581741787,49,188,3,False
+163,cur_var__mid_post_systolic_fraction,Current: Mid-wall post systolic fraction,Segment variability,higher,0.5220826008283944,0.43053767266238474,0.6074128516496261,49,188,3,False
+164,cur_var__mid_apical_basal_peak_gradient,Current: Mid-wall apical basal peak gradient,Segment variability,higher,0.5215979404334268,0.4270856947495879,0.6161647561751532,49,188,3,False
+165,d_tm_vendor_peak_gap_iqr,Change in Endocardial-Mid: Vendocardialr peak gap iqr,Endo-Mid,lower,0.521581904038211,0.45878536752415994,0.5854716059993563,49,188,3,False
+166,cur_tm_peak_ratio_iqr,Current Endocardial-Mid: Peak ratio iqr,Endo-Mid,lower,0.5214516744111295,0.4365159408396334,0.5989521439452237,49,188,3,False
+167,cur_tm_segment_curve_correlation_median,Current Endocardial-Mid: Segment curve correlation median,Endo-Mid,higher,0.521443303765275,0.4294320688584397,0.6152298081649175,49,188,3,False
+168,d_var__mid_peak_abs_cv,Change since previous visit: Mid-wall peak abs cv,Segment variability,lower,0.5213715805471124,0.4507814699556267,0.5822872343309476,49,188,3,False
+169,d_var__mid_vendor_peak_systolic_abs_robust_sd,Change since previous visit: Mid-wall vendocardialr peak systolic abs robust dispersion,Segment variability,lower,0.5212935573165436,0.4605597897726865,0.5808903777917039,49,188,3,False
+170,d_tm_ttp_gap_mean,Change in Endocardial-Mid: Time-to-peak gap mean,Endo-Mid,lower,0.52122231871472,0.46828685637969814,0.5824929654143995,49,188,3,False
+171,cur_tm_peak_gap_iqr,Current Endocardial-Mid: Peak gap iqr,Endo-Mid,lower,0.5211869857780083,0.4230515960241906,0.6169002320121678,49,188,3,False
+172,d_var__mid_curve_pairwise_rmse,Change since previous visit: Mid-wall curve pairwise rmse,Segment variability,lower,0.5201028549717759,0.4563099337103649,0.5812403929314096,49,188,3,False
+173,cur_tm_sd_gap_dct03,Current Endocardial-Mid: Sd gap dct coefficient 03,Endo-Mid,higher,0.5200343037878318,0.43126408240831976,0.6109842140439252,49,188,3,False
+174,d_tm_shape_rms_iqr,Change in Endocardial-Mid: Shape rms iqr,Endo-Mid,higher,0.5196550694745984,0.4630732293923505,0.5744110154755695,49,188,3,False
+175,d_var__endo_apical_basal_peak_gradient,Change since previous visit: Endocardial apical basal peak gradient,Segment variability,lower,0.51945831524099,0.4571495765109672,0.580322945894069,49,188,3,False
+176,d_tm_vendor_peak_gap_p90_p10,Change in Endocardial-Mid: Vendocardialr peak gap p90 p10,Endo-Mid,lower,0.5190715914025184,0.44876013942208326,0.5836914772061409,49,188,3,False
+177,d_tm_ttp_gap_iqr,Change in Endocardial-Mid: Time-to-peak gap iqr,Endo-Mid,lower,0.5186984368215372,0.48771070507826836,0.5561479204934857,49,188,3,False
+178,d_tm_curve_abs_area_std,Change in Endocardial-Mid: Curve abs area std,Endo-Mid,lower,0.5184881133304385,0.45412270209700795,0.5815927888243649,49,188,3,False
+179,d_tm_sd_gap_dct01,Change in Endocardial-Mid: Sd gap dct coefficient 01,Endo-Mid,lower,0.5181217433782024,0.44201764328831733,0.5909700095745178,49,188,3,False
+180,d_tm_peak_ratio_median,Change in Endocardial-Mid: Peak ratio median,Endo-Mid,lower,0.5178639274858879,0.4553969256223375,0.5862385134538243,49,188,3,False
+181,d_tm_vendor_ttp_gap_iqr,Change in Endocardial-Mid: Vendocardialr time-to-peak gap iqr,Endo-Mid,lower,0.5177689426834564,0.46418610413152794,0.576901056115413,49,188,3,False
+182,d_tm_fraction_ttp_discordant_gt_5pct_cycle,Change in Endocardial-Mid: Fraction time-to-peak discordant gt 5pct cycle,Endo-Mid,higher,0.5176162885366913,0.46277686130947,0.5756074462273894,49,188,3,False
+183,cur_var__endo_time_to_peak_norm_circular_std,Current: Endocardial time to peak norm circular dispersion,Segment variability,lower,0.5175028442573493,0.4303079162758831,0.5938599233025476,49,188,3,False
+184,d_tm_mean_gap_dct06,Change in Endocardial-Mid: Mean gap dct coefficient 06,Endo-Mid,higher,0.5173279418150238,0.4599200722155438,0.5767250005173734,49,188,3,False
+185,cur_var__endo_apical_basal_peak_gradient,Current: Endocardial apical basal peak gradient,Segment variability,higher,0.5172419444428781,0.42076473162751227,0.6131647655479991,49,188,3,False
+186,d_tm_mean_shape_gap_dct04,Change in Endocardial-Mid: Mean shape gap dct coefficient 04,Endo-Mid,lower,0.5172329570125922,0.4672607533249114,0.5664435778094505,49,188,3,False
+187,d_tm_peak_gap_robust_sd,Change in Endocardial-Mid: Peak gap robust dispersion,Endo-Mid,higher,0.5167037559704732,0.4439637164378009,0.5781360039812987,49,188,3,False
+188,d_tm_peak_gap_p90_p10,Change in Endocardial-Mid: Peak gap p90 p10,Endo-Mid,lower,0.5166901867129831,0.4473317480615435,0.5801874069940476,49,188,3,False
+189,d_var__mid_spatial_timing_graph_roughness,Change since previous visit: Mid-wall spatial timing graph roughness,Segment variability,lower,0.5163848784194529,0.46241312059796313,0.570936997805074,49,188,3,False
+190,cur_tm_vendor_peak_gap_iqr,Current Endocardial-Mid: Vendocardialr peak gap iqr,Endo-Mid,lower,0.5162472473791948,0.4265581558043427,0.6103586299050516,49,188,3,False
+191,last_ef_relative_change,Most recent relative EF change,Clinical/trajectory,higher,0.5160286854103343,0.46551476075453807,0.5678911837845699,49,188,3,False
+192,current_ef_decline_from_roll3,Current ef decline from roll3,Clinical/trajectory,lower,0.5151515151515151,0.30641966173361523,0.7052929131054131,9,44,1,False
+193,d_var__mid_time_to_peak_norm_circular_std,Change since previous visit: Mid-wall time to peak norm circular dispersion,Segment variability,higher,0.5148447676943118,0.46265097321281684,0.5644752746911279,49,188,3,False
+194,d_tm_segment_curve_correlation_std,Change in Endocardial-Mid: Segment curve correlation std,Endo-Mid,lower,0.5145394594007816,0.46396968771589747,0.5741579992576583,49,188,3,False
+195,d_var__mid_curve_dispersion_rms,Change since previous visit: Mid-wall curve dispersion rms,Segment variability,lower,0.514505536257056,0.45482245815076955,0.5781031830808933,49,188,3,False
+196,cur_tm_sd_gap_dct08,Current Endocardial-Mid: Sd gap dct coefficient 08,Endo-Mid,higher,0.5143626184931005,0.42503718877354313,0.6004367930870818,49,188,3,False
+197,cur_tm_fraction_endo_peak_gt_mid,Current Endocardial-Mid: Fraction endocardial peak gt mid-wall,Endo-Mid,higher,0.5137147305039729,0.4746465323348548,0.5545336350062025,49,188,3,False
+198,d_tm_peak_gap_iqr,Change in Endocardial-Mid: Peak gap iqr,Endo-Mid,lower,0.5132028875379939,0.4482126331506416,0.58539802400211,49,188,3,False
+199,d_var__mid_vendor_time_to_peak_norm_circular_std,Change since previous visit: Mid-wall vendocardialr time to peak norm circular dispersion,Segment variability,higher,0.5131893182805037,0.4541874182872028,0.5644120769386101,49,188,3,False
+200,d_tm_segment_curve_correlation_median,Change in Endocardial-Mid: Segment curve correlation median,Endo-Mid,higher,0.5129925640468953,0.4557468571665123,0.5679675528839228,49,188,3,False
+201,d_tm_mean_gap_dct08,Change in Endocardial-Mid: Mean gap dct coefficient 08,Endo-Mid,higher,0.5122869626574034,0.454189146913567,0.5770751995948278,49,188,3,False
+202,d_tm_fraction_endo_peak_gt_mid,Change in Endocardial-Mid: Fraction endocardial peak gt mid-wall,Endo-Mid,lower,0.5121037776812853,0.4778129847371732,0.5473374810606061,49,188,3,False
+203,d_tm_segment_curve_correlation_p90_p10,Change in Endocardial-Mid: Segment curve correlation p90 p10,Endo-Mid,higher,0.5120020082501086,0.44953814675765486,0.5661655741941461,49,188,3,False
+204,cur_tm_vendor_peak_gap_robust_sd,Current Endocardial-Mid: Vendocardialr peak gap robust dispersion,Endo-Mid,lower,0.5119536347282765,0.40837589984336614,0.6082225587829954,49,188,3,False
+205,cur_tm_peak_gap_robust_sd,Current Endocardial-Mid: Peak gap robust dispersion,Endo-Mid,lower,0.5118253876225815,0.418529229004789,0.5981714989115638,49,188,3,False
+206,d_tm_vendor_peak_gap_robust_sd,Change in Endocardial-Mid: Vendocardialr peak gap robust dispersion,Endo-Mid,lower,0.5116831306990881,0.45057428731539195,0.5713487310037887,49,188,3,False
+207,d_tm_curve_rms_p90_p10,Change in Endocardial-Mid: Curve rms p90 p10,Endo-Mid,lower,0.5114728072079896,0.4439698793608586,0.5722094175095919,49,188,3,False
+208,d_tm_sd_gap_dct03,Change in Endocardial-Mid: Sd gap dct coefficient 03,Endo-Mid,higher,0.5111742835432045,0.44369794852807015,0.5817470597175458,49,188,3,False
+209,d_tm_curve_abs_area_robust_sd,Change in Endocardial-Mid: Curve abs area robust dispersion,Endo-Mid,higher,0.5108214828484585,0.44917970743276925,0.5777903512462966,49,188,3,False
+210,d_tm_curve_rms_iqr,Change in Endocardial-Mid: Curve rms iqr,Endo-Mid,higher,0.5107536365610074,0.44704261113988014,0.5749517457621707,49,188,3,False
+211,d_tm_sd_gap_dct08,Change in Endocardial-Mid: Sd gap dct coefficient 08,Endo-Mid,lower,0.5102515740338689,0.4545768798712324,0.5611916019431389,49,188,3,False
+212,d_tm_mean_shape_gap_dct02,Change in Endocardial-Mid: Mean shape gap dct coefficient 02,Endo-Mid,lower,0.5096545267042987,0.453391110601998,0.5653125840628582,49,188,3,False
+213,d_tm_ttp_gap_p90_p10,Change in Endocardial-Mid: Time-to-peak gap p90 p10,Endo-Mid,higher,0.5095120495006513,0.44707239469055277,0.5794138914585261,49,188,3,False
+214,cur_var__endo_vendor_time_to_peak_norm_circular_std,Endocardial segment time-to-peak dispersion,Segment variability,lower,0.5094566270138893,0.43456243991906396,0.583573974886254,49,188,3,False
+215,cur_tm_peak_ratio_median,Current Endocardial-Mid: Peak ratio median,Endo-Mid,lower,0.5094518689625616,0.42662506223573665,0.5936723287940905,49,188,3,False
+216,d_var__mid_spatial_peak_graph_roughness,Change since previous visit: Mid-wall spatial peak graph roughness,Segment variability,lower,0.5090099869735129,0.44641976061233285,0.5730281059191942,49,188,3,False
+217,days_since_previous,Days since previous visit,Clinical/trajectory,lower,0.5088675097698654,0.43629200030097753,0.5738000509117239,49,188,3,False
+218,d_var__endo_post_systolic_fraction,Change since previous visit: Endocardial post systolic fraction,Segment variability,higher,0.5087691326530612,0.44281867082199783,0.5819718967132308,49,188,3,False
+219,cur_tm_curve_abs_area_p90_p10,Current Endocardial-Mid: Curve abs area p90 p10,Endo-Mid,higher,0.5083979605934664,0.40770113593850965,0.5929036071324499,49,188,3,False
+220,d_var__endo_curve_pairwise_rmse,Change since previous visit: Endocardial curve pairwise rmse,Segment variability,lower,0.5081144159791575,0.45031040898370467,0.572097003977023,49,188,3,False
+221,cur_tm_mean_shape_gap_dct06,Current Endocardial-Mid: Mean shape gap dct coefficient 06,Endo-Mid,higher,0.5079027708071346,0.41604228274253613,0.6042792340131339,49,188,3,False
+222,d_tm_shape_rms_mean,Change in Endocardial-Mid: Shape rms mean,Endo-Mid,lower,0.5077955384281372,0.4484991306387957,0.5677522741846254,49,188,3,False
+223,d_tm_peak_ratio_robust_sd,Change in Endocardial-Mid: Peak ratio robust dispersion,Endo-Mid,higher,0.5077344767694312,0.44783913129928593,0.5715669938543979,49,188,3,False
+224,cur_tm_shape_rms_median,Current Endocardial-Mid: Shape rms median,Endo-Mid,lower,0.5076933284366523,0.41347568146661323,0.5945386007032762,49,188,3,False
+225,cur_tm_curve_abs_area_std,Current Endocardial-Mid: Curve abs area std,Endo-Mid,higher,0.5076530612244898,0.40785381641677176,0.6064498321851263,49,188,3,False
+226,d_var__endo_shape_incoherence,Change since previous visit: Endocardial shape incoherence,Segment variability,higher,0.5075173686495875,0.4444586699355463,0.56619637398975,49,188,3,False
+227,cur_tm_curve_abs_area_robust_sd,Current Endocardial-Mid: Curve abs area robust dispersion,Endo-Mid,higher,0.5074318999498113,0.4111139144475085,0.599139385641797,49,188,3,False
+228,cur_tm_sd_gap_dct01,Current Endocardial-Mid: Sd gap dct coefficient 01,Endo-Mid,higher,0.5073935712030045,0.40088317787273464,0.5867141945349624,49,188,3,False
+229,d_tm_vendor_ttp_gap_robust_sd,Change in Endocardial-Mid: Vendocardialr time-to-peak gap robust dispersion,Endo-Mid,lower,0.5073681068171949,0.44951969504854117,0.5726452178554354,49,188,3,False
+230,cur_tm_curve_abs_area_iqr,Current Endocardial-Mid: Curve abs area iqr,Endo-Mid,higher,0.5067457713259385,0.41841625515738523,0.6039671544208062,49,188,3,False
+231,d_tm_segment_curve_correlation_robust_sd,Change in Endocardial-Mid: Segment curve correlation robust dispersion,Endo-Mid,lower,0.506608228397742,0.4444965957776201,0.5603710200633415,49,188,3,False
+232,d_var__endo_spatial_peak_graph_roughness,Change since previous visit: Endocardial spatial peak graph roughness,Segment variability,lower,0.5063436278766825,0.44180824597583557,0.5692526110226269,49,188,3,False
+233,d_var__mid_post_systolic_fraction,Change since previous visit: Mid-wall post systolic fraction,Segment variability,higher,0.5060824196699957,0.44135521924637355,0.5715295181531246,49,188,3,False
+234,d_tm_mean_shape_gap_dct06,Change in Endocardial-Mid: Mean shape gap dct coefficient 06,Endo-Mid,lower,0.506072242726878,0.4406375959242126,0.5669081161303339,49,188,3,False
+235,d_var__endo_curve_dispersion_rms,Change since previous visit: Endocardial curve dispersion rms,Segment variability,lower,0.5060247503256622,0.4492493379478086,0.57758065350246,49,188,3,False
+236,d_tm_curve_abs_area_p90_p10,Change in Endocardial-Mid: Curve abs area p90 p10,Endo-Mid,lower,0.5057397959183674,0.437507971660459,0.5729863069636376,49,188,3,False
+237,d_tm_vendor_ttp_gap_mean,Change in Endocardial-Mid: Vendocardialr time-to-peak gap mean,Endo-Mid,higher,0.5051902409900131,0.4519724690199876,0.5511980554168054,49,188,3,False
+238,ef_decline_slope_per_100d,EF decline slope per 100 days,Clinical/trajectory,higher,0.50515971016066,0.4458295985060691,0.5617531377127253,49,188,3,False
+239,d_tm_vendor_ttp_gap_median,Change in Endocardial-Mid: Vendocardialr time-to-peak gap median,Endo-Mid,lower,0.505129179331307,0.4355614363018746,0.5722527218152218,49,188,3,False
+240,cur_var__endo_post_systolic_fraction,Current: Endocardial post systolic fraction,Segment variability,higher,0.5048406123294856,0.4087772775190004,0.5979222828400792,49,188,3,False
+241,d_tm_mean_shape_gap_dct01,Change in Endocardial-Mid: Mean shape gap dct coefficient 01,Endo-Mid,lower,0.504599978289188,0.4488826136334476,0.5595205131205748,49,188,3,False
+242,d_var__mid_shape_incoherence,Change since previous visit: Mid-wall shape incoherence,Segment variability,higher,0.5043353777681285,0.44346054121703504,0.5699641945130689,49,188,3,False
+243,cur_tm_curve_rms_iqr,Current Endocardial-Mid: Curve rms iqr,Endo-Mid,higher,0.504324011312179,0.41646984840290563,0.5982681946015754,49,188,3,False
+244,d_tm_curve_abs_area_iqr,Change in Endocardial-Mid: Curve abs area iqr,Endo-Mid,higher,0.5039554385584021,0.4363508624669036,0.5726163181979985,49,188,3,False
+245,cur_tm_vendor_ttp_gap_mean,Current Endocardial-Mid: Vendocardialr time-to-peak gap mean,Endo-Mid,lower,0.5037972774077855,0.4259546958305946,0.5899660924322531,49,188,3,False
+246,cur_tm_curve_rms_p90_p10,Current Endocardial-Mid: Curve rms p90 p10,Endo-Mid,lower,0.5034546096001262,0.4077392279508868,0.5959056899161066,49,188,3,False
+247,d_tm_peak_ratio_iqr,Change in Endocardial-Mid: Peak ratio iqr,Endo-Mid,higher,0.5030802214502822,0.44057900220391033,0.5802052299224424,49,188,3,False
+248,cur_tm_curve_rms_robust_sd,Current Endocardial-Mid: Curve rms robust dispersion,Endo-Mid,lower,0.5028878728197552,0.4054558768759285,0.6021429565172721,49,188,3,False
+249,d_tm_mean_gap_dct07,Change in Endocardial-Mid: Mean gap dct coefficient 07,Endo-Mid,higher,0.5027884824142422,0.4378106729777668,0.5666985794612451,49,188,3,False
+250,d_var__endo_peak_abs_cv,Change since previous visit: Endocardial peak abs cv,Segment variability,higher,0.5027206361267912,0.4424325253939371,0.5681931495189905,49,188,3,False
+251,d_tm_peak_layer_correlation,Change in Endocardial-Mid: Peak layer correlation,Endo-Mid,higher,0.5019675423360833,0.43465096931242075,0.5717715047093681,49,188,3,False
+252,current_ef_decline_from_first,Current relative EF decline from baseline,Clinical/trajectory,higher,0.5016685025594505,0.44523533276278265,0.5596448125098892,46,181,3,False
+253,d_tm_segment_curve_correlation_mean,Change in Endocardial-Mid: Segment curve correlation mean,Endo-Mid,higher,0.5015129722101607,0.44155881540878544,0.5521774494552248,49,188,3,False
+254,d_tm_ttp_gap_robust_sd,Change in Endocardial-Mid: Time-to-peak gap robust dispersion,Endo-Mid,lower,0.5014349489795918,0.4831042700371194,0.5262941403413217,49,188,3,False
+255,d_var__endo_vendor_time_to_peak_norm_circular_std,Change since previous visit: Endocardial vendocardialr time to peak norm circular dispersion,Segment variability,lower,0.5012687255753365,0.44490920921184074,0.5610777388186196,49,188,3,False
+256,d_var__endo_time_to_peak_norm_circular_std,Change since previous visit: Endocardial time to peak norm circular dispersion,Segment variability,higher,0.5011601715154147,0.44454105793597964,0.5595313086391253,49,188,3,False
+257,cur_tm_vendor_ttp_gap_iqr,Current Endocardial-Mid: Vendocardialr time-to-peak gap iqr,Endo-Mid,lower,0.5011510959730674,0.4087491784283823,0.5855990691489362,49,188,3,False
+258,d_tm_mean_gap_dct05,Change in Endocardial-Mid: Mean gap dct coefficient 05,Endo-Mid,lower,0.5008005861919236,0.44543781589003945,0.5543335439644608,49,188,3,False
+259,cur_tm_curve_rms_std,Current Endocardial-Mid: Curve rms std,Endo-Mid,higher,0.5002871572088354,0.4079962858261248,0.589367669009798,49,188,3,False
+260,cur_tm_vendor_ttp_gap_median,Current Endocardial-Mid: Vendocardialr time-to-peak gap median,Endo-Mid,lower,0.5002819585971996,0.40636241232213355,0.5934461314795969,49,188,3,False
+261,cur_tm_ttp_gap_robust_sd,Current Endocardial-Mid: Time-to-peak gap robust dispersion,Endo-Mid,higher,0.5002650410813676,0.47073038226249914,0.5340144799054374,49,188,3,False
+262,history_visits,Number of visits observed,Clinical/trajectory,higher,0.5,0.5,0.5,49,188,3,False
+263,has_previous_visit,Previous visit available,Clinical/trajectory,higher,0.5,0.5,0.5,49,188,3,False
+264,cur_tm_paired_segments,Current Endocardial-Mid: Paired segments,Endo-Mid,higher,0.5,0.5,0.5,49,188,3,False
+265,d_tm_paired_segments,Change in Endocardial-Mid: Paired segments,Endo-Mid,higher,0.5,0.5,0.5,49,188,3,False
+266,cur_tm_ttp_gap_median,Current Endocardial-Mid: Time-to-peak gap median,Endo-Mid,higher,0.5,0.5,0.5,49,188,3,False
+267,d_tm_ttp_gap_median,Change in Endocardial-Mid: Time-to-peak gap median,Endo-Mid,higher,0.5,0.5,0.5,49,188,3,False
+268,cur_tm_consensus_phase_lag_fraction,Current Endocardial-Mid: Consensus phase lag fraction,Endo-Mid,higher,0.5,0.5,0.5,49,188,3,False
+269,d_tm_consensus_phase_lag_fraction,Change in Endocardial-Mid: Consensus phase lag fraction,Endo-Mid,higher,0.5,0.5,0.5,49,188,3,False

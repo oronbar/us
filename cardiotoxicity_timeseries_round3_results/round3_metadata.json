@@ -1,0 +1,17 @@
+{
+  "task": "mid_first_rel15",
+  "patients": 103,
+  "eligible_transitions": 238,
+  "events": 49,
+  "event_rate": 0.20588235294117646,
+  "curve_shape": [
+    297,
+    18,
+    6,
+    96
+  ],
+  "cv": "3 repeated 5-fold patient-held-out",
+  "bootstraps": 2000,
+  "device": "NVIDIA GeForce RTX 4060 Ti",
+  "seconds": 899.9649064540863
+}

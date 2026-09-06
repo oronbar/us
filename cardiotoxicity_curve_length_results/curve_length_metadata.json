@@ -1,0 +1,21 @@
+{
+  "dataset": "D:\\us\\amber_full_105_preprocessed\\Ichilov_july_dataset.parquet",
+  "filter": "curve_family=longitudinal_strain; layer in {endo,mid}; segment_number present",
+  "candidate_lengths": [
+    32,
+    48,
+    56,
+    64,
+    65,
+    72,
+    80,
+    96,
+    128
+  ],
+  "recommended_first_ablation": [
+    64,
+    72,
+    96
+  ],
+  "reconstruction_method": "linear resample on normalized phase, then interpolate back to native points"
+}

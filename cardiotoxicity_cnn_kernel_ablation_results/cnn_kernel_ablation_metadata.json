@@ -1,0 +1,64 @@
+{
+  "device": "NVIDIA GeForce RTX 4060 Ti",
+  "torch": "2.5.1+cu121",
+  "cuda": "12.1",
+  "primary_task": "mid_first_rel15",
+  "reference": {
+    "length": 96,
+    "kernels": [
+      7,
+      5
+    ],
+    "effective_rf": 11,
+    "cycle_fraction": 0.11458333333333333
+  },
+  "scaled_specs": [
+    {
+      "name": "attention_t64_scaled_k5_k3",
+      "length": 64,
+      "kernels": [
+        5,
+        3
+      ],
+      "effective_rf": 7,
+      "cycle_fraction": 0.109375
+    },
+    {
+      "name": "attention_t72_scaled_k5_k5",
+      "length": 72,
+      "kernels": [
+        5,
+        5
+      ],
+      "effective_rf": 9,
+      "cycle_fraction": 0.125
+    }
+  ],
+  "scalar_features": 96,
+  "active_tasks": [
+    "mid_first_rel10",
+    "mid_first_rel12",
+    "mid_first_rel15",
+    "mid_first_rel20",
+    "mid_roll2_rel10",
+    "mid_roll2_rel12",
+    "mid_roll2_rel15",
+    "mid_roll2_rel20",
+    "mid_roll3_rel10",
+    "mid_roll3_rel12",
+    "mid_roll3_rel15",
+    "endo_first_rel15",
+    "endo_roll2_rel15",
+    "endo_roll3_rel15",
+    "ef_first_rel10",
+    "ef_first_rel15",
+    "ef_roll2_rel10",
+    "ef_roll3_rel10"
+  ],
+  "cv": "3 repeated 5-fold patient-held-out",
+  "bootstraps": 1000,
+  "epochs": 180,
+  "patience": 25,
+  "seed": 20260722,
+  "fixed_predictions_source": "D:\\us\\cardiotoxicity_cnn_length_ablation_results\\cnn_length_ablation_oof_predictions.parquet"
+}

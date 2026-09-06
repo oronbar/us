@@ -1,0 +1,4 @@
+task,comparison,reference_model,candidate_model,n,delta_roc_auc,delta_roc_auc_ci_low,delta_roc_auc_ci_high,delta_average_precision,delta_average_precision_ci_low,delta_average_precision_ci_high
+mid_first_rel15,gap2_vs_full6,attention_full6,attention_gap2,238,-0.014091350826044513,-0.06251108156028358,0.03512779183643172,-0.031144395770029032,-0.09634004847817124,0.06290652614784051
+mid_first_rel15,separate4_vs_full6,attention_full6,attention_separate4,238,-0.00026994924954104604,-0.036879130121350516,0.036348186083240475,-0.026297527288587252,-0.07060337048126042,0.03702980199204321
+mid_first_rel15,gap_shape4_vs_full6,attention_full6,attention_gap_shape4,238,-0.007882518086599566,-0.047819781214044725,0.033728799328511715,-0.04085381811481903,-0.09017943549481226,0.02091859749437863

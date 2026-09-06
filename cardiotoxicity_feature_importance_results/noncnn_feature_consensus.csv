@@ -1,0 +1,55 @@
+feature,feature_family,description,models_evaluated,models_top10,mean_normalized_positive_auc_importance,best_auc_drop,mean_auc_drop,best_ap_drop
+first_mid_gls,clinical,Baseline Mid-GLS magnitude,4,3,0.5392285861713098,0.030018356548968672,0.013767411726595374,0.010692554220714245
+first_endo_gls,clinical,Baseline Endo-GLS magnitude,4,3,0.37570884468895527,0.01846452866861037,0.007801533311737441,0.0156608195086001
+mid_decline_slope_per_100d,clinical,Mid-GLS decline slope per 100 days,3,3,0.13307306683033268,0.004427167692473755,0.003311377461037305,0.003034668625525705
+d_tm_sd_gap_dct04,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT04,2,2,0.6699346405228789,0.0367130979375877,0.02116402116402122,0.042736160623276676
+cur_tm_mean_gap_dct02,Endo–Mid,Current visit: Endo–Mid mean gap DCT02,2,2,0.2883986928104573,0.007018680488068307,0.006694741388618974,0.013681136412996564
+cur_tm_mean_shape_gap_dct04,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT04,2,2,0.2833333333333352,0.00712666018788477,0.0066407515387107985,0.014925678386079833
+current_mid_decline_from_first,clinical,Current relative Mid-GLS decline from baseline,4,2,0.22062693498451985,0.012849584278155746,0.004049238743116301,0.001565633925551535
+cur_var__endo_vendor_peak_systolic_abs_robust_sd,variability,"Current visit, Endo: vendor peak-systolic amplitude dispersion",2,2,0.22034137395965658,0.007342619587517474,0.005291005291005291,0.015015176871578662
+cur_tm_mean_shape_gap_dct01,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT01,1,1,1.0,0.016520894071914594,0.016520894071914594,0.020123672875219545
+cur_tm_mean_shape_gap_dct07,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT07,1,1,0.5228758169934699,0.008638375985314917,0.008638375985314917,0.009137196368243061
+cur_var__endo_vendor_time_to_peak_norm_circular_std,variability,"Current visit, Endo: vendor time-to-peak dispersion",1,1,0.50326797385621,0.008314436885865528,0.008314436885865528,0.007078414814258638
+cur_tm_segment_curve_correlation_std,Endo–Mid,Current visit: Endo–Mid segment curve correlation std,1,1,0.47058823529412047,0.01727675197062961,0.01727675197062961,0.023093334735603377
+last_ef_relative_change,clinical,Most recent relative EF change,1,1,0.3450292397660809,0.006370802289169641,0.006370802289169641,0.007970205816427545
+d_tm_vendor_peak_gap_mean,Endo–Mid,Change since previous visit: Endo–Mid vendor peak gap mean,1,1,0.2810457516339915,0.004643127092106791,0.004643127092106791,0.0011753309154678426
+current_endo_decline_from_first,clinical,Current relative Endo-GLS decline from baseline,2,1,0.261953904368768,0.007018680488068196,0.004697116942014967,0.0009907131498359534
+cur_var__endo_peak_abs_robust_sd,variability,"Current visit, Endo: robust dispersion of peak amplitude",1,1,0.2614379084967316,0.004319187992657403,0.004319187992657403,0.005071631406305233
+cur_var__mid_peak_abs_robust_sd,variability,"Current visit, Mid: robust dispersion of peak amplitude",2,1,0.2576291907650363,0.010366051182377656,0.0065867616888025116,-0.0008049243936628647
+cur_tm_shape_rms_mean,Endo–Mid,Current visit: Endo–Mid shape RMS mean,1,1,0.2549019607843116,0.00421120829284094,0.00421120829284094,-0.0009677079703309666
+d_tm_peak_gap_mean,Endo–Mid,Change since previous visit: Endo–Mid peak gap mean,1,1,0.22647058823529626,0.008314436885865528,0.008314436885865528,0.008446512553451913
+cur_tm_sd_gap_dct06,Endo–Mid,Current visit: Endo–Mid sd gap DCT06,1,1,0.21176470588235421,0.007774538386783325,0.007774538386783325,0.015347552213422933
+current_mid_decline_from_roll2,clinical,Current Mid-GLS decline from prior-2-visit mean,1,1,0.19298245614034665,0.003563330093942274,0.003563330093942274,-0.008020049017883335
+current_mid_gls,clinical,Current Mid-GLS magnitude,1,1,0.1520467836257282,0.0028074721952272563,0.0028074721952272563,0.007639256554736074
+has_previous_visit,clinical,Whether a prior visit is available,3,1,0.0974658869395723,0.005398984990821809,0.0011157902314364865,0.012699702461260953
+cur_var__mid_shape_pairwise_rmse,variability,"Current visit, Mid: pairwise normalized-shape RMSE",1,1,0.08633093525179567,0.0025915127955943307,0.0025915127955943307,0.0017378314511890536
+current_endo_gls,clinical,Current Endo-GLS magnitude,1,1,0.0818713450292429,0.0015117157974301465,0.0015117157974301465,0.007216622425992192
+last_endo_relative_change,clinical,Most recent relative Endo-GLS change,1,1,0.04676258992805521,0.0014037360976135727,0.0014037360976135727,0.002335599352696449
+cur_var__endo_curve_integrated_robust_mad,variability,"Current visit, Endo: integrated robust curve dispersion",1,1,0.025179856115107223,0.0007558578987150177,0.0007558578987150177,-0.0002103034736864462
+days_since_first,clinical,Days since the baseline visit,3,1,0.013944138806600184,0.0014037360976135727,-0.0008638375985315175,0.002130847796602553
+last_endo_mid_gap_change,clinical,Change in the Endo–Mid GLS gap,2,1,0.003597122302157382,0.00021595939963281463,-0.001511715797430091,0.000973539077354757
+cur_tm_shape_rms_iqr,Endo–Mid,Current visit: Endo–Mid shape RMS IQR,1,0,0.18300653594771882,0.003023431594860293,0.003023431594860293,0.003459279019811745
+cur_var__endo_peak_abs_cv,variability,"Current visit, Endo: coefficient of variation of peak amplitude",1,0,0.13071895424837252,0.0021595939963288124,0.0021595939963288124,0.0019457582579329724
+cur_var__endo_impaired_segment_fraction_lt15,variability,"Current visit, Endo: fraction of segments with strain magnitude below 15",1,0,0.10457516339869935,0.0017276751970630722,0.0017276751970630722,-0.0006847507144520648
+cur_tm_peak_ratio_std,Endo–Mid,Current visit: Endo–Mid peak ratio std,2,0,0.09215686274509739,0.0022675736961451642,0.001997624446604007,-6.977512207556602e-05
+last_mid_relative_change,clinical,Most recent relative Mid-GLS change,1,0,0.05263157894737,0.0009718172983479434,0.0009718172983479434,-0.008812204060658135
+current_endo_decline_from_roll2,clinical,Current Endo-GLS decline from prior-2-visit mean,1,0,0.04678362573098821,0.0008638375985313695,0.0008638375985313695,-0.00893598425460801
+d_tm_ttp_gap_std,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak gap std,1,0,0.04117647058823403,0.0015117157974300355,0.0015117157974300355,0.0112759560345565
+cur_tm_shape_rms_p90_p10,Endo–Mid,Current visit: Endo–Mid shape RMS P90–P10,1,0,0.039215686274519816,0.000647878198898777,0.000647878198898777,-0.001178785544364458
+first_ef,clinical,Baseline ejection fraction,1,0,0.011695906432751563,0.00021595939963292565,0.00021595939963292565,0.0013427723707145622
+d_tm_mean_shape_gap_dct05,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT05,1,0,0.005882352941174994,0.00021595939963281463,0.00021595939963281463,-0.004109967523733715
+cur_var__mid_post_systolic_fraction,variability,"Current visit, Mid: fraction of post-systolic segments",1,0,0.0,-0.00010797969981646283,-0.00010797969981646283,-0.0005363124883885351
+cur_tm_mean_shape_gap_dct05,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT05,1,0,0.0,-0.0004319187992658513,-0.0004319187992658513,-0.004395279817858588
+cur_tm_consensus_curve_correlation,Endo–Mid,Current visit: Endo–Mid consensus curve correlation,1,0,0.0,-0.001187776697980869,-0.001187776697980869,0.0027243301237473982
+endo_decline_slope_per_100d,clinical,Endo-GLS decline slope per 100 days,1,0,0.0,-0.0017276751970630722,-0.0017276751970630722,0.004655490558703512
+d_var__endo_spatial_timing_graph_roughness,variability,"Change since previous visit, Endo: spatial roughness of timing",1,0,0.0,-0.0020516142965123496,-0.0020516142965123496,0.0007175461551028328
+d_var__mid_post_systolic_fraction,variability,"Change since previous visit, Mid: fraction of post-systolic segments",1,0,0.0,-0.002483533095777979,-0.002483533095777979,-0.0006742033419537274
+cur_tm_mean_gap_dct06,Endo–Mid,Current visit: Endo–Mid mean gap DCT06,1,0,0.0,-0.0025915127955944417,-0.0025915127955944417,-0.0026670459891396936
+d_tm_sd_gap_dct06,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT06,1,0,0.0,-0.0025915127955944417,-0.0025915127955944417,-0.0014153976432662585
+cur_var__mid_spatial_timing_graph_roughness,variability,"Current visit, Mid: spatial roughness of timing",1,0,0.0,-0.0025915127955944417,-0.0025915127955944417,-0.0033697722861637525
+ef_decline_slope_per_100d,clinical,EF decline slope per 100 days,2,0,0.0,-0.0025915127955945527,-0.005183025591188939,-0.003225628354660004
+current_endo_mid_gap,clinical,Current Endo minus Mid GLS gap,1,0,0.0,-0.003671309793758737,-0.003671309793758737,0.0012027727955219447
+history_visits,clinical,Number of visits observed so far,1,0,0.0,-0.004427167692473755,-0.004427167692473755,0.00022736594289168854
+current_ef,clinical,Current ejection fraction,1,0,0.0,-0.004751106791923143,-0.004751106791923143,0.011741695153171916
+cur_var__mid_shape_dispersion_rms,variability,"Current visit, Mid: RMS dispersion of normalized curve shape",1,0,0.0,-0.005398984990821809,-0.005398984990821809,-0.0038906927448809636
+days_since_previous,clinical,Days since the previous visit,3,0,0.0,-0.008638375985314806,-0.01115790231436494,0.003599120098188302

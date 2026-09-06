@@ -1,0 +1,8 @@
+{
+  "task": "mid_first_rel15",
+  "permutations": 5,
+  "patient_cluster_bootstraps": 1000,
+  "seed": 20260722,
+  "stage": "rdst",
+  "gpu": "NVIDIA GeForce RTX 4060 Ti"
+}

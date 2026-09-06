@@ -1,0 +1,20 @@
+{
+  "task": "mid_first_rel15",
+  "patients": 103,
+  "eligible_transitions": 238,
+  "events": 49,
+  "event_rate": 0.20588235294117646,
+  "curve_shape": [
+    297,
+    18,
+    6,
+    96
+  ],
+  "scalar_features": 96,
+  "cv": "3 repeated 5-fold patient-held-out",
+  "bootstraps": 2000,
+  "ts2vec_iterations_per_fold": 200,
+  "ts2vec_output_dimensions": 128,
+  "device": "NVIDIA GeForce RTX 4060 Ti",
+  "mambasl_scan": "pure PyTorch selective-state recurrence; official fused kernel unavailable on Windows"
+}

@@ -5,3 +5,31 @@ USF-MAE/USF-MAE_full_pretrain_43dataset_100epochs.pt
 .codex_tmp_cardio_doc/
 cardiotoxicity_nonapical_qc_smoke/
 ~$*.docx
+
+# Local authoring files and reference attachments
+/.codex-remote-attachments/
+/.codex_tmp_feature_deck/
+/.codex_tmp_feature_deck_edit/
+/tmp/cardiotoxicity_feature_deck/
+/*.pptx.inspect.ndjson
+~$*.pptx
+/presentation_sources/**/node_modules/
+/presentation_sources/**/rendered/
+/presentation_sources/**/final-preview/
+/presentation_sources/**/final-layout/
+/presentation_sources/**/final-montage.webp
+
+# Reusable experiment caches retained locally
+/cardiotoxicity_timeseries_round1_results/embedding_cache/
+/cardiotoxicity_timeseries_round2_results/ts2vec_cache/
+/cardiotoxicity_timeseries_round4_results/classical_fold_cache/
+
+# Smoke-run outputs and disposable console logs
+/cardiotoxicity_timeseries_round[234]_smoke/
+/cnn_*.log
+/round3_training_console.log
+/round4_*console*.log
+/round4_smoke_repeat.log
+/segment_interaction_ablation.*.log
+/timing8_control*.log
+/top_ensemble_*.log

@@ -1,0 +1,13 @@
+[
+  {
+    "task":"mid_first_rel15",
+    "eligible_transitions":238,
+    "events":49,
+    "patients":103,
+    "screen_repeats":0,
+    "refined_repeats":12,
+    "patient_cluster_bootstraps":200,
+    "seed":20260722,
+    "importance_definition":"decrease in patient-held-out metric after feature permutation"
+  }
+]

@@ -1,0 +1,109 @@
+{
+  "device": "NVIDIA GeForce RTX 4060 Ti",
+  "torch": "2.5.1+cu121",
+  "cuda": "12.1",
+  "patients": 103,
+  "transitions": 297,
+  "primary_eligible_transitions": 238,
+  "primary_events": 49,
+  "scalar_features": 96,
+  "variants": [
+    {
+      "name": "attention_full6",
+      "description": "Reference: current Endo, Mid, gap, and their changes",
+      "channels": [
+        "current_endo",
+        "current_mid",
+        "current_endo_minus_mid",
+        "change_endo",
+        "change_mid",
+        "change_endo_minus_mid"
+      ],
+      "tensor_shape": [
+        297,
+        18,
+        6,
+        96
+      ]
+    },
+    {
+      "name": "attention_gap2",
+      "description": "Endo-Mid only: current gap and change in gap",
+      "channels": [
+        "current_endo_minus_mid",
+        "change_endo_minus_mid"
+      ],
+      "tensor_shape": [
+        297,
+        18,
+        2,
+        96
+      ]
+    },
+    {
+      "name": "attention_separate4",
+      "description": "Separate layers only: Endo, Mid, and their changes",
+      "channels": [
+        "current_endo",
+        "current_mid",
+        "change_endo",
+        "change_mid"
+      ],
+      "tensor_shape": [
+        297,
+        18,
+        4,
+        96
+      ]
+    },
+    {
+      "name": "attention_gap_shape4",
+      "description": "Raw gap plus separately normalized Endo-Mid shape gap and their changes",
+      "channels": [
+        "current_endo_minus_mid",
+        "change_endo_minus_mid",
+        "current_normalized_shape_gap",
+        "change_normalized_shape_gap"
+      ],
+      "tensor_shape": [
+        297,
+        18,
+        4,
+        96
+      ]
+    }
+  ],
+  "active_tasks": [
+    "mid_first_rel10",
+    "mid_first_rel12",
+    "mid_first_rel15",
+    "mid_first_rel20",
+    "mid_roll2_rel10",
+    "mid_roll2_rel12",
+    "mid_roll2_rel15",
+    "mid_roll2_rel20",
+    "mid_roll3_rel10",
+    "mid_roll3_rel12",
+    "mid_roll3_rel15",
+    "endo_first_rel15",
+    "endo_roll2_rel15",
+    "endo_roll3_rel15",
+    "ef_first_rel10",
+    "ef_first_rel15",
+    "ef_roll2_rel10",
+    "ef_roll3_rel10"
+  ],
+  "cv": "3 repeated 5-fold patient-held-out",
+  "bootstraps": 1000,
+  "epochs": 180,
+  "patience": 25,
+  "seed": 20260722,
+  "full6_reproduction": {
+    "prior_attention_auc": 0.6828636216391318,
+    "current_full6_auc": 0.6826476622394989,
+    "auc_difference": -0.00021595939963292565,
+    "prior_attention_ap": 0.3325000452380501,
+    "current_full6_ap": 0.33948083626180037,
+    "ap_difference": 0.006980791023750266
+  }
+}

@@ -1,0 +1,172 @@
+{
+  "task": "Next-visit relative Mid-GLS decline from first-visit baseline",
+  "transition_rows": 238,
+  "patients": 103,
+  "events": 49,
+  "final_visit_rows": 103,
+  "baseline_mid_endo_patient_pearson_r": 0.9918586497750426,
+  "transition_level": {
+    "baseline_mid": {
+      "n": 238,
+      "patients": 103,
+      "pearson_r": 0.38470009081699263,
+      "spearman_rho": 0.3917418362694688,
+      "slope_fraction_per_gls_point": 0.020781508315472656,
+      "intercept": -0.3262214395995537,
+      "bootstrap_95_ci": {
+        "pearson_r": [
+          0.1875025245409257,
+          0.5540237068403833
+        ],
+        "spearman_rho": [
+          0.23128886617776565,
+          0.5303101266049155
+        ],
+        "slope_fraction_per_gls_point": [
+          0.01011587427896415,
+          0.031366440577136986
+        ]
+      }
+    },
+    "baseline_endo": {
+      "n": 238,
+      "patients": 103,
+      "pearson_r": 0.3925016971217644,
+      "spearman_rho": 0.3952148884463667,
+      "slope_fraction_per_gls_point": 0.018975386366701506,
+      "intercept": -0.35394274252504543,
+      "bootstrap_95_ci": {
+        "pearson_r": [
+          0.19371174640775138,
+          0.5592837846828753
+        ],
+        "spearman_rho": [
+          0.2346341225065965,
+          0.5377732498714021
+        ],
+        "slope_fraction_per_gls_point": [
+          0.009060687124021659,
+          0.028083278950744098
+        ]
+      }
+    }
+  },
+  "final_followup_patient_level": {
+    "baseline_mid": {
+      "n": 103,
+      "patients": 103,
+      "pearson_r": 0.40799683962672223,
+      "spearman_rho": 0.4153958518089691,
+      "slope_fraction_per_gls_point": 0.025231771070165207,
+      "intercept": -0.3585346843601538,
+      "bootstrap_95_ci": {
+        "pearson_r": [
+          0.17261119620056967,
+          0.5987853587057647
+        ],
+        "spearman_rho": [
+          0.22495949815786226,
+          0.5763316851972289
+        ],
+        "slope_fraction_per_gls_point": [
+          0.01063385642279261,
+          0.03875624275429448
+        ]
+      }
+    },
+    "baseline_endo": {
+      "n": 103,
+      "patients": 103,
+      "pearson_r": 0.4052636560467758,
+      "spearman_rho": 0.4064711164212011,
+      "slope_fraction_per_gls_point": 0.022473952665040105,
+      "intercept": -0.380732482025586,
+      "bootstrap_95_ci": {
+        "pearson_r": [
+          0.17684619888994868,
+          0.6079570737472835
+        ],
+        "spearman_rho": [
+          0.22283532121528493,
+          0.5790474219201553
+        ],
+        "slope_fraction_per_gls_point": [
+          0.009860161566306142,
+          0.03548149474786101
+        ]
+      }
+    }
+  },
+  "single_feature_event_prediction": {
+    "baseline_mid": {
+      "auc": 0.6615916207752942,
+      "ap": 0.33539420207907206
+    },
+    "baseline_endo": {
+      "auc": 0.6629953568729078,
+      "ap": 0.3458152422367755
+    }
+  },
+  "transition_event_rate_by_baseline_quartile": {
+    "baseline_mid": [
+      {
+        "quartile": "Q1",
+        "n": 60,
+        "event_rate": 0.1,
+        "baseline_min": 9.395,
+        "baseline_max": 15.44
+      },
+      {
+        "quartile": "Q2",
+        "n": 59,
+        "event_rate": 0.1694915254237288,
+        "baseline_min": 15.55,
+        "baseline_max": 17.03
+      },
+      {
+        "quartile": "Q3",
+        "n": 59,
+        "event_rate": 0.22033898305084745,
+        "baseline_min": 17.05,
+        "baseline_max": 18.58
+      },
+      {
+        "quartile": "Q4",
+        "n": 60,
+        "event_rate": 0.3333333333333333,
+        "baseline_min": 18.68,
+        "baseline_max": 23.92
+      }
+    ],
+    "baseline_endo": [
+      {
+        "quartile": "Q1",
+        "n": 62,
+        "event_rate": 0.0967741935483871,
+        "baseline_min": 11.98,
+        "baseline_max": 18.45
+      },
+      {
+        "quartile": "Q2",
+        "n": 58,
+        "event_rate": 0.1724137931034483,
+        "baseline_min": 18.51,
+        "baseline_max": 20.18
+      },
+      {
+        "quartile": "Q3",
+        "n": 59,
+        "event_rate": 0.22033898305084745,
+        "baseline_min": 20.26,
+        "baseline_max": 21.89
+      },
+      {
+        "quartile": "Q4",
+        "n": 59,
+        "event_rate": 0.3389830508474576,
+        "baseline_min": 22.03,
+        "baseline_max": 27.68
+      }
+    ]
+  }
+}

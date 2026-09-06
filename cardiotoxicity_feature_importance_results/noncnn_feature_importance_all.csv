@@ -1,0 +1,593 @@
+model,feature,feature_family,description,used_fraction,auc_drop_screen,auc_drop_split_sd,auc_positive_split_fraction,ap_drop_screen,ap_drop_split_sd,ap_positive_split_fraction,native_importance_mean,selection_fraction,coefficient_median_when_selected,coefficient_sign_consistency,auc_rank_screen,ap_rank_screen,native_rank
+clinical_plus_transmural_sparse,history_visits,clinical,Number of visits observed so far,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,days_since_first,clinical,Days since the baseline visit,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.06590551500117312,0.3333333333333333,-0.23834194866854178,1.0,1.0,1.0,18.0
+clinical_plus_transmural_sparse,days_since_previous,clinical,Days since the previous visit,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.10869332387966094,0.4,-0.24667004536888715,1.0,1.0,1.0,13.0
+clinical_plus_transmural_sparse,has_previous_visit,clinical,Whether a prior visit is available,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.06396390030237971,0.5333333333333333,-0.09583934876657357,1.0,1.0,1.0,19.0
+clinical_plus_transmural_sparse,current_mid_gls,clinical,Current Mid-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,current_endo_gls,clinical,Current Endo-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,current_ef,clinical,Current ejection fraction,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,first_mid_gls,clinical,Baseline Mid-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.4262486115067722,0.7333333333333333,0.6410898421682563,1.0,1.0,1.0,3.0
+clinical_plus_transmural_sparse,first_endo_gls,clinical,Baseline Endo-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.07175103746579553,0.13333333333333333,0.5381327809934665,1.0,1.0,1.0,17.0
+clinical_plus_transmural_sparse,first_ef,clinical,Baseline ejection fraction,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,current_mid_decline_from_first,clinical,Current relative Mid-GLS decline from baseline,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.12869875056654256,0.5333333333333333,0.1629183878601631,1.0,1.0,1.0,11.0
+clinical_plus_transmural_sparse,current_endo_decline_from_first,clinical,Current relative Endo-GLS decline from baseline,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.014951315685676677,0.2,0.04181869587353553,1.0,1.0,1.0,38.0
+clinical_plus_transmural_sparse,current_ef_decline_from_first,clinical,Current relative EF decline from baseline,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0018246748522554436,0.06666666666666667,-0.027370122783831653,1.0,1.0,1.0,57.0
+clinical_plus_transmural_sparse,last_mid_relative_change,clinical,Most recent relative Mid-GLS change,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,last_endo_relative_change,clinical,Most recent relative Endo-GLS change,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,last_ef_relative_change,clinical,Most recent relative EF change,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,mid_decline_slope_per_100d,clinical,Mid-GLS decline slope per 100 days,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.14908894223292732,0.6,0.25921236195855796,1.0,1.0,1.0,10.0
+clinical_plus_transmural_sparse,endo_decline_slope_per_100d,clinical,Endo-GLS decline slope per 100 days,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0028270058037289723,0.06666666666666667,0.042405087055934584,1.0,1.0,1.0,55.0
+clinical_plus_transmural_sparse,ef_decline_slope_per_100d,clinical,EF decline slope per 100 days,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.006025719616960459,0.26666666666666666,0.019579846793898792,1.0,1.0,1.0,49.0
+clinical_plus_transmural_sparse,current_endo_mid_gap,clinical,Current Endo minus Mid GLS gap,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,last_endo_mid_gap_change,clinical,Change in the Endo–Mid GLS gap,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,current_mid_decline_from_roll2,clinical,Current Mid-GLS decline from prior-2-visit mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,current_endo_decline_from_roll2,clinical,Current Endo-GLS decline from prior-2-visit mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,current_ef_decline_from_roll2,clinical,Current EF decline from prior-2-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,current_mid_decline_from_roll3,clinical,Current Mid-GLS decline from prior-3-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,current_endo_decline_from_roll3,clinical,Current Endo-GLS decline from prior-3-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,current_ef_decline_from_roll3,clinical,Current EF decline from prior-3-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_paired_segments,Endo–Mid,Current visit: Endo–Mid paired segments,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_paired_segments,Endo–Mid,Change since previous visit: Endo–Mid paired segments,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_peak_layer_correlation,Endo–Mid,Current visit: Endo–Mid peak layer correlation,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_peak_layer_correlation,Endo–Mid,Change since previous visit: Endo–Mid peak layer correlation,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.010130528365040385,0.06666666666666667,0.15195792547560577,1.0,1.0,1.0,43.0
+clinical_plus_transmural_sparse,cur_tm_ttp_layer_correlation,Endo–Mid,Current visit: Endo–Mid time-to-peak layer correlation,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.031476007294850276,0.2,0.15409915486916953,1.0,1.0,1.0,31.0
+clinical_plus_transmural_sparse,d_tm_ttp_layer_correlation,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak layer correlation,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_fraction_endo_peak_gt_mid,Endo–Mid,Current visit: Endo–Mid fraction endo peak gt mid,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_fraction_endo_peak_gt_mid,Endo–Mid,Change since previous visit: Endo–Mid fraction endo peak gt mid,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_fraction_ttp_discordant_gt_5pct_cycle,Endo–Mid,Current visit: Endo–Mid fraction time-to-peak discordant gt 5pct cycle,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.010472237717276763,0.06666666666666667,-0.15708356575915144,1.0,1.0,1.0,41.0
+clinical_plus_transmural_sparse,d_tm_fraction_ttp_discordant_gt_5pct_cycle,Endo–Mid,Change since previous visit: Endo–Mid fraction time-to-peak discordant gt 5pct cycle,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_peak_gap_mean,Endo–Mid,Current visit: Endo–Mid peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_peak_gap_mean,Endo–Mid,Change since previous visit: Endo–Mid peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.3849490200024236,1.0,-0.42283275346226934,1.0,1.0,1.0,5.0
+clinical_plus_transmural_sparse,cur_tm_peak_gap_std,Endo–Mid,Current visit: Endo–Mid peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_peak_gap_std,Endo–Mid,Change since previous visit: Endo–Mid peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_peak_gap_robust_sd,Endo–Mid,Current visit: Endo–Mid peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_peak_gap_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.010454854961898194,0.06666666666666667,0.15682282442847292,1.0,1.0,1.0,42.0
+clinical_plus_transmural_sparse,cur_tm_peak_gap_iqr,Endo–Mid,Current visit: Endo–Mid peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_peak_gap_iqr,Endo–Mid,Change since previous visit: Endo–Mid peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_peak_gap_p90_p10,Endo–Mid,Current visit: Endo–Mid peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_peak_gap_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_peak_gap_median,Endo–Mid,Current visit: Endo–Mid peak gap median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_peak_gap_median,Endo–Mid,Change since previous visit: Endo–Mid peak gap median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_peak_ratio_mean,Endo–Mid,Current visit: Endo–Mid peak ratio mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_peak_ratio_mean,Endo–Mid,Change since previous visit: Endo–Mid peak ratio mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.04239618182394921,0.13333333333333333,-0.3179713636796191,1.0,1.0,1.0,23.0
+clinical_plus_transmural_sparse,cur_tm_peak_ratio_std,Endo–Mid,Current visit: Endo–Mid peak ratio std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.12757379286768097,0.6666666666666666,-0.17009920732647277,1.0,1.0,1.0,12.0
+clinical_plus_transmural_sparse,d_tm_peak_ratio_std,Endo–Mid,Change since previous visit: Endo–Mid peak ratio std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_peak_ratio_robust_sd,Endo–Mid,Current visit: Endo–Mid peak ratio robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_peak_ratio_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid peak ratio robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.006079452023874542,0.13333333333333333,0.045595890179059066,1.0,1.0,1.0,48.0
+clinical_plus_transmural_sparse,cur_tm_peak_ratio_iqr,Endo–Mid,Current visit: Endo–Mid peak ratio IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_peak_ratio_iqr,Endo–Mid,Change since previous visit: Endo–Mid peak ratio IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_peak_ratio_p90_p10,Endo–Mid,Current visit: Endo–Mid peak ratio P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.029723967251220684,0.2,-0.19018833044705236,1.0,1.0,1.0,32.0
+clinical_plus_transmural_sparse,d_tm_peak_ratio_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid peak ratio P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_peak_ratio_median,Endo–Mid,Current visit: Endo–Mid peak ratio median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_peak_ratio_median,Endo–Mid,Change since previous visit: Endo–Mid peak ratio median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_ttp_gap_mean,Endo–Mid,Current visit: Endo–Mid time-to-peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0031154323024169287,0.06666666666666667,-0.046731484536253934,1.0,1.0,1.0,53.0
+clinical_plus_transmural_sparse,d_tm_ttp_gap_mean,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0008321545770715855,0.06666666666666667,-0.012482318656073783,1.0,1.0,1.0,62.0
+clinical_plus_transmural_sparse,cur_tm_ttp_gap_std,Endo–Mid,Current visit: Endo–Mid time-to-peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.04167693115053093,0.13333333333333333,-0.31257698362898195,1.0,1.0,1.0,24.0
+clinical_plus_transmural_sparse,d_tm_ttp_gap_std,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.2367565371875535,0.8666666666666667,0.267489518922271,1.0,1.0,1.0,6.0
+clinical_plus_transmural_sparse,cur_tm_ttp_gap_robust_sd,Endo–Mid,Current visit: Endo–Mid time-to-peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_ttp_gap_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_ttp_gap_iqr,Endo–Mid,Current visit: Endo–Mid time-to-peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.03585320008711935,0.2,-0.15305427438489924,1.0,1.0,1.0,27.0
+clinical_plus_transmural_sparse,d_tm_ttp_gap_iqr,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_ttp_gap_p90_p10,Endo–Mid,Current visit: Endo–Mid time-to-peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0017728658288280084,0.06666666666666667,-0.026592987432420126,1.0,1.0,1.0,58.0
+clinical_plus_transmural_sparse,d_tm_ttp_gap_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_ttp_gap_median,Endo–Mid,Current visit: Endo–Mid time-to-peak gap median,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_ttp_gap_median,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak gap median,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_vendor_peak_gap_mean,Endo–Mid,Current visit: Endo–Mid vendor peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_vendor_peak_gap_mean,Endo–Mid,Change since previous visit: Endo–Mid vendor peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_vendor_peak_gap_std,Endo–Mid,Current visit: Endo–Mid vendor peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_vendor_peak_gap_std,Endo–Mid,Change since previous visit: Endo–Mid vendor peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00019783683294165647,0.06666666666666667,-0.002967552494124847,1.0,1.0,1.0,64.0
+clinical_plus_transmural_sparse,cur_tm_vendor_peak_gap_robust_sd,Endo–Mid,Current visit: Endo–Mid vendor peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.006417251195090088,0.06666666666666667,-0.09625876792635132,1.0,1.0,1.0,47.0
+clinical_plus_transmural_sparse,d_tm_vendor_peak_gap_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid vendor peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_vendor_peak_gap_iqr,Endo–Mid,Current visit: Endo–Mid vendor peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_vendor_peak_gap_iqr,Endo–Mid,Change since previous visit: Endo–Mid vendor peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_vendor_peak_gap_p90_p10,Endo–Mid,Current visit: Endo–Mid vendor peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_vendor_peak_gap_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid vendor peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00019609684342091377,0.06666666666666667,-0.0029414526513137067,1.0,1.0,1.0,65.0
+clinical_plus_transmural_sparse,cur_tm_vendor_peak_gap_median,Endo–Mid,Current visit: Endo–Mid vendor peak gap median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_vendor_peak_gap_median,Endo–Mid,Change since previous visit: Endo–Mid vendor peak gap median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_vendor_ttp_gap_mean,Endo–Mid,Current visit: Endo–Mid vendor time-to-peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_vendor_ttp_gap_mean,Endo–Mid,Change since previous visit: Endo–Mid vendor time-to-peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_vendor_ttp_gap_std,Endo–Mid,Current visit: Endo–Mid vendor time-to-peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.033723913387180414,0.26666666666666666,-0.10143412109763676,1.0,1.0,1.0,28.0
+clinical_plus_transmural_sparse,d_tm_vendor_ttp_gap_std,Endo–Mid,Change since previous visit: Endo–Mid vendor time-to-peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_vendor_ttp_gap_robust_sd,Endo–Mid,Current visit: Endo–Mid vendor time-to-peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0030587593331632234,0.06666666666666667,0.045881389997448355,1.0,1.0,1.0,54.0
+clinical_plus_transmural_sparse,d_tm_vendor_ttp_gap_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid vendor time-to-peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_vendor_ttp_gap_iqr,Endo–Mid,Current visit: Endo–Mid vendor time-to-peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_vendor_ttp_gap_iqr,Endo–Mid,Change since previous visit: Endo–Mid vendor time-to-peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0027098870781788183,0.06666666666666667,-0.04064830617268227,1.0,1.0,1.0,56.0
+clinical_plus_transmural_sparse,cur_tm_vendor_ttp_gap_p90_p10,Endo–Mid,Current visit: Endo–Mid vendor time-to-peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.057132287790495034,0.26666666666666666,-0.1825233355512315,1.0,1.0,1.0,21.0
+clinical_plus_transmural_sparse,d_tm_vendor_ttp_gap_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid vendor time-to-peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.03293651222429903,0.5333333333333333,0.059123657710371647,1.0,1.0,1.0,29.0
+clinical_plus_transmural_sparse,cur_tm_vendor_ttp_gap_median,Endo–Mid,Current visit: Endo–Mid vendor time-to-peak gap median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003985265086717835,0.06666666666666667,-0.05977897630076753,1.0,1.0,1.0,52.0
+clinical_plus_transmural_sparse,d_tm_vendor_ttp_gap_median,Endo–Mid,Change since previous visit: Endo–Mid vendor time-to-peak gap median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_curve_rms_mean,Endo–Mid,Current visit: Endo–Mid curve RMS mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_curve_rms_mean,Endo–Mid,Change since previous visit: Endo–Mid curve RMS mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_curve_rms_std,Endo–Mid,Current visit: Endo–Mid curve RMS std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_curve_rms_std,Endo–Mid,Change since previous visit: Endo–Mid curve RMS std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_curve_rms_robust_sd,Endo–Mid,Current visit: Endo–Mid curve RMS robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_curve_rms_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid curve RMS robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.044596857211499905,0.26666666666666666,0.14514093232644631,1.0,1.0,1.0,22.0
+clinical_plus_transmural_sparse,cur_tm_curve_rms_iqr,Endo–Mid,Current visit: Endo–Mid curve RMS IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_curve_rms_iqr,Endo–Mid,Change since previous visit: Endo–Mid curve RMS IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_curve_rms_p90_p10,Endo–Mid,Current visit: Endo–Mid curve RMS P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_curve_rms_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid curve RMS P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_curve_rms_median,Endo–Mid,Current visit: Endo–Mid curve RMS median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_curve_rms_median,Endo–Mid,Change since previous visit: Endo–Mid curve RMS median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_curve_abs_area_mean,Endo–Mid,Current visit: Endo–Mid curve abs area mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_curve_abs_area_mean,Endo–Mid,Change since previous visit: Endo–Mid curve abs area mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_curve_abs_area_std,Endo–Mid,Current visit: Endo–Mid curve abs area std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_curve_abs_area_std,Endo–Mid,Change since previous visit: Endo–Mid curve abs area std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_curve_abs_area_robust_sd,Endo–Mid,Current visit: Endo–Mid curve abs area robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_curve_abs_area_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid curve abs area robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_curve_abs_area_iqr,Endo–Mid,Current visit: Endo–Mid curve abs area IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_curve_abs_area_iqr,Endo–Mid,Change since previous visit: Endo–Mid curve abs area IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_curve_abs_area_p90_p10,Endo–Mid,Current visit: Endo–Mid curve abs area P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_curve_abs_area_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid curve abs area P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_curve_abs_area_median,Endo–Mid,Current visit: Endo–Mid curve abs area median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_curve_abs_area_median,Endo–Mid,Change since previous visit: Endo–Mid curve abs area median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.008691067955993862,0.06666666666666667,-0.13036601933990793,1.0,1.0,1.0,45.0
+clinical_plus_transmural_sparse,cur_tm_shape_rms_mean,Endo–Mid,Current visit: Endo–Mid shape RMS mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_shape_rms_mean,Endo–Mid,Change since previous visit: Endo–Mid shape RMS mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_shape_rms_std,Endo–Mid,Current visit: Endo–Mid shape RMS std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_shape_rms_std,Endo–Mid,Change since previous visit: Endo–Mid shape RMS std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_shape_rms_robust_sd,Endo–Mid,Current visit: Endo–Mid shape RMS robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_shape_rms_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid shape RMS robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_shape_rms_iqr,Endo–Mid,Current visit: Endo–Mid shape RMS IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_shape_rms_iqr,Endo–Mid,Change since previous visit: Endo–Mid shape RMS IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_shape_rms_p90_p10,Endo–Mid,Current visit: Endo–Mid shape RMS P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.019871394178355352,0.2,-0.02591720967521727,1.0,1.0,1.0,37.0
+clinical_plus_transmural_sparse,d_tm_shape_rms_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid shape RMS P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_shape_rms_median,Endo–Mid,Current visit: Endo–Mid shape RMS median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_shape_rms_median,Endo–Mid,Change since previous visit: Endo–Mid shape RMS median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.027677957705400845,0.13333333333333333,0.20758468279050635,1.0,1.0,1.0,33.0
+clinical_plus_transmural_sparse,cur_tm_segment_curve_correlation_mean,Endo–Mid,Current visit: Endo–Mid segment curve correlation mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_segment_curve_correlation_mean,Endo–Mid,Change since previous visit: Endo–Mid segment curve correlation mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_segment_curve_correlation_std,Endo–Mid,Current visit: Endo–Mid segment curve correlation std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.4484546316839424,1.0,-0.43612100809614157,1.0,1.0,1.0,2.0
+clinical_plus_transmural_sparse,d_tm_segment_curve_correlation_std,Endo–Mid,Change since previous visit: Endo–Mid segment curve correlation std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.03805927924874672,0.4666666666666667,-0.04539429843567374,0.8571428571428571,1.0,1.0,26.0
+clinical_plus_transmural_sparse,cur_tm_segment_curve_correlation_robust_sd,Endo–Mid,Current visit: Endo–Mid segment curve correlation robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_segment_curve_correlation_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid segment curve correlation robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_segment_curve_correlation_iqr,Endo–Mid,Current visit: Endo–Mid segment curve correlation IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0015700764781599365,0.13333333333333333,-0.011775573586199524,1.0,1.0,1.0,59.0
+clinical_plus_transmural_sparse,d_tm_segment_curve_correlation_iqr,Endo–Mid,Change since previous visit: Endo–Mid segment curve correlation IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005387594123447094,0.06666666666666667,0.0808139118517064,1.0,1.0,1.0,51.0
+clinical_plus_transmural_sparse,cur_tm_segment_curve_correlation_p90_p10,Endo–Mid,Current visit: Endo–Mid segment curve correlation P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.031970091711352025,0.26666666666666666,-0.07570871412836566,1.0,1.0,1.0,30.0
+clinical_plus_transmural_sparse,d_tm_segment_curve_correlation_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid segment curve correlation P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.04152023534299876,0.5333333333333333,0.09392084444448634,1.0,1.0,1.0,25.0
+clinical_plus_transmural_sparse,cur_tm_segment_curve_correlation_median,Endo–Mid,Current visit: Endo–Mid segment curve correlation median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_segment_curve_correlation_median,Endo–Mid,Change since previous visit: Endo–Mid segment curve correlation median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_mean_gap_dct01,Endo–Mid,Current visit: Endo–Mid mean gap DCT01,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.025182730943001656,0.26666666666666666,-0.11875497566892881,1.0,1.0,1.0,34.0
+clinical_plus_transmural_sparse,d_tm_mean_gap_dct01,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT01,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_mean_gap_dct02,Endo–Mid,Current visit: Endo–Mid mean gap DCT02,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18039756829583925,0.7333333333333333,0.2612683400066614,1.0,1.0,1.0,8.0
+clinical_plus_transmural_sparse,d_tm_mean_gap_dct02,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT02,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_mean_gap_dct03,Endo–Mid,Current visit: Endo–Mid mean gap DCT03,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_mean_gap_dct03,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT03,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005541531366964213,0.06666666666666667,-0.0831229705044632,1.0,1.0,1.0,50.0
+clinical_plus_transmural_sparse,cur_tm_mean_gap_dct04,Endo–Mid,Current visit: Endo–Mid mean gap DCT04,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_mean_gap_dct04,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT04,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_mean_gap_dct05,Endo–Mid,Current visit: Endo–Mid mean gap DCT05,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_mean_gap_dct05,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT05,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_mean_gap_dct06,Endo–Mid,Current visit: Endo–Mid mean gap DCT06,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.1729701907812453,0.6666666666666666,0.21319971483038658,1.0,1.0,1.0,9.0
+clinical_plus_transmural_sparse,d_tm_mean_gap_dct06,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT06,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_mean_gap_dct07,Endo–Mid,Current visit: Endo–Mid mean gap DCT07,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_mean_gap_dct07,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT07,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.020280306793242057,0.2,0.03018537679777425,1.0,1.0,1.0,36.0
+clinical_plus_transmural_sparse,cur_tm_mean_gap_dct08,Endo–Mid,Current visit: Endo–Mid mean gap DCT08,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0009924500828027106,0.06666666666666667,-0.01488675124204066,1.0,1.0,1.0,61.0
+clinical_plus_transmural_sparse,d_tm_mean_gap_dct08,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT08,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_sd_gap_dct01,Endo–Mid,Current visit: Endo–Mid sd gap DCT01,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_sd_gap_dct01,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT01,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_sd_gap_dct02,Endo–Mid,Current visit: Endo–Mid sd gap DCT02,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_sd_gap_dct02,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT02,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_sd_gap_dct03,Endo–Mid,Current visit: Endo–Mid sd gap DCT03,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_sd_gap_dct03,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT03,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_sd_gap_dct04,Endo–Mid,Current visit: Endo–Mid sd gap DCT04,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_sd_gap_dct04,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT04,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.5868204192886316,1.0,0.635424245809759,1.0,1.0,1.0,1.0
+clinical_plus_transmural_sparse,cur_tm_sd_gap_dct05,Endo–Mid,Current visit: Endo–Mid sd gap DCT05,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_sd_gap_dct05,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT05,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_sd_gap_dct06,Endo–Mid,Current visit: Endo–Mid sd gap DCT06,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.20681831479356644,0.8,-0.24746828488184835,1.0,1.0,1.0,7.0
+clinical_plus_transmural_sparse,d_tm_sd_gap_dct06,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT06,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.09776645922450315,0.4,-0.2678906168595078,1.0,1.0,1.0,14.0
+clinical_plus_transmural_sparse,cur_tm_sd_gap_dct07,Endo–Mid,Current visit: Endo–Mid sd gap DCT07,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0011212784392950548,0.06666666666666667,0.016819176589425822,1.0,1.0,1.0,60.0
+clinical_plus_transmural_sparse,d_tm_sd_gap_dct07,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT07,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_sd_gap_dct08,Endo–Mid,Current visit: Endo–Mid sd gap DCT08,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_sd_gap_dct08,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT08,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_mean_shape_gap_dct01,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT01,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.020483015895529113,0.13333333333333333,0.15362261921646836,1.0,1.0,1.0,35.0
+clinical_plus_transmural_sparse,d_tm_mean_shape_gap_dct01,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT01,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.013543003560954723,0.06666666666666667,-0.20314505341432085,1.0,1.0,1.0,39.0
+clinical_plus_transmural_sparse,cur_tm_mean_shape_gap_dct02,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT02,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_mean_shape_gap_dct02,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT02,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.007085885945436174,0.06666666666666667,-0.10628828918154261,1.0,1.0,1.0,46.0
+clinical_plus_transmural_sparse,cur_tm_mean_shape_gap_dct03,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT03,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_mean_shape_gap_dct03,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT03,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0008067324712645801,0.06666666666666667,0.012100987068968701,1.0,1.0,1.0,63.0
+clinical_plus_transmural_sparse,cur_tm_mean_shape_gap_dct04,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT04,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.3944260573297616,0.9333333333333333,-0.41002982231432317,1.0,1.0,1.0,4.0
+clinical_plus_transmural_sparse,d_tm_mean_shape_gap_dct04,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT04,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_mean_shape_gap_dct05,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT05,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.063121690791498,0.4,-0.11759334405294508,1.0,1.0,1.0,20.0
+clinical_plus_transmural_sparse,d_tm_mean_shape_gap_dct05,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT05,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0727401636616384,0.5333333333333333,0.11663937291704594,1.0,1.0,1.0,16.0
+clinical_plus_transmural_sparse,cur_tm_mean_shape_gap_dct06,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT06,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_mean_shape_gap_dct06,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT06,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_mean_shape_gap_dct07,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT07,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00905352575047179,0.13333333333333333,-0.06790144312853842,1.0,1.0,1.0,44.0
+clinical_plus_transmural_sparse,d_tm_mean_shape_gap_dct07,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT07,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_mean_shape_gap_dct08,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT08,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_mean_shape_gap_dct08,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT08,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,cur_tm_consensus_curve_correlation,Endo–Mid,Current visit: Endo–Mid consensus curve correlation,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.07643478629012693,0.6,0.12686015605907555,1.0,1.0,1.0,15.0
+clinical_plus_transmural_sparse,d_tm_consensus_curve_correlation,Endo–Mid,Change since previous visit: Endo–Mid consensus curve correlation,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.01109158380050858,0.2,0.05402246038479872,1.0,1.0,1.0,40.0
+clinical_plus_transmural_sparse,cur_tm_consensus_phase_lag_fraction,Endo–Mid,Current visit: Endo–Mid consensus phase lag fraction,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_transmural_sparse,d_tm_consensus_phase_lag_fraction,Endo–Mid,Change since previous visit: Endo–Mid consensus phase lag fraction,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,66.0
+clinical_plus_variability_sparse,history_visits,clinical,Number of visits observed so far,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003944954159682351,0.06666666666666667,-0.05917431239523527,1.0,1.0,1.0,34.0
+clinical_plus_variability_sparse,days_since_first,clinical,Days since the baseline visit,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.12046491296714104,0.5333333333333333,-0.18043538494317735,1.0,1.0,1.0,6.0
+clinical_plus_variability_sparse,days_since_previous,clinical,Days since the previous visit,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.10852240864585969,0.3333333333333333,-0.3786008261344412,1.0,1.0,1.0,7.0
+clinical_plus_variability_sparse,has_previous_visit,clinical,Whether a prior visit is available,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.028435940371722708,0.26666666666666666,-0.11387812488628041,1.0,1.0,1.0,19.0
+clinical_plus_variability_sparse,current_mid_gls,clinical,Current Mid-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,current_endo_gls,clinical,Current Endo-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,current_ef,clinical,Current ejection fraction,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,first_mid_gls,clinical,Baseline Mid-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.9102260890513314,0.9333333333333333,0.9497305876017692,1.0,1.0,1.0,1.0
+clinical_plus_variability_sparse,first_endo_gls,clinical,Baseline Endo-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.07725048850796211,0.06666666666666667,1.1587573276194316,1.0,1.0,1.0,9.0
+clinical_plus_variability_sparse,first_ef,clinical,Baseline ejection fraction,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,current_mid_decline_from_first,clinical,Current relative Mid-GLS decline from baseline,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.06790679594212054,0.26666666666666666,0.2398513151462489,1.0,1.0,1.0,11.0
+clinical_plus_variability_sparse,current_endo_decline_from_first,clinical,Current relative Endo-GLS decline from baseline,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.02645192629059088,0.3333333333333333,0.0901333896961404,1.0,1.0,1.0,21.0
+clinical_plus_variability_sparse,current_ef_decline_from_first,clinical,Current relative EF decline from baseline,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0005185800117484647,0.06666666666666667,-0.00777870017622697,1.0,1.0,1.0,41.0
+clinical_plus_variability_sparse,last_mid_relative_change,clinical,Most recent relative Mid-GLS change,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,last_endo_relative_change,clinical,Most recent relative Endo-GLS change,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.03278268300368342,0.13333333333333333,0.24587012252762566,1.0,1.0,1.0,15.0
+clinical_plus_variability_sparse,last_ef_relative_change,clinical,Most recent relative EF change,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,mid_decline_slope_per_100d,clinical,Mid-GLS decline slope per 100 days,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.261766223345062,0.7333333333333333,0.3528729998536475,1.0,1.0,1.0,4.0
+clinical_plus_variability_sparse,endo_decline_slope_per_100d,clinical,Endo-GLS decline slope per 100 days,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.07716264684430826,0.2,0.5348529333269051,1.0,1.0,1.0,10.0
+clinical_plus_variability_sparse,ef_decline_slope_per_100d,clinical,EF decline slope per 100 days,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.047793198228012874,0.5333333333333333,0.09317661217738211,1.0,1.0,1.0,14.0
+clinical_plus_variability_sparse,current_endo_mid_gap,clinical,Current Endo minus Mid GLS gap,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,last_endo_mid_gap_change,clinical,Change in the Endo–Mid GLS gap,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.026701733405757617,0.2,-0.1086175136325654,1.0,1.0,1.0,20.0
+clinical_plus_variability_sparse,current_mid_decline_from_roll2,clinical,Current Mid-GLS decline from prior-2-visit mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.018280679350823448,0.06666666666666667,0.2742101902623517,1.0,1.0,1.0,23.0
+clinical_plus_variability_sparse,current_endo_decline_from_roll2,clinical,Current Endo-GLS decline from prior-2-visit mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.014038318224371212,0.06666666666666667,0.21057477336556818,1.0,1.0,1.0,24.0
+clinical_plus_variability_sparse,current_ef_decline_from_roll2,clinical,Current EF decline from prior-2-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,current_mid_decline_from_roll3,clinical,Current Mid-GLS decline from prior-3-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,current_endo_decline_from_roll3,clinical,Current Endo-GLS decline from prior-3-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,current_ef_decline_from_roll3,clinical,Current EF decline from prior-3-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__endo_peak_abs_robust_sd,variability,"Current visit, Endo: robust dispersion of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__endo_peak_abs_robust_sd,variability,"Change since previous visit, Endo: robust dispersion of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.010267370455837315,0.06666666666666667,-0.15401055683755974,1.0,1.0,1.0,28.0
+clinical_plus_variability_sparse,cur_var__endo_peak_abs_cv,variability,"Current visit, Endo: coefficient of variation of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__endo_peak_abs_cv,variability,"Change since previous visit, Endo: coefficient of variation of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.013113506221728743,0.2,0.06486784592164396,1.0,1.0,1.0,26.0
+clinical_plus_variability_sparse,cur_var__endo_time_to_peak_norm_circular_std,variability,"Current visit, Endo: circular dispersion of time to peak",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__endo_time_to_peak_norm_circular_std,variability,"Change since previous visit, Endo: circular dispersion of time to peak",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__endo_vendor_peak_systolic_abs_robust_sd,variability,"Current visit, Endo: vendor peak-systolic amplitude dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.5635627990244763,0.9333333333333333,-0.5952081577754675,1.0,1.0,1.0,2.0
+clinical_plus_variability_sparse,d_var__endo_vendor_peak_systolic_abs_robust_sd,variability,"Change since previous visit, Endo: vendor peak-systolic amplitude dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__endo_vendor_time_to_peak_norm_circular_std,variability,"Current visit, Endo: vendor time-to-peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__endo_vendor_time_to_peak_norm_circular_std,variability,"Change since previous visit, Endo: vendor time-to-peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__endo_post_systolic_fraction,variability,"Current visit, Endo: fraction of post-systolic segments",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__endo_post_systolic_fraction,variability,"Change since previous visit, Endo: fraction of post-systolic segments",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0019017300140605395,0.06666666666666667,0.028525950210908094,1.0,1.0,1.0,37.0
+clinical_plus_variability_sparse,cur_var__endo_curve_dispersion_rms,variability,"Current visit, Endo: RMS dispersion of segment curves",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__endo_curve_dispersion_rms,variability,"Change since previous visit, Endo: RMS dispersion of segment curves",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0031436045165544988,0.06666666666666667,0.04715406774831748,1.0,1.0,1.0,36.0
+clinical_plus_variability_sparse,cur_var__endo_curve_pairwise_rmse,variability,"Current visit, Endo: pairwise segment-curve RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__endo_curve_pairwise_rmse,variability,"Change since previous visit, Endo: pairwise segment-curve RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__endo_curve_integrated_robust_mad,variability,"Current visit, Endo: integrated robust curve dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.029977231187353952,0.26666666666666666,-0.08582238592090143,1.0,1.0,1.0,18.0
+clinical_plus_variability_sparse,d_var__endo_curve_integrated_robust_mad,variability,"Change since previous visit, Endo: integrated robust curve dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__endo_shape_dispersion_rms,variability,"Current visit, Endo: RMS dispersion of normalized curve shape",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__endo_shape_dispersion_rms,variability,"Change since previous visit, Endo: RMS dispersion of normalized curve shape",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.013492802468642689,0.26666666666666666,0.03738068794789509,1.0,1.0,1.0,25.0
+clinical_plus_variability_sparse,cur_var__endo_shape_pairwise_rmse,variability,"Current visit, Endo: pairwise normalized-shape RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__endo_shape_pairwise_rmse,variability,"Change since previous visit, Endo: pairwise normalized-shape RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__endo_shape_incoherence,variability,"Current visit, Endo: segment shape incoherence",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__endo_shape_incoherence,variability,"Change since previous visit, Endo: segment shape incoherence",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__endo_within_view_peak_robust_sd_mean,variability,"Current visit, Endo: mean within-view peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__endo_within_view_peak_robust_sd_mean,variability,"Change since previous visit, Endo: mean within-view peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__endo_within_ring_peak_robust_sd_mean,variability,"Current visit, Endo: mean within-ring peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.008205283322366108,0.06666666666666667,-0.12307924983549164,1.0,1.0,1.0,30.0
+clinical_plus_variability_sparse,d_var__endo_within_ring_peak_robust_sd_mean,variability,"Change since previous visit, Endo: mean within-ring peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__endo_spatial_peak_graph_roughness,variability,"Current visit, Endo: spatial roughness of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__endo_spatial_peak_graph_roughness,variability,"Change since previous visit, Endo: spatial roughness of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.010908932410599913,0.13333333333333333,0.08181699307949934,1.0,1.0,1.0,27.0
+clinical_plus_variability_sparse,cur_var__endo_spatial_timing_graph_roughness,variability,"Current visit, Endo: spatial roughness of timing",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004095941956605228,0.06666666666666667,-0.06143912934907842,1.0,1.0,1.0,33.0
+clinical_plus_variability_sparse,d_var__endo_spatial_timing_graph_roughness,variability,"Change since previous visit, Endo: spatial roughness of timing",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.08341656599048546,0.4,-0.21820577264214208,1.0,1.0,1.0,8.0
+clinical_plus_variability_sparse,cur_var__endo_impaired_segment_fraction_lt15,variability,"Current visit, Endo: fraction of segments with strain magnitude below 15",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0005450099297409939,0.06666666666666667,-0.008175148946114909,1.0,1.0,1.0,40.0
+clinical_plus_variability_sparse,d_var__endo_impaired_segment_fraction_lt15,variability,"Change since previous visit, Endo: fraction of segments with strain magnitude below 15",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__endo_apical_basal_peak_gradient,variability,"Current visit, Endo: apical-to-basal peak gradient",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__endo_apical_basal_peak_gradient,variability,"Change since previous visit, Endo: apical-to-basal peak gradient",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.007642779901897684,0.06666666666666667,-0.11464169852846526,1.0,1.0,1.0,31.0
+clinical_plus_variability_sparse,cur_var__mid_peak_abs_robust_sd,variability,"Current visit, Mid: robust dispersion of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.5089134526346392,1.0,-0.5072016411133803,1.0,1.0,1.0,3.0
+clinical_plus_variability_sparse,d_var__mid_peak_abs_robust_sd,variability,"Change since previous visit, Mid: robust dispersion of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.008238400671121313,0.06666666666666667,-0.1235760100668197,1.0,1.0,1.0,29.0
+clinical_plus_variability_sparse,cur_var__mid_peak_abs_cv,variability,"Current visit, Mid: coefficient of variation of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__mid_peak_abs_cv,variability,"Change since previous visit, Mid: coefficient of variation of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__mid_time_to_peak_norm_circular_std,variability,"Current visit, Mid: circular dispersion of time to peak",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__mid_time_to_peak_norm_circular_std,variability,"Change since previous visit, Mid: circular dispersion of time to peak",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__mid_vendor_peak_systolic_abs_robust_sd,variability,"Current visit, Mid: vendor peak-systolic amplitude dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__mid_vendor_peak_systolic_abs_robust_sd,variability,"Change since previous visit, Mid: vendor peak-systolic amplitude dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__mid_vendor_time_to_peak_norm_circular_std,variability,"Current visit, Mid: vendor time-to-peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__mid_vendor_time_to_peak_norm_circular_std,variability,"Change since previous visit, Mid: vendor time-to-peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__mid_post_systolic_fraction,variability,"Current visit, Mid: fraction of post-systolic segments",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.03133473017043378,0.26666666666666666,0.08712326086485425,1.0,1.0,1.0,17.0
+clinical_plus_variability_sparse,d_var__mid_post_systolic_fraction,variability,"Change since previous visit, Mid: fraction of post-systolic segments",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.03148967250811794,0.13333333333333333,0.23617254381088457,1.0,1.0,1.0,16.0
+clinical_plus_variability_sparse,cur_var__mid_curve_dispersion_rms,variability,"Current visit, Mid: RMS dispersion of segment curves",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__mid_curve_dispersion_rms,variability,"Change since previous visit, Mid: RMS dispersion of segment curves",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__mid_curve_pairwise_rmse,variability,"Current visit, Mid: pairwise segment-curve RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__mid_curve_pairwise_rmse,variability,"Change since previous visit, Mid: pairwise segment-curve RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__mid_curve_integrated_robust_mad,variability,"Current visit, Mid: integrated robust curve dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003502518847188113,0.06666666666666667,-0.052537782707821695,1.0,1.0,1.0,35.0
+clinical_plus_variability_sparse,d_var__mid_curve_integrated_robust_mad,variability,"Change since previous visit, Mid: integrated robust curve dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__mid_shape_dispersion_rms,variability,"Current visit, Mid: RMS dispersion of normalized curve shape",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.15367388177928815,0.9333333333333333,-0.13295058950577807,1.0,1.0,1.0,5.0
+clinical_plus_variability_sparse,d_var__mid_shape_dispersion_rms,variability,"Change since previous visit, Mid: RMS dispersion of normalized curve shape",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.007338932136648849,0.06666666666666667,0.11008398204973273,1.0,1.0,1.0,32.0
+clinical_plus_variability_sparse,cur_var__mid_shape_pairwise_rmse,variability,"Current visit, Mid: pairwise normalized-shape RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.05786700553519316,0.26666666666666666,-0.19514883206063488,1.0,1.0,1.0,12.0
+clinical_plus_variability_sparse,d_var__mid_shape_pairwise_rmse,variability,"Change since previous visit, Mid: pairwise normalized-shape RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.022349123549660625,0.3333333333333333,0.07078356947995121,1.0,1.0,1.0,22.0
+clinical_plus_variability_sparse,cur_var__mid_shape_incoherence,variability,"Current visit, Mid: segment shape incoherence",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__mid_shape_incoherence,variability,"Change since previous visit, Mid: segment shape incoherence",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__mid_within_view_peak_robust_sd_mean,variability,"Current visit, Mid: mean within-view peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__mid_within_view_peak_robust_sd_mean,variability,"Change since previous visit, Mid: mean within-view peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0009687496119970766,0.06666666666666667,-0.01453124417995615,1.0,1.0,1.0,39.0
+clinical_plus_variability_sparse,cur_var__mid_within_ring_peak_robust_sd_mean,variability,"Current visit, Mid: mean within-ring peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__mid_within_ring_peak_robust_sd_mean,variability,"Change since previous visit, Mid: mean within-ring peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__mid_spatial_peak_graph_roughness,variability,"Current visit, Mid: spatial roughness of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__mid_spatial_peak_graph_roughness,variability,"Change since previous visit, Mid: spatial roughness of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__mid_spatial_timing_graph_roughness,variability,"Current visit, Mid: spatial roughness of timing",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.05771551584538949,0.2,-0.2224529501402283,1.0,1.0,1.0,13.0
+clinical_plus_variability_sparse,d_var__mid_spatial_timing_graph_roughness,variability,"Change since previous visit, Mid: spatial roughness of timing",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,cur_var__mid_impaired_segment_fraction_lt15,variability,"Current visit, Mid: fraction of segments with strain magnitude below 15",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__mid_impaired_segment_fraction_lt15,variability,"Change since previous visit, Mid: fraction of segments with strain magnitude below 15",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0015953403875471664,0.06666666666666667,0.023930105813207498,1.0,1.0,1.0,38.0
+clinical_plus_variability_sparse,cur_var__mid_apical_basal_peak_gradient,variability,"Current visit, Mid: apical-to-basal peak gradient",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_plus_variability_sparse,d_var__mid_apical_basal_peak_gradient,variability,"Change since previous visit, Mid: apical-to-basal peak gradient",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,42.0
+clinical_ridge,history_visits,clinical,Number of visits observed so far,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.12180643845761993,1.0,-0.07879370720168381,0.6,1.0,1.0,19.0
+clinical_ridge,days_since_first,clinical,Days since the baseline visit,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.2093090332275988,1.0,-0.17459728879869013,0.9333333333333333,1.0,1.0,9.0
+clinical_ridge,days_since_previous,clinical,Days since the previous visit,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18141805475396014,1.0,-0.09624627511708309,0.9333333333333333,1.0,1.0,11.0
+clinical_ridge,has_previous_visit,clinical,Whether a prior visit is available,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.16446740112358973,1.0,-0.13934652381177645,1.0,1.0,1.0,13.0
+clinical_ridge,current_mid_gls,clinical,Current Mid-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.2312367836123397,1.0,0.21973708317742494,1.0,1.0,1.0,6.0
+clinical_ridge,current_endo_gls,clinical,Current Endo-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.198898625777573,1.0,0.20587582393094092,1.0,1.0,1.0,10.0
+clinical_ridge,current_ef,clinical,Current ejection fraction,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.3111957091316056,1.0,0.3500985700081021,0.9333333333333333,1.0,1.0,4.0
+clinical_ridge,first_mid_gls,clinical,Baseline Mid-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.43945944099502865,1.0,0.45116395860062897,1.0,1.0,1.0,1.0
+clinical_ridge,first_endo_gls,clinical,Baseline Endo-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.37578134054369805,1.0,0.40447851965898574,1.0,1.0,1.0,3.0
+clinical_ridge,first_ef,clinical,Baseline ejection fraction,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.2240676350851139,1.0,-0.22547590349330385,0.8666666666666667,1.0,1.0,7.0
+clinical_ridge,current_mid_decline_from_first,clinical,Current relative Mid-GLS decline from baseline,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.39985975303896965,1.0,0.39963985660690277,1.0,1.0,1.0,2.0
+clinical_ridge,current_endo_decline_from_first,clinical,Current relative Endo-GLS decline from baseline,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.2962333416709971,1.0,0.3164571193218968,1.0,1.0,1.0,5.0
+clinical_ridge,current_ef_decline_from_first,clinical,Current relative EF decline from baseline,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.07302347453654003,1.0,-0.021659528319058863,0.5333333333333333,1.0,1.0,23.0
+clinical_ridge,last_mid_relative_change,clinical,Most recent relative Mid-GLS change,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.1275908893181568,1.0,0.12713021895599214,1.0,1.0,1.0,18.0
+clinical_ridge,last_endo_relative_change,clinical,Most recent relative Endo-GLS change,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.08449093777874166,1.0,0.07147161531646458,0.9333333333333333,1.0,1.0,22.0
+clinical_ridge,last_ef_relative_change,clinical,Most recent relative EF change,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.16763246889869746,1.0,0.16663860437755254,1.0,1.0,1.0,12.0
+clinical_ridge,mid_decline_slope_per_100d,clinical,Mid-GLS decline slope per 100 days,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.21665829585234633,1.0,0.23416552189697298,1.0,1.0,1.0,8.0
+clinical_ridge,endo_decline_slope_per_100d,clinical,Endo-GLS decline slope per 100 days,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.11139104491285887,1.0,0.040012375812318327,0.6,1.0,1.0,21.0
+clinical_ridge,ef_decline_slope_per_100d,clinical,EF decline slope per 100 days,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.14463386222394758,1.0,0.09354418331493647,0.6666666666666666,1.0,1.0,16.0
+clinical_ridge,current_endo_mid_gap,clinical,Current Endo minus Mid GLS gap,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.13218627107475636,1.0,-0.0754226821875511,0.6,1.0,1.0,17.0
+clinical_ridge,last_endo_mid_gap_change,clinical,Change in the Endo–Mid GLS gap,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.15345741323373202,1.0,-0.09225452823762212,0.8,1.0,1.0,15.0
+clinical_ridge,current_mid_decline_from_roll2,clinical,Current Mid-GLS decline from prior-2-visit mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.15646833500954999,1.0,0.16233984219644235,1.0,1.0,1.0,14.0
+clinical_ridge,current_endo_decline_from_roll2,clinical,Current Endo-GLS decline from prior-2-visit mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.12044691168791243,1.0,0.11796392283769666,0.9333333333333333,1.0,1.0,20.0
+clinical_ridge,current_ef_decline_from_roll2,clinical,Current EF decline from prior-2-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,24.0
+clinical_ridge,current_mid_decline_from_roll3,clinical,Current Mid-GLS decline from prior-3-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,24.0
+clinical_ridge,current_endo_decline_from_roll3,clinical,Current Endo-GLS decline from prior-3-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,24.0
+clinical_ridge,current_ef_decline_from_roll3,clinical,Current EF decline from prior-3-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,1.0,1.0,24.0
+combined_extra_trees,history_visits,clinical,Number of visits observed so far,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002807325568823913,,,,1.0,1.0,128.0
+combined_extra_trees,days_since_first,clinical,Days since the baseline visit,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0030036903267567938,,,,1.0,1.0,118.0
+combined_extra_trees,days_since_previous,clinical,Days since the previous visit,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004059020465161542,,,,1.0,1.0,89.0
+combined_extra_trees,has_previous_visit,clinical,Whether a prior visit is available,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003463941940352321,,,,1.0,1.0,108.0
+combined_extra_trees,current_mid_gls,clinical,Current Mid-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004166705025903856,,,,1.0,1.0,85.0
+combined_extra_trees,current_endo_gls,clinical,Current Endo-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003957349823315216,,,,1.0,1.0,93.0
+combined_extra_trees,current_ef,clinical,Current ejection fraction,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002744267293702308,,,,1.0,1.0,132.0
+combined_extra_trees,first_mid_gls,clinical,Baseline Mid-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.013729906466628342,,,,1.0,1.0,10.0
+combined_extra_trees,first_endo_gls,clinical,Baseline Endo-GLS magnitude,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.01314658018834669,,,,1.0,1.0,13.0
+combined_extra_trees,first_ef,clinical,Baseline ejection fraction,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0035451376933310864,,,,1.0,1.0,104.0
+combined_extra_trees,current_mid_decline_from_first,clinical,Current relative Mid-GLS decline from baseline,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.01166879195347614,,,,1.0,1.0,15.0
+combined_extra_trees,current_endo_decline_from_first,clinical,Current relative Endo-GLS decline from baseline,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.010327504347315995,,,,1.0,1.0,20.0
+combined_extra_trees,current_ef_decline_from_first,clinical,Current relative EF decline from baseline,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0018706787549197608,,,,1.0,1.0,168.0
+combined_extra_trees,last_mid_relative_change,clinical,Most recent relative Mid-GLS change,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003054348927849117,,,,1.0,1.0,117.0
+combined_extra_trees,last_endo_relative_change,clinical,Most recent relative Endo-GLS change,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002574816439814262,,,,1.0,1.0,141.0
+combined_extra_trees,last_ef_relative_change,clinical,Most recent relative EF change,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0017998220985959306,,,,1.0,1.0,170.0
+combined_extra_trees,mid_decline_slope_per_100d,clinical,Mid-GLS decline slope per 100 days,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0013936966630438432,,,,1.0,1.0,185.0
+combined_extra_trees,endo_decline_slope_per_100d,clinical,Endo-GLS decline slope per 100 days,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.001697535585811277,,,,1.0,1.0,176.0
+combined_extra_trees,ef_decline_slope_per_100d,clinical,EF decline slope per 100 days,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.001126467224813224,,,,1.0,1.0,201.0
+combined_extra_trees,current_endo_mid_gap,clinical,Current Endo minus Mid GLS gap,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004344574084686991,,,,1.0,1.0,80.0
+combined_extra_trees,last_endo_mid_gap_change,clinical,Change in the Endo–Mid GLS gap,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0026222810824594956,,,,1.0,1.0,137.0
+combined_extra_trees,current_mid_decline_from_roll2,clinical,Current Mid-GLS decline from prior-2-visit mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002758441504784854,,,,1.0,1.0,131.0
+combined_extra_trees,current_endo_decline_from_roll2,clinical,Current Endo-GLS decline from prior-2-visit mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002649489629363165,,,,1.0,1.0,135.0
+combined_extra_trees,current_ef_decline_from_roll2,clinical,Current EF decline from prior-2-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,1.0,1.0,259.0
+combined_extra_trees,current_mid_decline_from_roll3,clinical,Current Mid-GLS decline from prior-3-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,1.0,1.0,259.0
+combined_extra_trees,current_endo_decline_from_roll3,clinical,Current Endo-GLS decline from prior-3-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,1.0,1.0,259.0
+combined_extra_trees,current_ef_decline_from_roll3,clinical,Current EF decline from prior-3-visit mean,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,1.0,1.0,259.0
+combined_extra_trees,cur_tm_paired_segments,Endo–Mid,Current visit: Endo–Mid paired segments,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,1.0,1.0,259.0
+combined_extra_trees,d_tm_paired_segments,Endo–Mid,Change since previous visit: Endo–Mid paired segments,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,1.0,1.0,259.0
+combined_extra_trees,cur_tm_peak_layer_correlation,Endo–Mid,Current visit: Endo–Mid peak layer correlation,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0028741512387684674,,,,1.0,1.0,122.0
+combined_extra_trees,d_tm_peak_layer_correlation,Endo–Mid,Change since previous visit: Endo–Mid peak layer correlation,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0004905019472181536,,,,1.0,1.0,250.0
+combined_extra_trees,cur_tm_ttp_layer_correlation,Endo–Mid,Current visit: Endo–Mid time-to-peak layer correlation,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002761172793266687,,,,1.0,1.0,129.0
+combined_extra_trees,d_tm_ttp_layer_correlation,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak layer correlation,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0017804054713804905,,,,1.0,1.0,171.0
+combined_extra_trees,cur_tm_fraction_endo_peak_gt_mid,Endo–Mid,Current visit: Endo–Mid fraction endo peak gt mid,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00014167485478604587,,,,1.0,1.0,255.0
+combined_extra_trees,d_tm_fraction_endo_peak_gt_mid,Endo–Mid,Change since previous visit: Endo–Mid fraction endo peak gt mid,1.0,0.0,0.0,0.0,0.0,0.0,0.0,9.30910892694333e-06,,,,1.0,1.0,257.0
+combined_extra_trees,cur_tm_fraction_ttp_discordant_gt_5pct_cycle,Endo–Mid,Current visit: Endo–Mid fraction time-to-peak discordant gt 5pct cycle,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005213960191911708,,,,1.0,1.0,54.0
+combined_extra_trees,d_tm_fraction_ttp_discordant_gt_5pct_cycle,Endo–Mid,Change since previous visit: Endo–Mid fraction time-to-peak discordant gt 5pct cycle,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0013965124986990466,,,,1.0,1.0,184.0
+combined_extra_trees,cur_tm_peak_gap_mean,Endo–Mid,Current visit: Endo–Mid peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0045076091106400155,,,,1.0,1.0,74.0
+combined_extra_trees,d_tm_peak_gap_mean,Endo–Mid,Change since previous visit: Endo–Mid peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00926628907919022,,,,1.0,1.0,22.0
+combined_extra_trees,cur_tm_peak_gap_std,Endo–Mid,Current visit: Endo–Mid peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.001992739565462608,,,,1.0,1.0,162.0
+combined_extra_trees,d_tm_peak_gap_std,Endo–Mid,Change since previous visit: Endo–Mid peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0007033894128297638,,,,1.0,1.0,230.0
+combined_extra_trees,cur_tm_peak_gap_robust_sd,Endo–Mid,Current visit: Endo–Mid peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0027609489617840127,,,,1.0,1.0,130.0
+combined_extra_trees,d_tm_peak_gap_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0013191092720243886,,,,1.0,1.0,189.0
+combined_extra_trees,cur_tm_peak_gap_iqr,Endo–Mid,Current visit: Endo–Mid peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0021885933722972134,,,,1.0,1.0,155.0
+combined_extra_trees,d_tm_peak_gap_iqr,Endo–Mid,Change since previous visit: Endo–Mid peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0005967287085129582,,,,1.0,1.0,241.0
+combined_extra_trees,cur_tm_peak_gap_p90_p10,Endo–Mid,Current visit: Endo–Mid peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0034649609896199346,,,,1.0,1.0,107.0
+combined_extra_trees,d_tm_peak_gap_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0007927584182786288,,,,1.0,1.0,224.0
+combined_extra_trees,cur_tm_peak_gap_median,Endo–Mid,Current visit: Endo–Mid peak gap median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004968532429504025,,,,1.0,1.0,61.0
+combined_extra_trees,d_tm_peak_gap_median,Endo–Mid,Change since previous visit: Endo–Mid peak gap median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002075649075066928,,,,1.0,1.0,159.0
+combined_extra_trees,cur_tm_peak_ratio_mean,Endo–Mid,Current visit: Endo–Mid peak ratio mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004642471082219305,,,,1.0,1.0,68.0
+combined_extra_trees,d_tm_peak_ratio_mean,Endo–Mid,Change since previous visit: Endo–Mid peak ratio mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0045845679939510685,,,,1.0,1.0,70.0
+combined_extra_trees,cur_tm_peak_ratio_std,Endo–Mid,Current visit: Endo–Mid peak ratio std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.013962375449666421,,,,1.0,1.0,9.0
+combined_extra_trees,d_tm_peak_ratio_std,Endo–Mid,Change since previous visit: Endo–Mid peak ratio std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0015691275491998757,,,,1.0,1.0,180.0
+combined_extra_trees,cur_tm_peak_ratio_robust_sd,Endo–Mid,Current visit: Endo–Mid peak ratio robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004362489287964213,,,,1.0,1.0,79.0
+combined_extra_trees,d_tm_peak_ratio_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid peak ratio robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0011135654486959167,,,,1.0,1.0,202.0
+combined_extra_trees,cur_tm_peak_ratio_iqr,Endo–Mid,Current visit: Endo–Mid peak ratio IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004195269917283295,,,,1.0,1.0,84.0
+combined_extra_trees,d_tm_peak_ratio_iqr,Endo–Mid,Change since previous visit: Endo–Mid peak ratio IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0008982769683899774,,,,1.0,1.0,213.0
+combined_extra_trees,cur_tm_peak_ratio_p90_p10,Endo–Mid,Current visit: Endo–Mid peak ratio P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.007726948575461071,,,,1.0,1.0,27.0
+combined_extra_trees,d_tm_peak_ratio_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid peak ratio P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002284154655771525,,,,1.0,1.0,151.0
+combined_extra_trees,cur_tm_peak_ratio_median,Endo–Mid,Current visit: Endo–Mid peak ratio median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003835657086192702,,,,1.0,1.0,98.0
+combined_extra_trees,d_tm_peak_ratio_median,Endo–Mid,Change since previous visit: Endo–Mid peak ratio median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0011636976752514808,,,,1.0,1.0,196.0
+combined_extra_trees,cur_tm_ttp_gap_mean,Endo–Mid,Current visit: Endo–Mid time-to-peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005135560939840588,,,,1.0,1.0,57.0
+combined_extra_trees,d_tm_ttp_gap_mean,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0015720900655995893,,,,1.0,1.0,179.0
+combined_extra_trees,cur_tm_ttp_gap_std,Endo–Mid,Current visit: Endo–Mid time-to-peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0034161288896978354,,,,1.0,1.0,110.0
+combined_extra_trees,d_tm_ttp_gap_std,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005528771732681988,,,,1.0,1.0,49.0
+combined_extra_trees,cur_tm_ttp_gap_robust_sd,Endo–Mid,Current visit: Endo–Mid time-to-peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,2.5377894146957863e-06,,,,1.0,1.0,258.0
+combined_extra_trees,d_tm_ttp_gap_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,1.0,1.0,259.0
+combined_extra_trees,cur_tm_ttp_gap_iqr,Endo–Mid,Current visit: Endo–Mid time-to-peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0033360142958266063,,,,1.0,1.0,113.0
+combined_extra_trees,d_tm_ttp_gap_iqr,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,9.33855666440168e-05,,,,1.0,1.0,256.0
+combined_extra_trees,cur_tm_ttp_gap_p90_p10,Endo–Mid,Current visit: Endo–Mid time-to-peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0024848767564753104,,,,1.0,1.0,146.0
+combined_extra_trees,d_tm_ttp_gap_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0005988599148090375,,,,1.0,1.0,240.0
+combined_extra_trees,cur_tm_ttp_gap_median,Endo–Mid,Current visit: Endo–Mid time-to-peak gap median,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,1.0,1.0,259.0
+combined_extra_trees,d_tm_ttp_gap_median,Endo–Mid,Change since previous visit: Endo–Mid time-to-peak gap median,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,1.0,1.0,259.0
+combined_extra_trees,cur_tm_vendor_peak_gap_mean,Endo–Mid,Current visit: Endo–Mid vendor peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005018507282969502,,,,1.0,1.0,60.0
+combined_extra_trees,d_tm_vendor_peak_gap_mean,Endo–Mid,Change since previous visit: Endo–Mid vendor peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.010618548908191087,,,,1.0,1.0,19.0
+combined_extra_trees,cur_tm_vendor_peak_gap_std,Endo–Mid,Current visit: Endo–Mid vendor peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0021228079193528326,,,,1.0,1.0,157.0
+combined_extra_trees,d_tm_vendor_peak_gap_std,Endo–Mid,Change since previous visit: Endo–Mid vendor peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0007700658482046281,,,,1.0,1.0,227.0
+combined_extra_trees,cur_tm_vendor_peak_gap_robust_sd,Endo–Mid,Current visit: Endo–Mid vendor peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0028245966947135167,,,,1.0,1.0,125.0
+combined_extra_trees,d_tm_vendor_peak_gap_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid vendor peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0011420046935811284,,,,1.0,1.0,199.0
+combined_extra_trees,cur_tm_vendor_peak_gap_iqr,Endo–Mid,Current visit: Endo–Mid vendor peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002439278830162913,,,,1.0,1.0,147.0
+combined_extra_trees,d_tm_vendor_peak_gap_iqr,Endo–Mid,Change since previous visit: Endo–Mid vendor peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0008494885724281569,,,,1.0,1.0,217.0
+combined_extra_trees,cur_tm_vendor_peak_gap_p90_p10,Endo–Mid,Current visit: Endo–Mid vendor peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002058133368096992,,,,1.0,1.0,160.0
+combined_extra_trees,d_tm_vendor_peak_gap_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid vendor peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0006250078760280281,,,,1.0,1.0,239.0
+combined_extra_trees,cur_tm_vendor_peak_gap_median,Endo–Mid,Current visit: Endo–Mid vendor peak gap median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004406686480712504,,,,1.0,1.0,76.0
+combined_extra_trees,d_tm_vendor_peak_gap_median,Endo–Mid,Change since previous visit: Endo–Mid vendor peak gap median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0014693112929953184,,,,1.0,1.0,181.0
+combined_extra_trees,cur_tm_vendor_ttp_gap_mean,Endo–Mid,Current visit: Endo–Mid vendor time-to-peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004517431905911308,,,,1.0,1.0,71.0
+combined_extra_trees,d_tm_vendor_ttp_gap_mean,Endo–Mid,Change since previous visit: Endo–Mid vendor time-to-peak gap mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0043843694855749855,,,,1.0,1.0,78.0
+combined_extra_trees,cur_tm_vendor_ttp_gap_std,Endo–Mid,Current visit: Endo–Mid vendor time-to-peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004932852309429265,,,,1.0,1.0,62.0
+combined_extra_trees,d_tm_vendor_ttp_gap_std,Endo–Mid,Change since previous visit: Endo–Mid vendor time-to-peak gap std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004512908237732962,,,,1.0,1.0,72.0
+combined_extra_trees,cur_tm_vendor_ttp_gap_robust_sd,Endo–Mid,Current visit: Endo–Mid vendor time-to-peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003933551800913096,,,,1.0,1.0,95.0
+combined_extra_trees,d_tm_vendor_ttp_gap_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid vendor time-to-peak gap robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0017065435159134715,,,,1.0,1.0,175.0
+combined_extra_trees,cur_tm_vendor_ttp_gap_iqr,Endo–Mid,Current visit: Endo–Mid vendor time-to-peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002377989916773861,,,,1.0,1.0,149.0
+combined_extra_trees,d_tm_vendor_ttp_gap_iqr,Endo–Mid,Change since previous visit: Endo–Mid vendor time-to-peak gap IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0011927352220563083,,,,1.0,1.0,194.0
+combined_extra_trees,cur_tm_vendor_ttp_gap_p90_p10,Endo–Mid,Current visit: Endo–Mid vendor time-to-peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002262989469452344,,,,1.0,1.0,153.0
+combined_extra_trees,d_tm_vendor_ttp_gap_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid vendor time-to-peak gap P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005113999585070665,,,,1.0,1.0,58.0
+combined_extra_trees,cur_tm_vendor_ttp_gap_median,Endo–Mid,Current visit: Endo–Mid vendor time-to-peak gap median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004134639159550802,,,,1.0,1.0,86.0
+combined_extra_trees,d_tm_vendor_ttp_gap_median,Endo–Mid,Change since previous visit: Endo–Mid vendor time-to-peak gap median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0007192297649927252,,,,1.0,1.0,229.0
+combined_extra_trees,cur_tm_curve_rms_mean,Endo–Mid,Current visit: Endo–Mid curve RMS mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005717891254650739,,,,1.0,1.0,47.0
+combined_extra_trees,d_tm_curve_rms_mean,Endo–Mid,Change since previous visit: Endo–Mid curve RMS mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004788064986409653,,,,1.0,1.0,64.0
+combined_extra_trees,cur_tm_curve_rms_std,Endo–Mid,Current visit: Endo–Mid curve RMS std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002047577714511779,,,,1.0,1.0,161.0
+combined_extra_trees,d_tm_curve_rms_std,Endo–Mid,Change since previous visit: Endo–Mid curve RMS std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.000794067741882526,,,,1.0,1.0,223.0
+combined_extra_trees,cur_tm_curve_rms_robust_sd,Endo–Mid,Current visit: Endo–Mid curve RMS robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003615880297778976,,,,1.0,1.0,102.0
+combined_extra_trees,d_tm_curve_rms_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid curve RMS robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.000886568896529927,,,,1.0,1.0,215.0
+combined_extra_trees,cur_tm_curve_rms_iqr,Endo–Mid,Current visit: Endo–Mid curve RMS IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0019739573245597573,,,,1.0,1.0,163.0
+combined_extra_trees,d_tm_curve_rms_iqr,Endo–Mid,Change since previous visit: Endo–Mid curve RMS IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0005605499238309924,,,,1.0,1.0,247.0
+combined_extra_trees,cur_tm_curve_rms_p90_p10,Endo–Mid,Current visit: Endo–Mid curve RMS P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0026617203058995217,,,,1.0,1.0,134.0
+combined_extra_trees,d_tm_curve_rms_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid curve RMS P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.000483990742531877,,,,1.0,1.0,251.0
+combined_extra_trees,cur_tm_curve_rms_median,Endo–Mid,Current visit: Endo–Mid curve RMS median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.006597257449808864,,,,1.0,1.0,39.0
+combined_extra_trees,d_tm_curve_rms_median,Endo–Mid,Change since previous visit: Endo–Mid curve RMS median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0016382298489676834,,,,1.0,1.0,178.0
+combined_extra_trees,cur_tm_curve_abs_area_mean,Endo–Mid,Current visit: Endo–Mid curve abs area mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.006513215540767263,,,,1.0,1.0,41.0
+combined_extra_trees,d_tm_curve_abs_area_mean,Endo–Mid,Change since previous visit: Endo–Mid curve abs area mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0026381259443935498,,,,1.0,1.0,136.0
+combined_extra_trees,cur_tm_curve_abs_area_std,Endo–Mid,Current visit: Endo–Mid curve abs area std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002852849580578246,,,,1.0,1.0,124.0
+combined_extra_trees,d_tm_curve_abs_area_std,Endo–Mid,Change since previous visit: Endo–Mid curve abs area std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0005753236356654811,,,,1.0,1.0,246.0
+combined_extra_trees,cur_tm_curve_abs_area_robust_sd,Endo–Mid,Current visit: Endo–Mid curve abs area robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003418393415155247,,,,1.0,1.0,109.0
+combined_extra_trees,d_tm_curve_abs_area_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid curve abs area robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0007729295153838927,,,,1.0,1.0,226.0
+combined_extra_trees,cur_tm_curve_abs_area_iqr,Endo–Mid,Current visit: Endo–Mid curve abs area IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002521169414773353,,,,1.0,1.0,144.0
+combined_extra_trees,d_tm_curve_abs_area_iqr,Endo–Mid,Change since previous visit: Endo–Mid curve abs area IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0006506533250766553,,,,1.0,1.0,236.0
+combined_extra_trees,cur_tm_curve_abs_area_p90_p10,Endo–Mid,Current visit: Endo–Mid curve abs area P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0025886947387283913,,,,1.0,1.0,138.0
+combined_extra_trees,d_tm_curve_abs_area_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid curve abs area P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0006406455261846754,,,,1.0,1.0,238.0
+combined_extra_trees,cur_tm_curve_abs_area_median,Endo–Mid,Current visit: Endo–Mid curve abs area median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.006665405480922386,,,,1.0,1.0,38.0
+combined_extra_trees,d_tm_curve_abs_area_median,Endo–Mid,Change since previous visit: Endo–Mid curve abs area median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0012864273960340865,,,,1.0,1.0,190.0
+combined_extra_trees,cur_tm_shape_rms_mean,Endo–Mid,Current visit: Endo–Mid shape RMS mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.018192799134245794,,,,1.0,1.0,3.0
+combined_extra_trees,d_tm_shape_rms_mean,Endo–Mid,Change since previous visit: Endo–Mid shape RMS mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.001668864046103009,,,,1.0,1.0,177.0
+combined_extra_trees,cur_tm_shape_rms_std,Endo–Mid,Current visit: Endo–Mid shape RMS std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.008537819306935222,,,,1.0,1.0,25.0
+combined_extra_trees,d_tm_shape_rms_std,Endo–Mid,Change since previous visit: Endo–Mid shape RMS std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0028175245226193996,,,,1.0,1.0,126.0
+combined_extra_trees,cur_tm_shape_rms_robust_sd,Endo–Mid,Current visit: Endo–Mid shape RMS robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00356066227397096,,,,1.0,1.0,103.0
+combined_extra_trees,d_tm_shape_rms_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid shape RMS robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003725378508363026,,,,1.0,1.0,101.0
+combined_extra_trees,cur_tm_shape_rms_iqr,Endo–Mid,Current visit: Endo–Mid shape RMS IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.010700137450797679,,,,1.0,1.0,18.0
+combined_extra_trees,d_tm_shape_rms_iqr,Endo–Mid,Change since previous visit: Endo–Mid shape RMS IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.001355395906924328,,,,1.0,1.0,187.0
+combined_extra_trees,cur_tm_shape_rms_p90_p10,Endo–Mid,Current visit: Endo–Mid shape RMS P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.011665952106722655,,,,1.0,1.0,16.0
+combined_extra_trees,d_tm_shape_rms_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid shape RMS P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0011562199618932623,,,,1.0,1.0,197.0
+combined_extra_trees,cur_tm_shape_rms_median,Endo–Mid,Current visit: Endo–Mid shape RMS median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003959502647617303,,,,1.0,1.0,92.0
+combined_extra_trees,d_tm_shape_rms_median,Endo–Mid,Change since previous visit: Endo–Mid shape RMS median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0021652674250663964,,,,1.0,1.0,156.0
+combined_extra_trees,cur_tm_segment_curve_correlation_mean,Endo–Mid,Current visit: Endo–Mid segment curve correlation mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.006172761839489205,,,,1.0,1.0,43.0
+combined_extra_trees,d_tm_segment_curve_correlation_mean,Endo–Mid,Change since previous visit: Endo–Mid segment curve correlation mean,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00048065734883986547,,,,1.0,1.0,252.0
+combined_extra_trees,cur_tm_segment_curve_correlation_std,Endo–Mid,Current visit: Endo–Mid segment curve correlation std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004314411504562852,,,,1.0,1.0,82.0
+combined_extra_trees,d_tm_segment_curve_correlation_std,Endo–Mid,Change since previous visit: Endo–Mid segment curve correlation std,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0005956885868110569,,,,1.0,1.0,242.0
+combined_extra_trees,cur_tm_segment_curve_correlation_robust_sd,Endo–Mid,Current visit: Endo–Mid segment curve correlation robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003505506595019526,,,,1.0,1.0,106.0
+combined_extra_trees,d_tm_segment_curve_correlation_robust_sd,Endo–Mid,Change since previous visit: Endo–Mid segment curve correlation robust sd,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0010620068045280977,,,,1.0,1.0,206.0
+combined_extra_trees,cur_tm_segment_curve_correlation_iqr,Endo–Mid,Current visit: Endo–Mid segment curve correlation IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00519132922199829,,,,1.0,1.0,55.0
+combined_extra_trees,d_tm_segment_curve_correlation_iqr,Endo–Mid,Change since previous visit: Endo–Mid segment curve correlation IQR,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0022663941172555583,,,,1.0,1.0,152.0
+combined_extra_trees,cur_tm_segment_curve_correlation_p90_p10,Endo–Mid,Current visit: Endo–Mid segment curve correlation P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004126363568090983,,,,1.0,1.0,87.0
+combined_extra_trees,d_tm_segment_curve_correlation_p90_p10,Endo–Mid,Change since previous visit: Endo–Mid segment curve correlation P90–P10,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0004989301525905777,,,,1.0,1.0,249.0
+combined_extra_trees,cur_tm_segment_curve_correlation_median,Endo–Mid,Current visit: Endo–Mid segment curve correlation median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002381716863890267,,,,1.0,1.0,148.0
+combined_extra_trees,d_tm_segment_curve_correlation_median,Endo–Mid,Change since previous visit: Endo–Mid segment curve correlation median,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0009720233829585902,,,,1.0,1.0,210.0
+combined_extra_trees,cur_tm_mean_gap_dct01,Endo–Mid,Current visit: Endo–Mid mean gap DCT01,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.007177283966792859,,,,1.0,1.0,33.0
+combined_extra_trees,d_tm_mean_gap_dct01,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT01,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0019180911260530198,,,,1.0,1.0,166.0
+combined_extra_trees,cur_tm_mean_gap_dct02,Endo–Mid,Current visit: Endo–Mid mean gap DCT02,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.01897973176166742,,,,1.0,1.0,2.0
+combined_extra_trees,d_tm_mean_gap_dct02,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT02,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.001730274536992718,,,,1.0,1.0,172.0
+combined_extra_trees,cur_tm_mean_gap_dct03,Endo–Mid,Current visit: Endo–Mid mean gap DCT03,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005234551701854771,,,,1.0,1.0,53.0
+combined_extra_trees,d_tm_mean_gap_dct03,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT03,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.007180143928166972,,,,1.0,1.0,32.0
+combined_extra_trees,cur_tm_mean_gap_dct04,Endo–Mid,Current visit: Endo–Mid mean gap DCT04,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.006371168898924788,,,,1.0,1.0,42.0
+combined_extra_trees,d_tm_mean_gap_dct04,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT04,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0019724434066666235,,,,1.0,1.0,164.0
+combined_extra_trees,cur_tm_mean_gap_dct05,Endo–Mid,Current visit: Endo–Mid mean gap DCT05,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0027145496845241094,,,,1.0,1.0,133.0
+combined_extra_trees,d_tm_mean_gap_dct05,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT05,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002243176247156356,,,,1.0,1.0,154.0
+combined_extra_trees,cur_tm_mean_gap_dct06,Endo–Mid,Current visit: Endo–Mid mean gap DCT06,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.007173102636644541,,,,1.0,1.0,34.0
+combined_extra_trees,d_tm_mean_gap_dct06,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT06,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.001726144868205856,,,,1.0,1.0,173.0
+combined_extra_trees,cur_tm_mean_gap_dct07,Endo–Mid,Current visit: Endo–Mid mean gap DCT07,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.006530900402787034,,,,1.0,1.0,40.0
+combined_extra_trees,d_tm_mean_gap_dct07,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT07,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0010090183975778597,,,,1.0,1.0,209.0
+combined_extra_trees,cur_tm_mean_gap_dct08,Endo–Mid,Current visit: Endo–Mid mean gap DCT08,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0038853766792908907,,,,1.0,1.0,96.0
+combined_extra_trees,d_tm_mean_gap_dct08,Endo–Mid,Change since previous visit: Endo–Mid mean gap DCT08,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0014270801371910867,,,,1.0,1.0,182.0
+combined_extra_trees,cur_tm_sd_gap_dct01,Endo–Mid,Current visit: Endo–Mid sd gap DCT01,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0025545309125932234,,,,1.0,1.0,142.0
+combined_extra_trees,d_tm_sd_gap_dct01,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT01,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0006888611423452961,,,,1.0,1.0,231.0
+combined_extra_trees,cur_tm_sd_gap_dct02,Endo–Mid,Current visit: Endo–Mid sd gap DCT02,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0029029141715403188,,,,1.0,1.0,121.0
+combined_extra_trees,d_tm_sd_gap_dct02,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT02,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004395393714315777,,,,1.0,1.0,77.0
+combined_extra_trees,cur_tm_sd_gap_dct03,Endo–Mid,Current visit: Endo–Mid sd gap DCT03,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0025799314142593266,,,,1.0,1.0,140.0
+combined_extra_trees,d_tm_sd_gap_dct03,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT03,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0005768044630697398,,,,1.0,1.0,245.0
+combined_extra_trees,cur_tm_sd_gap_dct04,Endo–Mid,Current visit: Endo–Mid sd gap DCT04,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004315678433510135,,,,1.0,1.0,81.0
+combined_extra_trees,d_tm_sd_gap_dct04,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT04,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.01782154986741626,,,,1.0,1.0,4.0
+combined_extra_trees,cur_tm_sd_gap_dct05,Endo–Mid,Current visit: Endo–Mid sd gap DCT05,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0032448633014309875,,,,1.0,1.0,115.0
+combined_extra_trees,d_tm_sd_gap_dct05,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT05,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0006693744094524052,,,,1.0,1.0,234.0
+combined_extra_trees,cur_tm_sd_gap_dct06,Endo–Mid,Current visit: Endo–Mid sd gap DCT06,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.007332974662914797,,,,1.0,1.0,31.0
+combined_extra_trees,d_tm_sd_gap_dct06,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT06,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004629836024259957,,,,1.0,1.0,69.0
+combined_extra_trees,cur_tm_sd_gap_dct07,Endo–Mid,Current visit: Endo–Mid sd gap DCT07,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0033356636508406405,,,,1.0,1.0,114.0
+combined_extra_trees,d_tm_sd_gap_dct07,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT07,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0011903709583021163,,,,1.0,1.0,195.0
+combined_extra_trees,cur_tm_sd_gap_dct08,Endo–Mid,Current visit: Endo–Mid sd gap DCT08,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0031269380539122133,,,,1.0,1.0,116.0
+combined_extra_trees,d_tm_sd_gap_dct08,Endo–Mid,Change since previous visit: Endo–Mid sd gap DCT08,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0009662592976242654,,,,1.0,1.0,211.0
+combined_extra_trees,cur_tm_mean_shape_gap_dct01,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT01,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.028989603848757994,,,,1.0,1.0,1.0
+combined_extra_trees,d_tm_mean_shape_gap_dct01,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT01,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0014156104816543298,,,,1.0,1.0,183.0
+combined_extra_trees,cur_tm_mean_shape_gap_dct02,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT02,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00549228219185865,,,,1.0,1.0,50.0
+combined_extra_trees,d_tm_mean_shape_gap_dct02,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT02,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0008292622895545821,,,,1.0,1.0,219.0
+combined_extra_trees,cur_tm_mean_shape_gap_dct03,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT03,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.009773407800682568,,,,1.0,1.0,21.0
+combined_extra_trees,d_tm_mean_shape_gap_dct03,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT03,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0011287806653632734,,,,1.0,1.0,200.0
+combined_extra_trees,cur_tm_mean_shape_gap_dct04,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT04,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.01627623173134282,,,,1.0,1.0,6.0
+combined_extra_trees,d_tm_mean_shape_gap_dct04,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT04,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.001277497059612223,,,,1.0,1.0,191.0
+combined_extra_trees,cur_tm_mean_shape_gap_dct05,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT05,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004651620873792153,,,,1.0,1.0,67.0
+combined_extra_trees,d_tm_mean_shape_gap_dct05,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT05,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0019098892571862457,,,,1.0,1.0,167.0
+combined_extra_trees,cur_tm_mean_shape_gap_dct06,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT06,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0025873561317833332,,,,1.0,1.0,139.0
+combined_extra_trees,d_tm_mean_shape_gap_dct06,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT06,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.000664926591750234,,,,1.0,1.0,235.0
+combined_extra_trees,cur_tm_mean_shape_gap_dct07,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT07,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.01645203254863856,,,,1.0,1.0,5.0
+combined_extra_trees,d_tm_mean_shape_gap_dct07,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT07,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0025422454552430944,,,,1.0,1.0,143.0
+combined_extra_trees,cur_tm_mean_shape_gap_dct08,Endo–Mid,Current visit: Endo–Mid mean shape gap DCT08,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0035125218044212174,,,,1.0,1.0,105.0
+combined_extra_trees,d_tm_mean_shape_gap_dct08,Endo–Mid,Change since previous visit: Endo–Mid mean shape gap DCT08,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002853456123965158,,,,1.0,1.0,123.0
+combined_extra_trees,cur_tm_consensus_curve_correlation,Endo–Mid,Current visit: Endo–Mid consensus curve correlation,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004232552082033324,,,,1.0,1.0,83.0
+combined_extra_trees,d_tm_consensus_curve_correlation,Endo–Mid,Change since previous visit: Endo–Mid consensus curve correlation,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.001015827513045777,,,,1.0,1.0,207.0
+combined_extra_trees,cur_tm_consensus_phase_lag_fraction,Endo–Mid,Current visit: Endo–Mid consensus phase lag fraction,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,1.0,1.0,259.0
+combined_extra_trees,d_tm_consensus_phase_lag_fraction,Endo–Mid,Change since previous visit: Endo–Mid consensus phase lag fraction,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,1.0,1.0,259.0
+combined_extra_trees,cur_var__endo_peak_abs_robust_sd,variability,"Current visit, Endo: robust dispersion of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.013237419860644245,,,,1.0,1.0,12.0
+combined_extra_trees,d_var__endo_peak_abs_robust_sd,variability,"Change since previous visit, Endo: robust dispersion of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0008919721416975492,,,,1.0,1.0,214.0
+combined_extra_trees,cur_var__endo_peak_abs_cv,variability,"Current visit, Endo: coefficient of variation of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.011276698052112562,,,,1.0,1.0,17.0
+combined_extra_trees,d_var__endo_peak_abs_cv,variability,"Change since previous visit, Endo: coefficient of variation of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0006853994445589583,,,,1.0,1.0,233.0
+combined_extra_trees,cur_var__endo_time_to_peak_norm_circular_std,variability,"Current visit, Endo: circular dispersion of time to peak",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.008945315426950203,,,,1.0,1.0,24.0
+combined_extra_trees,d_var__endo_time_to_peak_norm_circular_std,variability,"Change since previous visit, Endo: circular dispersion of time to peak",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0006504022535837071,,,,1.0,1.0,237.0
+combined_extra_trees,cur_var__endo_vendor_peak_systolic_abs_robust_sd,variability,"Current visit, Endo: vendor peak-systolic amplitude dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.013438273900465137,,,,1.0,1.0,11.0
+combined_extra_trees,d_var__endo_vendor_peak_systolic_abs_robust_sd,variability,"Change since previous visit, Endo: vendor peak-systolic amplitude dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0037466598716710178,,,,1.0,1.0,100.0
+combined_extra_trees,cur_var__endo_vendor_time_to_peak_norm_circular_std,variability,"Current visit, Endo: vendor time-to-peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.014528939898865634,,,,1.0,1.0,7.0
+combined_extra_trees,d_var__endo_vendor_time_to_peak_norm_circular_std,variability,"Change since previous visit, Endo: vendor time-to-peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0005920161732289304,,,,1.0,1.0,243.0
+combined_extra_trees,cur_var__endo_post_systolic_fraction,variability,"Current visit, Endo: fraction of post-systolic segments",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004468330456928676,,,,1.0,1.0,75.0
+combined_extra_trees,d_var__endo_post_systolic_fraction,variability,"Change since previous visit, Endo: fraction of post-systolic segments",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0013348409682618072,,,,1.0,1.0,188.0
+combined_extra_trees,cur_var__endo_curve_dispersion_rms,variability,"Current visit, Endo: RMS dispersion of segment curves",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0054335050638012585,,,,1.0,1.0,52.0
+combined_extra_trees,d_var__endo_curve_dispersion_rms,variability,"Change since previous visit, Endo: RMS dispersion of segment curves",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00044420341808417373,,,,1.0,1.0,253.0
+combined_extra_trees,cur_var__endo_curve_pairwise_rmse,variability,"Current visit, Endo: pairwise segment-curve RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005463783917741493,,,,1.0,1.0,51.0
+combined_extra_trees,d_var__endo_curve_pairwise_rmse,variability,"Change since previous visit, Endo: pairwise segment-curve RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0006887141883629262,,,,1.0,1.0,232.0
+combined_extra_trees,cur_var__endo_curve_integrated_robust_mad,variability,"Current visit, Endo: integrated robust curve dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.009064316393795936,,,,1.0,1.0,23.0
+combined_extra_trees,d_var__endo_curve_integrated_robust_mad,variability,"Change since previous visit, Endo: integrated robust curve dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.001969942904490687,,,,1.0,1.0,165.0
+combined_extra_trees,cur_var__endo_shape_dispersion_rms,variability,"Current visit, Endo: RMS dispersion of normalized curve shape",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00251747995892886,,,,1.0,1.0,145.0
+combined_extra_trees,d_var__endo_shape_dispersion_rms,variability,"Change since previous visit, Endo: RMS dispersion of normalized curve shape",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0010113165075569795,,,,1.0,1.0,208.0
+combined_extra_trees,cur_var__endo_shape_pairwise_rmse,variability,"Current visit, Endo: pairwise normalized-shape RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0028165065771837885,,,,1.0,1.0,127.0
+combined_extra_trees,d_var__endo_shape_pairwise_rmse,variability,"Change since previous visit, Endo: pairwise normalized-shape RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0008315731185638594,,,,1.0,1.0,218.0
+combined_extra_trees,cur_var__endo_shape_incoherence,variability,"Current visit, Endo: segment shape incoherence",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0033609283276279617,,,,1.0,1.0,112.0
+combined_extra_trees,d_var__endo_shape_incoherence,variability,"Change since previous visit, Endo: segment shape incoherence",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.000868955488408964,,,,1.0,1.0,216.0
+combined_extra_trees,cur_var__endo_within_view_peak_robust_sd_mean,variability,"Current visit, Endo: mean within-view peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.007592930127682222,,,,1.0,1.0,28.0
+combined_extra_trees,d_var__endo_within_view_peak_robust_sd_mean,variability,"Change since previous visit, Endo: mean within-view peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0040873831619159615,,,,1.0,1.0,88.0
+combined_extra_trees,cur_var__endo_within_ring_peak_robust_sd_mean,variability,"Current visit, Endo: mean within-ring peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005562544011952985,,,,1.0,1.0,48.0
+combined_extra_trees,d_var__endo_within_ring_peak_robust_sd_mean,variability,"Change since previous visit, Endo: mean within-ring peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0010761337665139569,,,,1.0,1.0,204.0
+combined_extra_trees,cur_var__endo_spatial_peak_graph_roughness,variability,"Current visit, Endo: spatial roughness of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004037140692260201,,,,1.0,1.0,90.0
+combined_extra_trees,d_var__endo_spatial_peak_graph_roughness,variability,"Change since previous visit, Endo: spatial roughness of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0008126493946535006,,,,1.0,1.0,222.0
+combined_extra_trees,cur_var__endo_spatial_timing_graph_roughness,variability,"Current visit, Endo: spatial roughness of timing",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003947656332559922,,,,1.0,1.0,94.0
+combined_extra_trees,d_var__endo_spatial_timing_graph_roughness,variability,"Change since previous visit, Endo: spatial roughness of timing",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003878446902985943,,,,1.0,1.0,97.0
+combined_extra_trees,cur_var__endo_impaired_segment_fraction_lt15,variability,"Current visit, Endo: fraction of segments with strain magnitude below 15",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.011888525859272782,,,,1.0,1.0,14.0
+combined_extra_trees,d_var__endo_impaired_segment_fraction_lt15,variability,"Change since previous visit, Endo: fraction of segments with strain magnitude below 15",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.001810375987661934,,,,1.0,1.0,169.0
+combined_extra_trees,cur_var__endo_apical_basal_peak_gradient,variability,"Current visit, Endo: apical-to-basal peak gradient",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005845937760652105,,,,1.0,1.0,45.0
+combined_extra_trees,d_var__endo_apical_basal_peak_gradient,variability,"Change since previous visit, Endo: apical-to-basal peak gradient",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0008163390304271156,,,,1.0,1.0,220.0
+combined_extra_trees,cur_var__mid_peak_abs_robust_sd,variability,"Current visit, Mid: robust dispersion of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0142898199053473,,,,1.0,1.0,8.0
+combined_extra_trees,d_var__mid_peak_abs_robust_sd,variability,"Change since previous visit, Mid: robust dispersion of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0017217539243981107,,,,1.0,1.0,174.0
+combined_extra_trees,cur_var__mid_peak_abs_cv,variability,"Current visit, Mid: coefficient of variation of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.007139016121780978,,,,1.0,1.0,35.0
+combined_extra_trees,d_var__mid_peak_abs_cv,variability,"Change since previous visit, Mid: coefficient of variation of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0009117642350196028,,,,1.0,1.0,212.0
+combined_extra_trees,cur_var__mid_time_to_peak_norm_circular_std,variability,"Current visit, Mid: circular dispersion of time to peak",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005838513316473637,,,,1.0,1.0,46.0
+combined_extra_trees,d_var__mid_time_to_peak_norm_circular_std,variability,"Change since previous visit, Mid: circular dispersion of time to peak",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0012632268475872197,,,,1.0,1.0,192.0
+combined_extra_trees,cur_var__mid_vendor_peak_systolic_abs_robust_sd,variability,"Current visit, Mid: vendor peak-systolic amplitude dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00839239023483372,,,,1.0,1.0,26.0
+combined_extra_trees,d_var__mid_vendor_peak_systolic_abs_robust_sd,variability,"Change since previous visit, Mid: vendor peak-systolic amplitude dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0010849517484456121,,,,1.0,1.0,203.0
+combined_extra_trees,cur_var__mid_vendor_time_to_peak_norm_circular_std,variability,"Current visit, Mid: vendor time-to-peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.007532023997465271,,,,1.0,1.0,29.0
+combined_extra_trees,d_var__mid_vendor_time_to_peak_norm_circular_std,variability,"Change since previous visit, Mid: vendor time-to-peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.001206645667460292,,,,1.0,1.0,193.0
+combined_extra_trees,cur_var__mid_post_systolic_fraction,variability,"Current visit, Mid: fraction of post-systolic segments",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004895286273047657,,,,1.0,1.0,63.0
+combined_extra_trees,d_var__mid_post_systolic_fraction,variability,"Change since previous visit, Mid: fraction of post-systolic segments",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.002329443590174436,,,,1.0,1.0,150.0
+combined_extra_trees,cur_var__mid_curve_dispersion_rms,variability,"Current visit, Mid: RMS dispersion of segment curves",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005188341699440667,,,,1.0,1.0,56.0
+combined_extra_trees,d_var__mid_curve_dispersion_rms,variability,"Change since previous visit, Mid: RMS dispersion of segment curves",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0005361786828914813,,,,1.0,1.0,248.0
+combined_extra_trees,cur_var__mid_curve_pairwise_rmse,variability,"Current visit, Mid: pairwise segment-curve RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0037618575121722933,,,,1.0,1.0,99.0
+combined_extra_trees,d_var__mid_curve_pairwise_rmse,variability,"Change since previous visit, Mid: pairwise segment-curve RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0007194034854613667,,,,1.0,1.0,228.0
+combined_extra_trees,cur_var__mid_curve_integrated_robust_mad,variability,"Current visit, Mid: integrated robust curve dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005034513807357844,,,,1.0,1.0,59.0
+combined_extra_trees,d_var__mid_curve_integrated_robust_mad,variability,"Change since previous visit, Mid: integrated robust curve dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004713309385863734,,,,1.0,1.0,66.0
+combined_extra_trees,cur_var__mid_shape_dispersion_rms,variability,"Current visit, Mid: RMS dispersion of normalized curve shape",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0029553284404593336,,,,1.0,1.0,120.0
+combined_extra_trees,d_var__mid_shape_dispersion_rms,variability,"Change since previous visit, Mid: RMS dispersion of normalized curve shape",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0003948907116134497,,,,1.0,1.0,254.0
+combined_extra_trees,cur_var__mid_shape_pairwise_rmse,variability,"Current visit, Mid: pairwise normalized-shape RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.003365114184807162,,,,1.0,1.0,111.0
+combined_extra_trees,d_var__mid_shape_pairwise_rmse,variability,"Change since previous visit, Mid: pairwise normalized-shape RMSE",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0008137499314584342,,,,1.0,1.0,221.0
+combined_extra_trees,cur_var__mid_shape_incoherence,variability,"Current visit, Mid: segment shape incoherence",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00401526978560512,,,,1.0,1.0,91.0
+combined_extra_trees,d_var__mid_shape_incoherence,variability,"Change since previous visit, Mid: segment shape incoherence",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0005894810325155872,,,,1.0,1.0,244.0
+combined_extra_trees,cur_var__mid_within_view_peak_robust_sd_mean,variability,"Current visit, Mid: mean within-view peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.006988552014557166,,,,1.0,1.0,36.0
+combined_extra_trees,d_var__mid_within_view_peak_robust_sd_mean,variability,"Change since previous visit, Mid: mean within-view peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0029968848239830662,,,,1.0,1.0,119.0
+combined_extra_trees,cur_var__mid_within_ring_peak_robust_sd_mean,variability,"Current visit, Mid: mean within-ring peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00697544461173667,,,,1.0,1.0,37.0
+combined_extra_trees,d_var__mid_within_ring_peak_robust_sd_mean,variability,"Change since previous visit, Mid: mean within-ring peak dispersion",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.001075605409499009,,,,1.0,1.0,205.0
+combined_extra_trees,cur_var__mid_spatial_peak_graph_roughness,variability,"Current visit, Mid: spatial roughness of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.004512611003785912,,,,1.0,1.0,73.0
+combined_extra_trees,d_var__mid_spatial_peak_graph_roughness,variability,"Change since previous visit, Mid: spatial roughness of peak amplitude",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0007909790438586733,,,,1.0,1.0,225.0
+combined_extra_trees,cur_var__mid_spatial_timing_graph_roughness,variability,"Current visit, Mid: spatial roughness of timing",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.005922950260145247,,,,1.0,1.0,44.0
+combined_extra_trees,d_var__mid_spatial_timing_graph_roughness,variability,"Change since previous visit, Mid: spatial roughness of timing",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0020885286770375043,,,,1.0,1.0,158.0
+combined_extra_trees,cur_var__mid_impaired_segment_fraction_lt15,variability,"Current visit, Mid: fraction of segments with strain magnitude below 15",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0073772694276591725,,,,1.0,1.0,30.0
+combined_extra_trees,d_var__mid_impaired_segment_fraction_lt15,variability,"Change since previous visit, Mid: fraction of segments with strain magnitude below 15",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.001153857629147584,,,,1.0,1.0,198.0
+combined_extra_trees,cur_var__mid_apical_basal_peak_gradient,variability,"Current visit, Mid: apical-to-basal peak gradient",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0047791545628774156,,,,1.0,1.0,65.0
+combined_extra_trees,d_var__mid_apical_basal_peak_gradient,variability,"Change since previous visit, Mid: apical-to-basal peak gradient",1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0013914647134197408,,,,1.0,1.0,186.0

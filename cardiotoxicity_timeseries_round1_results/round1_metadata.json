@@ -1,0 +1,33 @@
+{
+  "task": "mid_first_rel15",
+  "patients": 103,
+  "eligible_transitions": 238,
+  "events": 49,
+  "event_rate": 0.20588235294117646,
+  "scalar_features": 96,
+  "curve_shape": [
+    297,
+    18,
+    6,
+    96
+  ],
+  "mantis_embedding_shape": [
+    297,
+    18,
+    6,
+    256
+  ],
+  "moment_embedding_shape": [
+    297,
+    18,
+    6,
+    512
+  ],
+  "multirocket_kernels_requested": 6250,
+  "multirocket_features": 49728,
+  "pca_components": 32,
+  "cv": "3 repeated 5-fold patient-held-out",
+  "bootstraps": 2000,
+  "device": "NVIDIA GeForce RTX 4060 Ti",
+  "torch": "2.5.1+cu121"
+}

@@ -1,0 +1,79 @@
+{
+  "device": "NVIDIA GeForce RTX 4060 Ti",
+  "torch": "2.5.1+cu121",
+  "cuda": "12.1",
+  "lengths": [
+    64,
+    72,
+    96
+  ],
+  "source_length": "native variable length",
+  "tensor_shapes": {
+    "attention_t64": [
+      297,
+      18,
+      6,
+      64
+    ],
+    "attention_t72": [
+      297,
+      18,
+      6,
+      72
+    ],
+    "attention_t96": [
+      297,
+      18,
+      6,
+      96
+    ]
+  },
+  "channels": [
+    "current_endo",
+    "current_mid",
+    "current_endo_minus_mid",
+    "change_endo",
+    "change_mid",
+    "change_endo_minus_mid"
+  ],
+  "segments": 18,
+  "scalar_features": 96,
+  "active_tasks": [
+    "mid_first_rel10",
+    "mid_first_rel12",
+    "mid_first_rel15",
+    "mid_first_rel20",
+    "mid_roll2_rel10",
+    "mid_roll2_rel12",
+    "mid_roll2_rel15",
+    "mid_roll2_rel20",
+    "mid_roll3_rel10",
+    "mid_roll3_rel12",
+    "mid_roll3_rel15",
+    "endo_first_rel15",
+    "endo_roll2_rel15",
+    "endo_roll3_rel15",
+    "ef_first_rel10",
+    "ef_first_rel15",
+    "ef_roll2_rel10",
+    "ef_roll3_rel10"
+  ],
+  "primary_task": "mid_first_rel15",
+  "cv": "3 repeated 5-fold patient-held-out",
+  "bootstraps": 1000,
+  "epochs": 180,
+  "patience": 25,
+  "seed": 20260722,
+  "resampling": "direct linear interpolation of native values/timestamps on normalized [0, 1] cycle",
+  "fixed_across_variants": [
+    "patient folds",
+    "fit/validation partitions",
+    "initialization seed",
+    "six curve channels",
+    "96 scalar features",
+    "multitask labels",
+    "CNN kernel widths",
+    "optimizer",
+    "early stopping"
+  ]
+}

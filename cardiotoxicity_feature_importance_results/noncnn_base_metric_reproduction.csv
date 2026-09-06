@@ -1,0 +1,5 @@
+model,n,events,roc_auc_reproduced,average_precision_reproduced,prediction_repeats_min,prediction_repeats_max
+clinical_ridge,238,49,0.6309253860274269,0.28946554159244087,3,3
+clinical_plus_transmural_sparse,238,49,0.6435590109059497,0.30856830190699036,3,3
+clinical_plus_variability_sparse,238,49,0.6497138537954864,0.2875482547116992,3,3
+combined_extra_trees,238,49,0.6718496922578556,0.3131839647427732,3,3

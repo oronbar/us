@@ -1,0 +1,26 @@
+{
+  "task": "mid_first_rel15",
+  "patients": 103,
+  "eligible_transitions": 238,
+  "events": 49,
+  "event_rate": 0.20588235294117646,
+  "curve_shape": [
+    297,
+    18,
+    6,
+    96
+  ],
+  "cv": "3 repeated 5-fold patient-held-out",
+  "model_seeds": 3,
+  "bootstraps": 2000,
+  "device": "NVIDIA GeForce RTX 4060 Ti",
+  "versions": {
+    "torch": "2.5.1+cu121",
+    "numpy": "2.3.5"
+  },
+  "best_new_model": "catch22_xgb_curves_scalars",
+  "best_mantis_free_ensemble": "ensemble_cnn_moment_catch22_xgb_curves_scalars",
+  "training_seconds_from_logs": 2669.737465620041,
+  "postprocessing_seconds": 504.99945521354675,
+  "successful_pipeline_seconds_approx": 3174.7369208335876
+}
