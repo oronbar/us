@@ -1,0 +1,2 @@
+# Preserve generated thesis PDFs as binary artifacts.
+output/pdf/*.pdf binary

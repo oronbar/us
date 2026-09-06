@@ -33,3 +33,10 @@ cardiotoxicity_nonapical_qc_smoke/
 /segment_interaction_ablation.*.log
 /timing8_control*.log
 /top_ensemble_*.log
+
+# Thesis extraction caches and visual QA previews
+/tmp/thesis_review/*.png
+/tmp/thesis_review/*.txt
+/tmp/thesis_review/reports.json
+/tmp/thesis_review/presentation_text.json
+/tmp/thesis_review/rendered/
