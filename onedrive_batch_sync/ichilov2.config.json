@@ -1,0 +1,24 @@
+{
+  "ToolName": "Ichilov2 OneDrive Batch Sync",
+  "DatasetLabel": "Ichilov2",
+  "StateKey": "Ichilov2OneDriveBatchSync",
+  "SourcePath": "E:\\",
+  "DestinationPath": "C:\\Users\\Oron\\OneDrive - Technion\\DS\\Ichilov2",
+  "InventoryMode": "PatientFoldersWithUS",
+  "IncludedTopLevelDirectories": [
+    "echo_after_herceptin_1",
+    "echo_after_herceptin_2",
+    "echo_after_herceptin_3",
+    "echo_after_herceptin_4",
+    "echo_before_herceptin"
+  ],
+  "IncludeRootFiles": true,
+  "IncludedRootFiles": [
+    "anonymization_mapping_hashed.xlsx"
+  ],
+  "ReserveFreeGB": 30,
+  "MaxBatchGB": 12,
+  "MaxFoldersPerBatch": 3,
+  "PollSeconds": 10,
+  "RobocopyThreads": 2
+}

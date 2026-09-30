@@ -1,0 +1,10 @@
+{
+  "SourcePath": "F:\\DS\\SZMC2",
+  "GoogleDriveRoot": "G:\\האחסון שלי",
+  "DestinationPath": "G:\\האחסון שלי\\DS\\SZMC2",
+  "LocalCacheDrive": "C:\\",
+  "ReserveFreeGB": 30,
+  "MaxExpectedCacheGB": 20,
+  "InterPacketGapMs": 9,
+  "PostFolderDrainSeconds": 15
+}

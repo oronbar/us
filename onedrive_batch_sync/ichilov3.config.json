@@ -1,0 +1,17 @@
+{
+  "ToolName": "Ichilov3 OneDrive Batch Sync",
+  "DatasetLabel": "Ichilov3",
+  "StateKey": "Ichilov3OneDriveBatchSync",
+  "SourcePath": "E:\\Ichilov3",
+  "DestinationPath": "C:\\Users\\Oron\\OneDrive - Technion\\DS\\Ichilov3",
+  "InventoryMode": "TopLevelFolders",
+  "IncludeRootFiles": true,
+  "IncludedRootFiles": [
+    "Copy of HER2 3 ECHO YAN updated dates echo 22.12.25 1.xlsx"
+  ],
+  "ReserveFreeGB": 30,
+  "MaxBatchGB": 12,
+  "MaxFoldersPerBatch": 3,
+  "PollSeconds": 10,
+  "RobocopyThreads": 2
+}

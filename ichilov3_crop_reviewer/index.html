@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#101924"><title>Crop review</title><link rel="stylesheet" href="/style.css"></head>
+<body><main>
+<header><div><span class="eyebrow">ICHILOV · QUALITY REVIEW</span><h1>Keep the whole heart.</h1></div><button id="menu" class="icon" aria-label="Show review options">☰</button></header>
+<section id="options" hidden><label>Review queue <select id="filter"><option value="pending">Needs decision</option><option value="bad">Bad crops</option><option value="all">All flagged clips</option><option value="good">Good / repaired</option></select></label><a href="/api/export" download>Export current decisions + active paths</a><p>Your decisions save on this computer. Closing Safari is safe.</p></section>
+<section class="progress"><div><span id="progressText">Loading queue…</span><span id="counts"></span></div><div class="track"><i id="progressBar"></i></div></section>
+<form id="jumpForm" class="jump"><span id="clipIndex">Clip — / 303</span><label for="jumpIndex">Go to #</label><input id="jumpIndex" type="number" inputmode="numeric" min="1" max="303" required><button>Go</button></form>
+<div id="empty" hidden><h2>Queue complete.</h2><p>Switch to “Bad crops” to repair rejected clips, or “All flagged clips” to revisit a decision.</p></div>
+<article id="card"><div class="clip-head"><div><h2 id="patient">Loading…</h2><span id="date"></span></div><span id="view" class="view"></span></div>
+<div class="switch"><button id="current" class="active">Current crop</button><button id="tissue">Unmasked tissue region</button></div>
+<div id="swipeSurface" class="cine"><video id="video" muted playsinline loop controls preload="auto"></video><div id="mediaLoading">Preparing cine…</div><span id="swipeGood" class="swipe-label good">GOOD</span><span id="swipeBad" class="swipe-label bad">BAD</span></div>
+<p id="description" class="description">Check the apex, both walls and base throughout the cine.</p>
+<div class="facts"><span id="scanner"></span><span id="flag"></span><span id="decision"></span></div>
+<button id="fix" class="fix">Adjust / restore this crop</button>
+<button id="findAlternatives" class="fix">Find another cine from this view</button>
+<div class="decisions"><button id="bad" class="bad">← Bad crop</button><button id="good" class="good">Good crop →</button></div>
+<div class="nav"><button id="previous">Previous</button><button id="undo" disabled>Undo</button><button id="skip">Skip</button></div>
+<p id="bufferStatus" class="hint" aria-live="polite"></p><p class="hint">Swipe left for bad · right for good<br>Compare motion, not just one frame. Flags can be annotation removal.</p></article>
+<div id="toast" role="status" aria-live="polite"></div>
+</main><script src="/cine-buffer.js"></script>
+<dialog id="editor"><div class="editor-head"><h2>Restore missing tissue</h2><button id="closeEditor" aria-label="Close crop editor">✕</button></div><p>Draw a rectangle on the tissue image. Keep the apex, walls and base in every frame. No disconnected-pixel mask is applied.</p>
+<div id="editSurface"><img id="editImage" alt="Original ultrasound tissue region"><div id="rectangle"></div></div>
+<label class="slider">Frame <input id="frameSlider" type="range" min="0" value="0"><span id="frameNumber">1</span></label>
+<button id="resetRect">Restore full tissue region</button><p id="repairInfo">Full region selected. Aspect ratio is preserved using square padding.</p>
+<button id="saveRepair" class="save">Save fix & re-encode</button><p id="repairStatus" role="status"></p><p class="small">Creates a new crop and new EchoPrime / PanEcho embeddings. Existing data is preserved.</p></dialog>
+<dialog id="alternatives"><div class="editor-head"><h2>Other cines: same visit</h2><button id="closeAlternatives" aria-label="Close alternatives">X</button></div><p>Model suggestions need your approval. Check the true view, apex and walls. A replacement is not necessarily the cine used for the original strain analysis.</p><div id="alternativeList"></div><video id="alternativeVideo" muted playsinline loop controls style="width:100%"></video><button id="approveAlternative" class="save" disabled>Use this cine &amp; re-encode</button><p id="alternativeStatus"></p></dialog><script src="/app.js"></script></body></html>

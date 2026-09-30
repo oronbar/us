@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ichilov · Apical view review</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/viewer.css">
+  <link rel="stylesheet" href="/suggestions.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">◇</span><div><strong>ICHILOV</strong><small>ECHOCARDIOGRAPHY REVIEW</small></div></div>
+      <div class="top-actions"><span class="privacy">● LOCAL REVIEW SESSION</span><a class="export" href="/api/export.csv">Export decisions ↗</a></div>
+    </header>
+    <main>
+      <section class="intro">
+        <div><p class="eyebrow">SOURCE CLIP SELECTION / 01</p><h1>Choose the three <em>apical views.</em></h1><p class="lede">Review the original cine loops for each visit and assign one DICOM to A2C, A3C, and A4C. Decisions are saved separately from the source files.</p></div>
+        <div class="metric-panel"><span id="progressNumber">—</span><span id="progressCaption">completed visits</span><div class="progress-track"><span id="progressBar"></span></div><small id="progressDetail">Loading review queue…</small></div>
+      </section>
+      <section class="workspace">
+        <aside class="sidebar">
+          <div class="side-heading"><span>REVIEW QUEUE</span><span id="queueCount">—</span></div>
+          <label class="search-wrap"><span>⌕</span><input id="search" type="search" placeholder="Search patient or date" autocomplete="off"></label>
+          <div class="filters"><button class="filter active" data-filter="no_bookmark">No bookmark <span id="countNoBookmark"></span></button><button class="filter" data-filter="unresolved">All unresolved <span id="countUnresolved"></span></button><button class="filter" data-filter="all">All visits <span id="countAll"></span></button></div>
+          <div class="queue-meta"><span>PATIENT / VISIT</span><span>STATUS</span></div>
+          <div id="visitList" class="visit-list"></div>
+        </aside>
+        <div class="main-panel">
+          <div id="emptyState" class="empty-state"><div class="empty-symbol">◈</div><h2>Select a visit</h2><p>Choose a visit from the review queue to inspect its DICOM cine loops.</p></div>
+          <div id="reviewPanel" hidden>
+            <div class="visit-head"><div><p class="eyebrow">PATIENT VISIT</p><h2 id="visitTitle"></h2><p id="visitSubtitle" class="subtle"></p></div><div id="visitStatus" class="status-pill"></div></div>
+            <div id="auditNote" class="audit-note" hidden></div>
+            <section id="tomtecPanel" class="tomtec-panel" hidden><p class="eyebrow">RECOVERED FROM TOMTEC BOOKMARK</p><h3>Original analysis clips</h3><p id="tomtecSummary" class="subtle"></p><div id="tomtecViews" class="tomtec-views"></div><p class="subtle">These are bookmark source references, separate from model predictions and your choices below.</p></section>
+            <div class="suggestion-panel"><div class="suggestion-head"><div><p class="eyebrow">MODEL-ASSISTED REVIEW</p><h3>Suggested clips</h3></div><button id="analyzeButton" class="analyze-button">Analyze this visit →</button></div><p class="suggestion-caveat">EchoPrime suggests views. A separate technical screen checks B-mode content and loop characteristics. Please inspect the true apex, borders, and full cardiac cycle before approving.</p><div id="suggestionStatus" class="suggestion-status" aria-live="polite">Suggestions have not been generated for this visit.</div><div id="suggestionCards" class="suggestion-cards" hidden></div><button id="useSuggestions" class="use-suggestions" hidden>Use available suggestions in empty slots ↓</button></div>
+            <div class="assignment">
+              <div class="section-title"><div><p class="eyebrow">YOUR SELECTION</p><h3>Three views</h3></div><span>Accept a suggestion or choose another clip</span></div>
+              <div id="viewSlots" class="view-slots"></div>
+            </div>
+            <div class="clips-head"><div><p class="eyebrow">SOURCE DICOMS</p><h3>Cine library <span id="clipCount"></span></h3></div><div class="clip-controls"><label><input id="showAll" type="checkbox"> Show every clip</label><select id="sortClips" aria-label="Sort clips"><option value="instance">Instance order</option><option value="suggested">Suggested first</option><option value="frames">Most frames</option><option value="size">Largest files</option></select></div></div>
+            <p id="clipHelp" class="subtle clip-help">Open a clip to scrub through its frames and inspect motion. Images are generated locally from DICOM.</p>
+            <div id="clipGrid" class="clip-grid"></div><button id="moreClips" class="more" hidden>Load more clips ↓</button>
+            <div class="save-panel"><div class="save-heading"><p class="eyebrow">REVIEW RECORD</p><h3>Review status</h3><p class="subtle">Three marked views save automatically. Use Save review for partial choices or note edits.</p></div><div class="save-fields"><label>Reviewer<input id="reviewer" type="text" placeholder="Your name or initials" maxlength="100"></label><label>Review note<textarea id="note" rows="2" maxlength="2000" placeholder="Optional: image quality or reason this visit is invalid"></textarea></label></div><div class="save-footer"><button id="invalidButton" class="invalid-button" type="button">Mark whole visit invalid</button><div><span id="saveMessage" aria-live="polite"></span><button id="saveButton" class="primary">Save review →</button></div></div></div>
+          </div>
+        </div>
+      </section>
+      <footer>Local DICOM review · Source DICOMs are read only · Every assignment requires your review</footer>
+    </main>
+  </div>
+  <dialog id="viewer"><div class="viewer-head"><div><p class="eyebrow">DICOM CINE</p><h2 id="viewerTitle"></h2><p id="viewerMeta" class="subtle"></p></div><button id="closeViewer" class="close" aria-label="Close">×</button></div><div class="viewer-body"><div class="viewer-image-wrap"><img id="viewerImage" alt="DICOM cine frame"><video id="viewerVideo" controls playsinline muted loop hidden aria-label="DICOM cine video"></video><div id="viewerError" class="viewer-error" hidden></div><div id="clipStatus" class="clip-status" aria-live="polite"></div></div><div class="viewer-controls"><button id="cineButton" class="play active">▶ Cine</button><button id="framesButton" class="play">Frame by frame</button><label id="speedControl" class="speed-control">Playback speed <select id="playbackSpeed"><option value="0.25">0.25×</option><option value="0.5" selected>0.5×</option><option value="1">1×</option></select></label><div id="frameControls" class="frame-controls" hidden><input id="frameSlider" type="range" min="0" max="0" value="0" aria-label="Frame"><span id="frameLabel">—</span></div></div><div class="viewer-assign"><span>Assign as</span><button data-view="A2C">A2C</button><button data-view="A3C">A3C</button><button data-view="A4C">A4C</button></div><p id="viewerPath" class="viewer-path"></p></div></dialog>
+</body>
+</html>

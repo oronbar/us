@@ -1,0 +1,14 @@
+{
+  "ToolName": "SZMC2 OneDrive Batch Sync",
+  "DatasetLabel": "SZMC2",
+  "StateKey": "SZMC2OneDriveBatchSync",
+  "SourcePath": "F:\\DS\\SZMC2",
+  "DestinationPath": "C:\\Users\\Oron\\OneDrive - Technion\\DS\\SZMC2",
+  "InventoryMode": "TopLevelFolders",
+  "IncludeRootFiles": false,
+  "ReserveFreeGB": 30,
+  "MaxBatchGB": 12,
+  "MaxFoldersPerBatch": 3,
+  "PollSeconds": 10,
+  "RobocopyThreads": 2
+}

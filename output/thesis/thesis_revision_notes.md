@@ -1,0 +1,13 @@
+# Revision notes
+
+Reformatted on 9 September 2026 using the colleague thesis PDF as the structural and visual reference. Original thesis_draft.md and thesis_draft.pdf are preserved. Results, uncertainty estimates and scientific limitations are retained.
+
+Changes: separate Hypothesis and Research Goals; Literature review renamed Background; Materials and methods renamed Methodology with pipeline overview; numbered chapters through Conclusion; acknowledgement of Israel Innovation Authority funding; removal of direct references to the funding presentation; author-year citations; Calibri and blue heading styles; reference-style cover and front matter. Appendices A and B are retained after References. The integrity declaration in the colleague thesis was not copied as a personal attestation. The author should review and approve the required institutional declaration before final submission.
+
+The supplied reference is an unfinished thesis and does not establish official institutional format requirements. The existing working title and the September 2026 cover date require author confirmation for final submission. No new training, clinical outcome adjudication or literature update was performed in this formatting revision.
+
+The following are unresolved author and study-record items, not missing results to be filled by inference. Confirm the final title and institutional thesis format; supply the approved ethics statement and approval identifiers; reconcile the nominal 105-patient transfer with the 103-patient parsed cohort; provide the treatment and demographic manifest; verify pre-treatment baselines; and complete the independent validation status.
+
+For the analysis, freeze an exact code and environment snapshot, move every preprocessing choice inside the development folds, rebuild any learned ensemble through fully nested training, and define one primary comparison before external evaluation. Add a clinical baseline with verified covariates and report calibration and a prespecified operating threshold. Confirm with the advisor which exploratory rounds belong in the main text versus supplementary material.
+
+For the literature, resolve the incomplete older curve-quality and mechanical-dispersion citations in the grant presentation. The item described there as a manuscript in preparation must remain unpublished background unless an actual publication or authorized manuscript is supplied. The focused narrative review should be extended if a formal systematic review is required by the thesis committee.

@@ -1,5 +1,6 @@
 .venv/*
 __pycache__/*
+**/__pycache__/
 models/*
 USF-MAE/USF-MAE_full_pretrain_43dataset_100epochs.pt
 .codex_tmp_cardio_doc/
@@ -34,7 +35,19 @@ cardiotoxicity_nonapical_qc_smoke/
 /timing8_control*.log
 /top_ensemble_*.log
 
+# Local DICOM research artifacts, source identities, previews and model weights
+/output/dicom_prediction/
+/outputs/01a09bc6-cc82-7691-8ee0-2abe6ca9c02a/
+/output/ichilov3_strain_first_last/
+/output/label_review_tool/node_modules/
+/output/label_review_tool/queue.json
+/output/label_review_tool/preview.png
+
 # Thesis extraction caches and visual QA previews
+/tmp/colleague-*.png
+/tmp/colleague_text.txt
+/tmp/thesis_final_qa/
+/tmp/thesis_reformatted_qa/
 /tmp/thesis_review/*.png
 /tmp/thesis_review/*.txt
 /tmp/thesis_review/reports.json

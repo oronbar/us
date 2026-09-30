@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101827"><title>GLS cine review · Ichilov 3</title><link rel="stylesheet" href="/style.css"></head>
+<body><main>
+  <header><div><div class="eyebrow">ICHILOV 3 · MODEL FAILURE REVIEW</div><h1>Review the cine, explain the error.</h1><p>Three selected apical views per visit · complete clips · highest error first</p></div><a class="export" href="/api/export">Export reviews ↓</a></header>
+  <section class="toolbar" aria-label="Review controls">
+    <label>Vendor<select id="vendor"><option value="Philips">Philips</option><option value="all">All vendors</option><option value="GE Healthcare">GE Healthcare</option><option value="GE Vingmed">GE Vingmed</option></select></label>
+    <label>Prioritize by<select id="target"><option value="mid">Mid-GLS error</option><option value="endo">Endo-GLS error</option></select></label>
+    <label>Show<select id="reviewFilter"><option value="all">All visits</option><option value="unreviewed">Unreviewed</option><option value="suspected_issue">Suspected issues</option><option value="uncertain">Uncertain</option><option value="no_issue">No issue found</option></select></label>
+    <label class="search">Find visit<input id="search" type="search" placeholder="Patient or visit ID" autocomplete="off"></label>
+  </section>
+  <section class="progress"><span id="progress">Loading…</span><span id="position"></span></section>
+  <div id="loadError" role="alert" hidden></div>
+  <article id="case" hidden>
+    <div class="caseHead"><div><span id="priority" class="priority"></span><h2 id="caseTitle"></h2><p id="caseSub"></p></div><div class="numbers"><div><small>Report Mid-GLS</small><b id="gt"></b></div><div><small>Predicted</small><b id="pred"></b></div><div><small>Absolute error</small><b id="err"></b></div></div></div>
+    <div id="secondary" class="secondary"></div>
+    <div class="viewTabs" role="tablist" aria-label="Choose view on narrow screen"><button data-view="A2C" class="active">2 chamber</button><button data-view="A3C">3 chamber</button><button data-view="A4C">4 chamber</button></div>
+    <div id="clips" class="clips"></div>
+    <p class="hint">Watch the full beat in each view. Compare the cropped cine with “Original frame” if you suspect missing anatomy. The videos are previews; review choices do not change training data.</p>
+    <section class="review"><h3>What did you find?</h3><div class="statuses"><button data-status="no_issue">No visible issue</button><button data-status="suspected_issue">Suspected issue</button><button data-status="uncertain">Uncertain</button></div>
+      <div id="reasons" class="reasons" aria-label="Issue reasons"></div>
+      <label class="noteLabel" for="note">Notes<input id="note" maxlength="2000" placeholder="Which view and frame? What should be checked?" autocomplete="off"></label>
+      <div class="reviewFooter"><button id="save" class="save">Save review</button><span id="saved" role="status"></span></div>
+      <section id="replacementPanel" class="replacementPanel" hidden><h3>Replace a questionable cine</h3>
+        <p>The next option is the highest-ranked unselected cine from this same study and predicted view. Preview the full cine before using it.</p>
+        <div class="replacementControls"><label>View <select id="replacementView"><option>A2C</option><option>A3C</option><option>A4C</option></select></label><button id="findReplacement">Find ranked alternatives</button></div>
+        <p id="replacementStatus" role="status"></p><div id="candidateList" class="candidateList"></div>
+        <video id="candidateVideo" controls playsinline loop muted preload="metadata" hidden></video>
+        <div class="replacementActions"><button id="approveReplacement" class="save" disabled>Use previewed cine</button><button id="revertReplacement" hidden>Restore original selection</button></div>
+        <p class="replacementCaveat">The GLS prediction above was made from the original three cines. A replacement is saved for a later crop, encoding and evaluation run; it does not update this prediction.</p>
+      </section>
+    </section>
+    <nav><button id="previous">← Previous</button><button id="next">Next →</button></nav>
+  </article>
+  <div id="empty" hidden>No visits match these filters.</div>
+</main><script src="/app.js" defer></script></body></html>
