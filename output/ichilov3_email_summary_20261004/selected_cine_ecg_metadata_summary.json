@@ -1,0 +1,105 @@
+{
+  "scope": "selected A2C/A3C/A4C source DICOMs in full_manifest; metadata only",
+  "total_selected": 1233,
+  "unique_sop_count": 1233,
+  "unique_visits": 411,
+  "visits_with_rwave_vector": 307,
+  "visits_by_number_of_views_with_rwave_vector": {
+    "0": 104,
+    "1": 0,
+    "2": 2,
+    "3": 305
+  },
+  "visits_with_waveform_sequence": 0,
+  "overall": {
+    "heart_rate_present": 1233,
+    "read_ok": 1233,
+    "rwave_peak_count_0": 314,
+    "rwave_peak_count_2": 905,
+    "rwave_peak_count_3": 11,
+    "rwave_peak_count_4": 3,
+    "rwavetimevector_one": 0,
+    "rwavetimevector_present": 919,
+    "rwavetimevector_two_or_more": 919,
+    "rwavetimevector_zero": 314,
+    "selected_cines": 1233,
+    "trigger_time_present": 0,
+    "waveform_sequence_present": 0
+  },
+  "by_vendor": {
+    "GE": {
+      "heart_rate_present": 924,
+      "read_ok": 924,
+      "rwave_peak_count_0": 5,
+      "rwave_peak_count_2": 905,
+      "rwave_peak_count_3": 11,
+      "rwave_peak_count_4": 3,
+      "rwavetimevector_one": 0,
+      "rwavetimevector_present": 919,
+      "rwavetimevector_two_or_more": 919,
+      "rwavetimevector_zero": 5,
+      "selected_cines": 924,
+      "trigger_time_present": 0,
+      "waveform_sequence_present": 0
+    },
+    "Philips": {
+      "heart_rate_present": 309,
+      "read_ok": 309,
+      "rwave_peak_count_0": 309,
+      "rwavetimevector_one": 0,
+      "rwavetimevector_present": 0,
+      "rwavetimevector_two_or_more": 0,
+      "rwavetimevector_zero": 309,
+      "selected_cines": 309,
+      "trigger_time_present": 0,
+      "waveform_sequence_present": 0
+    }
+  },
+  "by_view": {
+    "A2C": {
+      "heart_rate_present": 411,
+      "read_ok": 411,
+      "rwave_peak_count_0": 104,
+      "rwave_peak_count_2": 302,
+      "rwave_peak_count_3": 5,
+      "rwavetimevector_one": 0,
+      "rwavetimevector_present": 307,
+      "rwavetimevector_two_or_more": 307,
+      "rwavetimevector_zero": 104,
+      "selected_cines": 411,
+      "trigger_time_present": 0,
+      "waveform_sequence_present": 0
+    },
+    "A3C": {
+      "heart_rate_present": 411,
+      "read_ok": 411,
+      "rwave_peak_count_0": 105,
+      "rwave_peak_count_2": 303,
+      "rwave_peak_count_3": 3,
+      "rwavetimevector_one": 0,
+      "rwavetimevector_present": 306,
+      "rwavetimevector_two_or_more": 306,
+      "rwavetimevector_zero": 105,
+      "selected_cines": 411,
+      "trigger_time_present": 0,
+      "waveform_sequence_present": 0
+    },
+    "A4C": {
+      "heart_rate_present": 411,
+      "read_ok": 411,
+      "rwave_peak_count_0": 105,
+      "rwave_peak_count_2": 300,
+      "rwave_peak_count_3": 3,
+      "rwave_peak_count_4": 3,
+      "rwavetimevector_one": 0,
+      "rwavetimevector_present": 306,
+      "rwavetimevector_two_or_more": 306,
+      "rwavetimevector_zero": 105,
+      "selected_cines": 411,
+      "trigger_time_present": 0,
+      "waveform_sequence_present": 0
+    }
+  },
+  "errors": [],
+  "note": "RWaveTimeVector contains timestamp markers, not a continuous ECG waveform."
+}

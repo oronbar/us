@@ -1,0 +1,14 @@
+{
+  "models": [
+    "compact_plus_heads",
+    "compact_plus_heads_history",
+    "compact_reference",
+    "heads_current",
+    "heads_current_late25",
+    "heads_history",
+    "heads_history_late25",
+    "retained_cnn_moment_reference"
+  ],
+  "transitions": 182,
+  "events": 38
+}

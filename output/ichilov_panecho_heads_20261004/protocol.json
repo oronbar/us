@@ -1,0 +1,34 @@
+{
+  "tasks": [
+    "EF",
+    "LVEDV",
+    "LVESV",
+    "LAVol",
+    "LAIDs2D",
+    "TAPSE",
+    "RVSVel"
+  ],
+  "aggregation": "LV: A2C/A3C/A4C; LA: A2C/A4C; RV: A4C; per-window mean",
+  "arms": [
+    "compact_reference",
+    "heads_current",
+    "compact_plus_heads",
+    "heads_history",
+    "compact_plus_heads_history"
+  ],
+  "Cs": [
+    0.001,
+    0.01,
+    0.1,
+    1.0
+  ],
+  "outer": "retained 3x5 patient-held-out",
+  "inner": "3 StratifiedGroupKFold, AP selection",
+  "history_available": 102,
+  "missing_history": "zero delta plus availability indicator",
+  "base": "clinical standardized, strain scalars and curves each PCA8, fitted on training patients only",
+  "source_sha256": "999609f28cc9adfc40c42ee36668f4f8d728e749ac4d6b091601962d5068b881",
+  "feature_sha256": "659b53352457c882266f033491956320d89ccf9e7e9def87e3037f48074f48fd",
+  "cohort_sha256": "35725d236899c980da7ab8c0685d879b438b28ee8f67a940ab285cdf44a02f08",
+  "fold_sha256": "59b307b86e43491e1e6fb0a302f7dc25accab41bfc280ed6c4e6aa52eee9b5af"
+}

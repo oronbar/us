@@ -1,0 +1,13 @@
+{
+  "future_models": [
+    "echojepa_current",
+    "echojepa_current_late25",
+    "echojepa_history",
+    "echojepa_history_late25",
+    "strain_clinical_reference"
+  ],
+  "gls_models": [
+    "echojepa"
+  ],
+  "output": "D:\\us\\output\\ichilov_echojepa_20261004"
+}

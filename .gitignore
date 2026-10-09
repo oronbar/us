@@ -39,6 +39,7 @@ cardiotoxicity_nonapical_qc_smoke/
 /output/dicom_prediction/
 /outputs/01a09bc6-cc82-7691-8ee0-2abe6ca9c02a/
 /output/ichilov3_strain_first_last/
+/output/ichilov_video_experiments_20260930/
 /output/label_review_tool/node_modules/
 /output/label_review_tool/queue.json
 /output/label_review_tool/preview.png
@@ -53,3 +54,20 @@ cardiotoxicity_nonapical_qc_smoke/
 /tmp/thesis_review/reports.json
 /tmp/thesis_review/presentation_text.json
 /tmp/thesis_review/rendered/
+
+# Video experiment patient-level predictions and runtime state
+/output/ichilov_echojepa_20261004/**/*.parquet
+/output/ichilov_echojepa_20261004/**/folds/
+/output/ichilov_panecho_heads_20261004/**/*.parquet
+/output/ichilov_panecho_heads_20261004/folds/
+/output/ichilov3_email_summary_20261004/**/*.parquet
+/output/ichilov3_email_summary_20261004/**/folds/
+/output/ichilov_training_dashboard/
+
+# Keep presentation source and final deliverables, not authoring caches
+/output/dan_meeting_20261009/.build/*
+!/output/dan_meeting_20261009/.build/*.py
+!/output/dan_meeting_20261009/.build/*.mjs
+!/output/dan_meeting_20261009/.build/data.json
+/output/dan_meeting_20261009/.chart-data-*/
+/output/dan_meeting_20261009/deliverables/ichilov_research_dan*

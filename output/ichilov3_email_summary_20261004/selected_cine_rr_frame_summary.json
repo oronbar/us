@@ -1,0 +1,48 @@
+{
+  "definition": "Native-frame index difference between adjacent R-wave timestamps, using each cine's DICOM frame time; endpoint-exclusive cycle length.",
+  "selected_cines_with_2plus_rwave_markers": 919,
+  "valid_rr_intervals": {
+    "n": 936,
+    "min": 18.0,
+    "max": 155.0,
+    "mean": 59.58653846153846,
+    "population_sd": 17.373627670843586,
+    "median": 58.0,
+    "p05": 36.0,
+    "p95": 88.0
+  },
+  "continuous_rr_in_frame_units": {
+    "n": 936,
+    "min": 18.424190135954323,
+    "max": 155.70432728142939,
+    "mean": 59.55310566047015,
+    "population_sd": 17.387643343830682,
+    "median": 58.128838397848554,
+    "p05": 35.51913075513188,
+    "p95": 87.87027002362322
+  },
+  "rr_duration_ms": {
+    "n": 936,
+    "min": 448.39501953125,
+    "max": 1310.2437000274658,
+    "mean": 827.9136900402542,
+    "population_sd": 126.2866820447712,
+    "median": 826.2061591148376,
+    "p05": 626.8835153579712,
+    "p95": 1043.0381968021393
+  },
+  "first_valid_rr_per_cine_frame_intervals": {
+    "n": 919,
+    "min": 18.0,
+    "max": 155.0,
+    "mean": 59.80522306855278,
+    "population_sd": 17.16381213915725,
+    "median": 58.0,
+    "p05": 36.0,
+    "p95": 88.0
+  },
+  "timing_source_cines": {
+    "FrameTime": 919
+  },
+  "issues": {}
+}

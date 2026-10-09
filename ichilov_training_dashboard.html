@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a1220">
+  <title>Ichilov · Training monitor</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0a1220; --panel:#111e2e; --panel2:#16263a; --line:#2b4056; --text:#eef6fa; --muted:#9fb2c5; --teal:#4ee0bc; --blue:#6ea8ff; --amber:#f5c26b; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:radial-gradient(circle at 90% 0%,#173450 0%,var(--bg) 44%); color:var(--text); font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif; }
+    main { max-width:1240px; margin:auto; padding:24px 20px 70px; }
+    header { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:25px; }
+    .eyebrow { color:var(--teal); font-size:12px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; }
+    h1 { font-size:clamp(28px,4vw,42px); line-height:1.1; margin:8px 0; letter-spacing:-.035em; }
+    h2 { font-size:20px; margin:0 0 16px; letter-spacing:-.02em; }
+    p { margin:0; color:var(--muted); }
+    .pill { border:1px solid var(--line); border-radius:999px; padding:8px 12px; color:var(--muted); white-space:nowrap; font-size:13px; background:#101e2d; }
+    .pill.live { color:var(--teal); border-color:#356d68; }
+    .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+    .card { background:rgba(17,30,46,.96); border:1px solid var(--line); border-radius:18px; padding:18px; min-width:0; }
+    .label { color:var(--muted); text-transform:uppercase; letter-spacing:.1em; font-size:11px; font-weight:700; }
+    .value { font-size:28px; font-weight:800; line-height:1.2; margin:9px 0 7px; letter-spacing:-.03em; }
+    .sub { color:var(--muted); font-size:13px; }
+    .bar { height:8px; background:#26374b; border-radius:99px; overflow:hidden; margin-top:13px; }
+    .fill { height:100%; width:0; background:linear-gradient(90deg,var(--blue),var(--teal)); border-radius:99px; transition:width .5s; }
+    .content { display:grid; grid-template-columns:minmax(0,1.8fr) minmax(280px,1fr); gap:16px; margin-top:16px; }
+    .headrow { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+    select { min-height:40px; max-width:100%; background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:7px 10px; font:inherit; }
+    .chartwrap { height:300px; margin:18px 0 10px; }
+    canvas { width:100%; height:100%; display:block; }
+    .mini { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:8px; }
+    .mini div { background:#17283b; border:1px solid #243b51; border-radius:10px; padding:9px; }
+    .mini b { display:block; font-size:17px; margin-top:2px; }
+    .section { margin-top:18px; }
+    .tablewrap { overflow:auto; }
+    table { border-collapse:collapse; width:100%; min-width:620px; font-size:14px; }
+    th,td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); }
+    th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+    td.num { font-variant-numeric:tabular-nums; font-weight:700; }
+    tr.highlight { background:#193146; }
+    .note { font-size:12px; color:var(--muted); margin-top:12px; }
+    .folds { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:12px; }
+    .fold { border:1px solid var(--line); border-radius:10px; background:#16273a; min-height:56px; padding:8px; text-align:left; color:var(--text); font:inherit; cursor:pointer; }
+    .fold strong { display:block; font-size:13px; }
+    .fold span { font-size:11px; color:var(--muted); }
+    .fold.done { border-color:#367668; background:#17352f; }
+    .fold.active { border-color:#bd9551; background:#3a3028; }
+    .fold.selected { outline:2px solid var(--blue); outline-offset:1px; }
+    .statusline { color:var(--muted); font-size:13px; margin-top:9px; overflow-wrap:anywhere; }
+    @media (max-width:900px) { .grid {grid-template-columns:repeat(2,1fr)} .content {grid-template-columns:1fr} }
+    @media (max-width:550px) { main {padding:18px 13px 60px} header {display:block} header .pill {display:inline-block;margin-top:12px} .card {padding:14px} .value {font-size:24px} .chartwrap {height:245px} .folds {grid-template-columns:repeat(5,1fr);gap:5px} .fold {padding:5px;min-height:48px} .fold strong {font-size:11px} .fold span {font-size:10px} }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><div class="eyebrow">Ichilov 3 · GE video experiments</div><h1>Training monitor</h1><p>Live, read-only progress from PanEcho and EchoPrime adaptation.</p></div>
+    <div id="connection" class="pill">Connecting…</div>
+  </header>
+
+  <section class="card section" aria-labelledby="panechoTitle" style="margin-top:0;margin-bottom:18px">
+    <div class="headrow"><div><div class="eyebrow">Current experiment</div><h2 id="panechoTitle" style="margin:5px 0">PanEcho · one R–R cycle</h2><p>Self-supervised adaptation on 919 GE cines, evaluated on patient-held-out folds.</p></div><div class="pill" id="panechoState">Loading…</div></div>
+    <div class="grid" style="margin-top:18px">
+      <div class="card"><div class="label">Trained folds</div><div class="value" id="panechoTrained">—</div><div class="bar"><div class="fill" id="panechoTrainBar"></div></div></div>
+      <div class="card"><div class="label">Encoded folds</div><div class="value" id="panechoEncoded">—</div><div class="bar"><div class="fill" id="panechoEncodeBar"></div></div></div>
+      <div class="card"><div class="label">Current stage</div><div class="value" id="panechoJob" style="font-size:20px;overflow-wrap:anywhere">—</div><div class="sub" id="panechoStep">Waiting for update</div></div>
+      <div class="card"><div class="label">GPU</div><div class="value" id="panechoGpu">—</div><div class="sub" id="panechoGpuDetail">Reading NVIDIA status…</div></div>
+    </div>
+    <div class="content">
+      <div class="card"><div class="headrow"><div><h2>PanEcho training loss</h2><p>One point per saved checkpoint</p></div><select id="panechoSelect" aria-label="Choose PanEcho fold"></select></div><div class="chartwrap"><canvas id="panechoChart" aria-label="PanEcho training loss chart"></canvas></div><div class="mini"><div><span class="label">Step</span><b id="panechoStepValue">—</b></div><div><span class="label">Latest loss</span><b id="panechoLossValue">—</b></div><div><span class="label">Training time</span><b id="panechoTimeValue">—</b></div></div><div class="note">Loss measures the self-supervised task; prediction performance is shown after all folds are evaluated.</div></div>
+      <div class="card"><h2>PanEcho fold progress</h2><p>Three repeats × five patient-held-out folds. Tap a fold to inspect its loss.</p><div id="panechoFolds" class="folds"></div><div class="statusline" id="panechoFoldNote"></div></div>
+    </div>
+    <div class="card section"><h2>PanEcho held-out prediction</h2><p>GE-only: 298 GLS visits and 182 next-visit transitions. Frozen and adapted encoders use identical folds.</p><div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Model</th><th>AUROC</th><th>Average precision</th><th>Top 20% precision</th><th>Mid-GLS r</th></tr></thead><tbody id="panechoMetrics"></tbody></table></div><div class="note">Results appear only after the evaluation finishes.</div></div>
+  </section>
+
+  <h2>Earlier EchoPrime experiment</h2>
+
+  <div class="grid">
+    <div class="card"><div class="label">Shared all-view</div><div class="value" id="sharedCount">—</div><div class="sub">fold models complete</div><div class="bar"><div class="fill" id="sharedBar"></div></div></div>
+    <div class="card"><div class="label">View-specific</div><div class="value" id="specificCount">—</div><div class="sub">2-ch · 3-ch · 4-ch</div><div class="bar"><div class="fill" id="specificBar"></div></div></div>
+    <div class="card"><div class="label">GPU</div><div class="value" id="gpuLoad">—</div><div class="sub" id="gpuDetail">Reading NVIDIA status…</div></div>
+    <div class="card"><div class="label">Current job</div><div class="value" id="currentJob" style="font-size:20px;overflow-wrap:anywhere">—</div><div class="sub" id="jobStatus">Waiting for update</div></div>
+  </div>
+
+  <div class="content">
+    <section class="card">
+      <div class="headrow"><div><h2>Training loss</h2><p>Raw checkpoint values and a smoothed trend</p></div><select id="modelSelect" aria-label="Choose training model"></select></div>
+      <div class="chartwrap"><canvas id="lossChart" aria-label="Training loss chart"></canvas></div>
+      <div class="mini"><div><span class="label">Step</span><b id="stepValue">—</b></div><div><span class="label">Latest loss</span><b id="lossValue">—</b></div><div><span class="label">Training time</span><b id="timeValue">—</b></div></div>
+      <div class="note">Loss is the self-supervised training objective. Lower loss alone does not prove better next-visit prediction.</div>
+    </section>
+    <section class="card">
+      <h2>Fold progress</h2><p>Select a view to inspect its 3 × 5 patient-held-out folds.</p>
+      <select id="viewSelect" aria-label="Choose view" style="margin-top:13px;width:100%"><option value="all">Shared all-view</option><option value="A2C">2-ch (A2C)</option><option value="A3C">3-ch (A3C)</option><option value="A4C">4-ch (A4C)</option></select>
+      <div id="folds" class="folds"></div>
+      <div class="statusline" id="foldNote"></div>
+    </section>
+  </div>
+
+  <section class="card section">
+    <h2>Held-out prediction</h2>
+    <p>Same 182 transitions and patient splits. Video rows use 25% late fusion with strain and clinical features.</p>
+    <div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Model</th><th>AUROC</th><th>Average precision</th><th>Precision at top 20%</th><th>Same-visit GLS r</th></tr></thead><tbody id="metricsBody"></tbody></table></div>
+    <div class="note">“Current” uses this visit’s video; “history” also uses the change from an earlier visit. A dash means evaluation is still pending.</div>
+  </section>
+  <p class="statusline" id="lastUpdate"></p>
+</main>
+<script>
+  const $ = id => document.getElementById(id);
+  let panData=null,panKey=null,panFollow=true,panPoints=[];
+  function panJobLabel(stage) {
+    const m=/^(train|encode)_r(\d+)_f(\d+)$/.exec(stage||'');
+    if(m)return `${m[1]==='train'?'Training':'Encoding'} · repeat ${Number(m[2])+1} · fold ${Number(m[3])+1}`;
+    if(stage==='evaluate')return 'Held-out evaluation';
+    return (stage||'Waiting').replaceAll('_',' ');
+  }
+  function panRow(label, values, gls) {
+    const tr=document.createElement('tr');
+    [label,fmt(values?.auroc),fmt(values?.ap),fmt(values?.ppv_top20),fmt(gls)].forEach((v,i)=>{const td=document.createElement('td');td.textContent=v;if(i)td.className='num';tr.append(td);});return tr;
+  }
+  function panMetrics() {
+    const metrics=panData.metrics?.future||[],gls=panData.metrics?.gls;
+    const find=(model,mode,arm)=>metrics.find(x=>x.model===model&&x.mode===mode&&x.arm===arm);
+    const r=gls?.adapted?.pearson_r;
+    const frozenR=gls?.paired?.pearson_r?.reference;
+    $('panechoMetrics').replaceChildren(
+      panRow('Frozen PanEcho · current + strain/clinical',find('frozen','current','late25'),frozenR),
+      panRow('Adapted PanEcho · current + strain/clinical',find('adapted','current','late25'),r),
+      panRow('Frozen PanEcho · history + strain/clinical',find('frozen','history','late25'),frozenR),
+      panRow('Adapted PanEcho · history + strain/clinical',find('adapted','history','late25'),r));
+  }
+  function panChart() {
+    const c=$('panechoChart'),ctx=c.getContext('2d'),r=c.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+    c.width=Math.round(r.width*dpr);c.height=Math.round(r.height*dpr);ctx.scale(dpr,dpr);
+    const w=r.width,h=r.height,l=47,rt=14,t=16,b=31,pw=w-l-rt,ph=h-t-b;
+    ctx.fillStyle='#101d2c';ctx.fillRect(0,0,w,h);
+    if(!panPoints.length){ctx.fillStyle='#9fb2c5';ctx.font='14px system-ui';ctx.fillText('No loss checkpoints yet',l+20,h/2);return;}
+    const maxX=Math.max(...panPoints.map(p=>p.total||p.step),1),maxY=Math.max(1,...panPoints.map(p=>p.loss))*1.05;
+    ctx.font='11px system-ui';ctx.fillStyle='#91a8bb';ctx.strokeStyle='#294055';ctx.lineWidth=1;
+    for(let i=0;i<=4;i++){const y=t+ph*i/4;ctx.beginPath();ctx.moveTo(l,y);ctx.lineTo(l+pw,y);ctx.stroke();ctx.fillText((maxY*(1-i/4)).toFixed(1),7,y+4);}
+    for(let i=0;i<=4;i++){const x=l+pw*i/4;ctx.fillText(Math.round(maxX*i/4).toString(),x-10,h-8);}
+    const x=p=>l+pw*p.step/maxX,y=v=>t+ph*(1-v/maxY);
+    ctx.beginPath();panPoints.forEach((p,i)=>i?ctx.lineTo(x(p),y(p.loss)):ctx.moveTo(x(p),y(p.loss)));ctx.strokeStyle='rgba(110,168,255,.48)';ctx.lineWidth=1.3;ctx.stroke();
+    const smooth=panPoints.map((_,i)=>{let a=Math.max(0,i-3),z=Math.min(panPoints.length,i+4);return panPoints.slice(a,z).reduce((s,p)=>s+p.loss,0)/(z-a);});
+    ctx.beginPath();panPoints.forEach((p,i)=>i?ctx.lineTo(x(p),y(smooth[i])):ctx.moveTo(x(p),y(smooth[i])));ctx.strokeStyle='#4ee0bc';ctx.lineWidth=3;ctx.stroke();
+  }
+  async function panLoadLoss() {
+    if(!panKey)return;
+    const key=panKey;
+    try{const r=await fetch(`/api/panecho/loss?key=${encodeURIComponent(key)}`,{cache:'no-store'});if(!r.ok)throw Error(r.status);const v=await r.json();if(key!==panKey)return;panPoints=v.points;}catch{panPoints=[];}
+    panChart();const p=panPoints.at(-1),m=panData?.models.find(x=>x.key===key);
+    $('panechoStepValue').textContent=p?`${p.step.toLocaleString()} / ${p.total.toLocaleString()}`:'—';
+    $('panechoLossValue').textContent=p?fmt(p.loss):'—';
+    $('panechoTimeValue').textContent=m?.minutes?`${m.minutes} min`:p?`${Math.round(p.seconds/60)} min`:'—';
+  }
+  async function panRefresh() {
+    try{
+      const r=await fetch('/api/panecho/status',{cache:'no-store'});if(!r.ok)throw Error(r.status);panData=await r.json();
+      $('panechoState').textContent=panData.complete?'Evaluation complete':panData.runner==='error'?'Needs attention':'● Live · 10s refresh';
+      $('panechoState').className='pill'+(panData.runner==='error'?'':' live');
+      $('panechoTrained').textContent=`${panData.progress.trained} / 15`;$('panechoEncoded').textContent=`${panData.progress.encoded} / 15`;
+      $('panechoTrainBar').style.width=`${panData.progress.trained/15*100}%`;$('panechoEncodeBar').style.width=`${panData.progress.encoded/15*100}%`;
+      $('panechoJob').textContent=panJobLabel(panData.runner);
+      const active=panData.models.find(x=>x.key===panData.active_key);
+      $('panechoStep').textContent=active?.step&&!active.train_complete?`${active.step} / ${active.total} training steps`:panData.evaluation_complete?'Held-out evaluation complete':'Training, encoding, then evaluation';
+      $('panechoGpu').textContent=panData.gpu?`${panData.gpu.utilization}%`:'—';
+      $('panechoGpuDetail').textContent=panData.gpu?`${(panData.gpu.memory_used_mb/1024).toFixed(1)} / ${(panData.gpu.memory_total_mb/1024).toFixed(1)} GB VRAM`:'GPU reading unavailable';
+      const candidates=panData.models.filter(x=>x.step||x.train_complete),sel=$('panechoSelect');
+      sel.replaceChildren(...candidates.map(m=>{const o=document.createElement('option');o.value=m.key;o.textContent=`Repeat ${m.repeat} · fold ${m.fold}${m.train_complete?' ✓':''}`;return o;}));
+      if(panFollow&&candidates.some(x=>x.key===panData.active_key))panKey=panData.active_key;
+      else if(!candidates.some(x=>x.key===panKey))panKey=candidates.at(-1)?.key||null;
+      if(panKey)sel.value=panKey;
+      const wrap=$('panechoFolds');wrap.replaceChildren(...panData.models.map(m=>{
+        const b=document.createElement('button');b.className=`fold ${m.encoded?'done':''} ${panData.active_key===m.key?'active':''} ${panKey===m.key?'selected':''}`;
+        const strong=document.createElement('strong');strong.textContent=`R${m.repeat} · F${m.fold}`;
+        const detail=document.createElement('span');detail.textContent=m.encoded?'Encoded':m.train_complete?'Training done':m.step?`${Math.round(m.step/m.total*100)}%`:'Waiting';
+        b.append(strong,detail);b.onclick=()=>{panFollow=false;panKey=m.key;$('panechoSelect').value=m.key;panRefresh();};return b;}));
+      $('panechoFoldNote').textContent=`${panData.progress.trained}/15 trained · ${panData.progress.encoded}/15 encoded. Green = encoding complete; amber = active.`;
+      panMetrics();await panLoadLoss();
+    }catch(e){$('panechoState').textContent='Disconnected · retrying';$('panechoState').className='pill';}
+  }
+  $('panechoSelect').onchange=e=>{panKey=e.target.value;panFollow=false;panLoadLoss();};
+  window.addEventListener('resize',panChart);
+  panRefresh();setInterval(panRefresh,10000);
+  let data = null, selectedKey = null, followActive = true, followView = true, chartPoints = [];
+  function fmt(x, digits=3) { return x !== null && x !== undefined && x !== '' && Number.isFinite(Number(x)) ? Number(x).toFixed(digits) : '—'; }
+  function jobLabel(key) {
+    if (!key) return '—';
+    const train=/^train_(all|A2C|A3C|A4C)_r(\d+)_f(\d+)$/.exec(key);
+    if (train) return `${train[1] === 'all' ? 'Shared' : train[1]} · R${Number(train[2])+1} F${Number(train[3])+1}`;
+    const encode=/^encode_(all|specific)_r(\d+)_f(\d+)$/.exec(key);
+    if (encode) return `Encoding ${encode[1]} · R${Number(encode[2])+1} F${Number(encode[3])+1}`;
+    return key.replaceAll('_',' ');
+  }
+  function modelLabel(m) { return `${m.view === 'all' ? 'Shared' : m.view} · repeat ${m.repeat} · fold ${m.fold}${m.complete ? ' ✓' : ''}`; }
+  function renderOptions() {
+    const sel = $('modelSelect');
+    const candidates = data.models.filter(m => m.step || m.complete);
+    const previous = sel.value;
+    sel.replaceChildren(...candidates.map(m => {const o=document.createElement('option');o.value=m.key;o.textContent=modelLabel(m);return o;}));
+    const active = data.active_key && candidates.find(m => m.key === data.active_key);
+    if (followActive && active) selectedKey = active.key;
+    else if (candidates.find(m => m.key === selectedKey)) { /* retain manual choice */ }
+    else selectedKey = candidates.at(-1)?.key || null;
+    if (selectedKey) sel.value = selectedKey;
+    if (!selectedKey && previous) sel.value = previous;
+  }
+  function renderFolds() {
+    const view = $('viewSelect').value, entries = data.models.filter(m => m.view === view), wrap = $('folds');
+    wrap.replaceChildren(...entries.map(m => {
+      const b=document.createElement('button');b.className=`fold ${m.complete?'done':''} ${data.active_key===m.key?'active':''} ${selectedKey===m.key?'selected':''}`;
+      b.innerHTML=`<strong>R${m.repeat} · F${m.fold}</strong><span>${m.complete?'Complete':m.step?Math.round(100*m.step/m.total)+'%':'Waiting'}</span>`;
+      b.onclick=()=>{followActive=false;selectedKey=m.key;$('modelSelect').value=m.key;renderFolds();loadLoss();}; return b;
+    }));
+    $('foldNote').textContent=`${entries.filter(m=>m.complete).length}/15 complete for ${view === 'all' ? 'shared all-view' : view}. Green = finished; amber = active.`;
+  }
+  function row(label, values, gls, highlight=false) {
+    const tr=document.createElement('tr');if(highlight)tr.className='highlight';
+    [label,fmt(values?.auc),fmt(values?.ap),fmt(values?.ppv_top20),fmt(gls)].forEach((v,i)=>{const td=document.createElement('td');td.textContent=v;if(i)td.className='num';tr.append(td);});
+    return tr;
+  }
+  function renderMetrics() {
+    const m=data.metrics, frozen=m.frozen||{}, h=m.history||{};
+    const rows=[
+      row('Strain + clinical baseline',m.reference,null,true),
+      row('Frozen EchoPrime · current',frozen.echoprime,m.frozen_gls?.echoprime),
+      row('Frozen PanEcho · history',h.panecho?{auc:h.panecho.history_auc,ap:h.panecho.history_ap}:null,m.frozen_gls?.panecho),
+      row('Frozen EchoFM · history',h.echofm?{auc:h.echofm.history_auc,ap:h.echofm.history_ap}:null,m.frozen_gls?.echofm),
+      row('Adapted EchoPrime · shared current',m.all?.current,m.all?.gls?.pearson_r),
+      row('Adapted EchoPrime · shared history',m.all?.history,m.all?.gls?.pearson_r),
+      row('Adapted EchoPrime · view-specific current',m.specific?.current,m.specific?.gls?.pearson_r),
+      row('Adapted EchoPrime · view-specific history',m.specific?.history,m.specific?.gls?.pearson_r),
+    ];
+    $('metricsBody').replaceChildren(...rows);
+  }
+  function drawChart() {
+    const c=$('lossChart'), ctx=c.getContext('2d'), r=c.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+    c.width=Math.round(r.width*dpr);c.height=Math.round(r.height*dpr);ctx.scale(dpr,dpr);
+    const w=r.width,h=r.height,l=47,rt=14,t=16,b=31,pw=w-l-rt,ph=h-t-b;
+    ctx.fillStyle='#101d2c';ctx.fillRect(0,0,w,h);
+    if (!chartPoints.length) {ctx.fillStyle='#9fb2c5';ctx.font='14px system-ui';ctx.fillText('No loss checkpoints yet',l+20,h/2);return;}
+    const maxX=Math.max(...chartPoints.map(p=>p.total||p.step),1), maxY=Math.max(2.3,...chartPoints.map(p=>p.loss))*1.05;
+    ctx.font='11px system-ui';ctx.fillStyle='#91a8bb';ctx.strokeStyle='#294055';ctx.lineWidth=1;
+    for(let i=0;i<=4;i++){const y=t+ph*i/4;ctx.beginPath();ctx.moveTo(l,y);ctx.lineTo(l+pw,y);ctx.stroke();ctx.fillText((maxY*(1-i/4)).toFixed(1),7,y+4);}
+    for(let i=0;i<=4;i++){const x=l+pw*i/4;ctx.fillText(Math.round(maxX*i/4).toString(),x-10,h-8);}
+    const x=p=>l+pw*p.step/maxX,y=v=>t+ph*(1-v/maxY);
+    ctx.beginPath();chartPoints.forEach((p,i)=>i?ctx.lineTo(x(p),y(p.loss)):ctx.moveTo(x(p),y(p.loss)));ctx.strokeStyle='rgba(110,168,255,.48)';ctx.lineWidth=1.3;ctx.stroke();
+    const smooth=chartPoints.map((_,i)=>{let a=Math.max(0,i-3),z=Math.min(chartPoints.length,i+4);return chartPoints.slice(a,z).reduce((s,p)=>s+p.loss,0)/(z-a);});
+    ctx.beginPath();chartPoints.forEach((p,i)=>i?ctx.lineTo(x(p),y(smooth[i])):ctx.moveTo(x(p),y(smooth[i])));ctx.strokeStyle='#4ee0bc';ctx.lineWidth=3;ctx.stroke();
+    const last=chartPoints.at(-1);ctx.fillStyle='#4ee0bc';ctx.beginPath();ctx.arc(x(last),y(smooth.at(-1)),4,0,Math.PI*2);ctx.fill();
+  }
+  async function loadLoss() {
+    if (!selectedKey) return;
+    const key=selectedKey;
+    try {const r=await fetch(`/api/loss?key=${encodeURIComponent(key)}`,{cache:'no-store'});const payload=await r.json();if(key!==selectedKey)return;chartPoints=payload.points;drawChart();}
+    catch {chartPoints=[];drawChart();}
+    const m=data.models.find(x=>x.key===key), p=chartPoints.at(-1);
+    $('stepValue').textContent=p?`${p.step.toLocaleString()} / ${p.total.toLocaleString()}`:'—';
+    $('lossValue').textContent=p?fmt(p.loss):'—';
+    $('timeValue').textContent=m?.minutes ? `${m.minutes} min` : p?`${Math.round(p.seconds/60)} min`:'—';
+  }
+  async function refresh() {
+    try {
+      const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)throw Error(r.status);data=await r.json();
+      $('connection').textContent='● Connected · 10s refresh';$('connection').className='pill live';
+      $('sharedCount').textContent=`${data.progress.shared} / 15`;$('specificCount').textContent=`${data.progress.specific} / 45`;
+      $('sharedBar').style.width=`${100*data.progress.shared/15}%`;$('specificBar').style.width=`${100*data.progress.specific/45}%`;
+      $('gpuLoad').textContent=data.gpu?`${data.gpu.utilization}%`:'—';
+      $('gpuDetail').textContent=data.gpu?`${(data.gpu.memory_used_mb/1024).toFixed(1)} / ${(data.gpu.memory_total_mb/1024).toFixed(1)} GB VRAM · ${data.gpu.temperature_c}°C`:'GPU reading unavailable';
+      $('currentJob').textContent=jobLabel(data.runner.job);$('jobStatus').textContent=data.complete?'All training and evaluation complete':data.runner.status;
+      $('lastUpdate').textContent=`Updated ${new Date(data.updated_at).toLocaleString()} · Read-only · No patient-level data served`;
+      renderOptions();
+      if (followView && data.active_key) $('viewSelect').value=data.active_key.split('_')[0];
+      renderFolds();renderMetrics();await loadLoss();
+    } catch(e) {$('connection').textContent='Disconnected · retrying';$('connection').className='pill';}
+  }
+  $('modelSelect').onchange=e=>{selectedKey=e.target.value;followActive=false;renderFolds();loadLoss();};
+  $('viewSelect').onchange=()=>{followView=false;renderFolds();};
+  window.addEventListener('resize',drawChart);
+  refresh();setInterval(refresh,10000);
+</script>
+</body>
+</html>

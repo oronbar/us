@@ -1,0 +1,113 @@
+{
+  "all_vendors": {
+    "raw_prediction": {
+      "visits": 398,
+      "patients": 103,
+      "mae": 1.4590422689734992,
+      "pearson_r": 0.7637766026411302,
+      "mean_signed_error": -0.006966971296760881
+    },
+    "all_vendor_prediction": {
+      "visits": 398,
+      "patients": 103,
+      "mae": 1.4631450064578433,
+      "pearson_r": 0.7616881238787342,
+      "mean_signed_error": 0.009618511908221179
+    },
+    "ge_only_prediction": {
+      "visits": 398,
+      "patients": 103,
+      "mae": 1.482804582707614,
+      "pearson_r": 0.7610603307329469,
+      "mean_signed_error": -0.05659859922670893
+    }
+  },
+  "ge_healthcare": {
+    "raw_prediction": {
+      "visits": 230,
+      "patients": 79,
+      "mae": 1.2995917560743246,
+      "pearson_r": 0.8165638205451577,
+      "mean_signed_error": 0.0396517420229705
+    },
+    "all_vendor_prediction": {
+      "visits": 230,
+      "patients": 79,
+      "mae": 1.2967160301864555,
+      "pearson_r": 0.8158172571877558,
+      "mean_signed_error": 0.05548814789054859,
+      "paired_patient_bootstrap_delta_ci95": {
+        "mae": [
+          -0.014543799277428382,
+          0.00774842596397094
+        ],
+        "pearson_r": [
+          -0.003635283455203583,
+          0.0024786501567245467
+        ]
+      }
+    },
+    "ge_only_prediction": {
+      "visits": 230,
+      "patients": 79,
+      "mae": 1.3017208328831231,
+      "pearson_r": 0.8139187931014198,
+      "mean_signed_error": 0.02009462565230061,
+      "paired_patient_bootstrap_delta_ci95": {
+        "mae": [
+          -0.036117800590276826,
+          0.04174281458858784
+        ],
+        "pearson_r": [
+          -0.005077484340330482,
+          0.0007207838441231687
+        ]
+      }
+    }
+  },
+  "ge_healthcare_gt_8_24": {
+    "raw_prediction": {
+      "visits": 227,
+      "patients": 79,
+      "mae": 1.2516816345080406,
+      "pearson_r": 0.8047465964960457,
+      "mean_signed_error": 0.018616537354591175
+    },
+    "all_vendor_prediction": {
+      "visits": 227,
+      "patients": 79,
+      "mae": 1.249092647770883,
+      "pearson_r": 0.8048140914929184,
+      "mean_signed_error": 0.03498798637321831
+    },
+    "ge_only_prediction": {
+      "visits": 227,
+      "patients": 79,
+      "mae": 1.2598170694505753,
+      "pearson_r": 0.8030039922204621,
+      "mean_signed_error": 0.0017477945397437952
+    }
+  },
+  "calibrator_ranges": {
+    "all_vendor": {
+      "slope": [
+        0.9316996025580313,
+        1.185701121059894
+      ],
+      "intercept": [
+        -3.056055005716342,
+        1.220390862979995
+      ]
+    },
+    "ge_only": {
+      "slope": [
+        1.013575983856228,
+        1.2170752233908022
+      ],
+      "intercept": [
+        -3.855039085414134,
+        -0.18968979820015974
+      ]
+    }
+  }
+}

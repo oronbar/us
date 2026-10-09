@@ -1,0 +1,45 @@
+{
+  "training_scope": "GE Healthcare only; frozen EchoPrime embeddings; patient-held-out Ridge probe",
+  "all_ge": {
+    "all_vendor_prediction": {
+      "visits": 230,
+      "patients": 79,
+      "mae": 1.2995917560743246,
+      "pearson_r": 0.8165638205451577,
+      "mean_signed_error": 0.0396517420229705
+    },
+    "ge_only_prediction": {
+      "visits": 230,
+      "patients": 79,
+      "mae": 1.3060335600479789,
+      "pearson_r": 0.8097195196787619,
+      "mean_signed_error": 0.011314628269361464
+    }
+  },
+  "gt_8_24": {
+    "all_vendor_prediction": {
+      "visits": 227,
+      "patients": 79,
+      "mae": 1.2516816345080406,
+      "pearson_r": 0.8047465964960457,
+      "mean_signed_error": 0.018616537354591175
+    },
+    "ge_only_prediction": {
+      "visits": 227,
+      "patients": 79,
+      "mae": 1.2625387369903696,
+      "pearson_r": 0.7949236714796722,
+      "mean_signed_error": -0.00917340198802524
+    }
+  },
+  "ge_only_minus_all_vendor_patient_bootstrap_ci95": {
+    "mae": [
+      -0.06021913649173487,
+      0.06992369687558495
+    ],
+    "pearson_r": [
+      -0.02470400307893248,
+      0.011313991865865293
+    ]
+  }
+}

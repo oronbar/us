@@ -1,0 +1,13 @@
+{
+  "model": "frozen EchoJEPA V-JEPA2 ViT-L VideoMix22M MIMIC pt220 c55",
+  "embeddings": "D:\\DS\\ichilov3_echojepa_20261004\\echojepa_visits.npz",
+  "embeddings_sha256": "1df4476d84726c87600c647c26617fb9a3310196a1e0e0bc944c5b294593ac17",
+  "prediction_goal": "next-visit deterioration; same-visit Mid-GLS probe",
+  "cohort": 182,
+  "patients": 86,
+  "events": 38,
+  "outer_folds": "retained 3x5 patient-held-out",
+  "inner_folds": 3,
+  "video_features": "current and current plus previous-visit delta",
+  "fusion": "prespecified 25% video, 75% strain-clinical held-out scores"
+}
